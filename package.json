@@ -1,0 +1,22 @@
+{
+  "name": "founder-signal",
+  "private": true,
+  "packageManager": "pnpm@11.5.2",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @fs/db generate",
+    "db:migrate": "pnpm --filter @fs/db migrate",
+    "dev:api": "pnpm --filter @fs/api dev",
+    "dev:mobile": "pnpm --filter @fs/mobile start",
+    "bundle": "pnpm --filter @fs/api bundle && pnpm --filter @fs/workers bundle"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.5"
+  }
+}

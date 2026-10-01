@@ -1,0 +1,20 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Packages allowed to run install scripts (pnpm blocks them by default).
+allowBuilds:
+  esbuild: true
+
+# pnpm holds back very new releases by default; these were accepted when the repo was set up.
+minimumReleaseAgeExclude:
+  - '@aws-sdk/client-cloudwatch-logs@3.1143.0'
+  - '@aws-sdk/client-secrets-manager@3.1143.0'
+  - '@aws-sdk/client-sesv2@3.1143.0'
+  - '@vitest/mocker@5.0.3'
+  - '@vitest/spy@5.0.3'
+  - hono@4.13.12
+  - vitest@5.0.3
+
+# Expo/Metro works most reliably with a flat node_modules in a monorepo.
+nodeLinker: hoisted

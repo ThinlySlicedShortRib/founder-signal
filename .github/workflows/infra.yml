@@ -1,0 +1,61 @@
+name: infra
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [infra/bootstrap, infra/envs/dev, infra/envs/prod]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.15"
+      - name: fmt
+        run: terraform fmt -check -recursive infra
+      - name: init
+        working-directory: ${{ matrix.root }}
+        run: terraform init -backend=false -input=false
+      - name: validate
+        working-directory: ${{ matrix.root }}
+        run: terraform validate -no-color
+
+  # Enable once infra/bootstrap has been applied with enable_github_oidc = true.
+  # plan-dev:
+  #   needs: validate
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     id-token: write
+  #     contents: read
+  #   defaults:
+  #     run:
+  #       working-directory: infra/envs/dev
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         role-to-assume: ${{ secrets.AWS_DEV_DEPLOY_ROLE_ARN }}
+  #         aws-region: us-east-1
+  #     - uses: hashicorp/setup-terraform@v3
+  #       with:
+  #         terraform_version: "~1.15"
+  #     - run: |
+  #         cat > backend.hcl <<HCL
+  #         bucket = "${{ secrets.AWS_DEV_STATE_BUCKET }}"
+  #         key    = "founder-signal/dev.tfstate"
+  #         region = "us-east-1"
+  #         HCL
+  #     - run: terraform init -backend-config=backend.hcl -input=false
+  #     - run: >
+  #         terraform plan -input=false
+  #         -var release=${{ github.sha }}
+  #         -var artifacts_bucket=${{ secrets.AWS_DEV_ARTIFACTS_BUCKET }}
+  #         -var email_from=${{ vars.EMAIL_FROM }}

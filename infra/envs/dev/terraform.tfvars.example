@@ -1,0 +1,6 @@
+release          = "<git-sha>"
+artifacts_bucket = "founder-signal-dev-artifacts-<account-id>"
+email_from       = "letters@example.com"
+# alert_email      = "you@example.com"
+# api_domain_name     = "api.example.com"
+# api_certificate_arn = "arn:aws:acm:us-east-1:<account-id>:certificate/<id>"

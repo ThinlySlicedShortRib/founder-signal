@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: fs
+      POSTGRES_PASSWORD: fs
+      POSTGRES_DB: founder_signal
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fs -d founder_signal"]
+      interval: 2s
+      retries: 30
+volumes:
+  pgdata:

@@ -1,0 +1,20 @@
+{
+  "name": "@fs/ingest",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fs/core": "workspace:*",
+    "@fs/schema": "workspace:*",
+    "@mozilla/readability": "^0.6.0",
+    "fast-xml-parser": "^5.2.5",
+    "linkedom": "^0.18.12",
+    "undici": "^7.16.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "~6.0.3", "vitest": "^5.0.3" }
+}

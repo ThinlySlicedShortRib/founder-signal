@@ -37,3 +37,23 @@ output "mobile_log_group" {
 output "alerts_topic_arn" {
   value = module.observability.alerts_topic_arn
 }
+
+output "worker_function_names" {
+  value = { for k, w in module.worker : k => w.function_name }
+}
+
+output "queue_urls" {
+  value = module.queues.urls
+}
+
+output "content_bucket" {
+  value = module.content.bucket_name
+}
+
+output "youtube_api_key_secret_arn" {
+  value = module.secrets.youtube_api_key_secret_arn
+}
+
+output "supadata_api_key_secret_arn" {
+  value = module.secrets.supadata_api_key_secret_arn
+}

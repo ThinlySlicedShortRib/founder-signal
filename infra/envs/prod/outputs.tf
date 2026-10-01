@@ -37,3 +37,23 @@ output "mobile_log_group" {
 output "alerts_topic_arn" {
   value = module.stack.alerts_topic_arn
 }
+
+output "worker_function_names" {
+  value = module.stack.worker_function_names
+}
+
+output "queue_urls" {
+  value = module.stack.queue_urls
+}
+
+output "content_bucket" {
+  value = module.stack.content_bucket
+}
+
+output "youtube_api_key_secret_arn" {
+  value = module.stack.youtube_api_key_secret_arn
+}
+
+output "supadata_api_key_secret_arn" {
+  value = module.stack.supadata_api_key_secret_arn
+}

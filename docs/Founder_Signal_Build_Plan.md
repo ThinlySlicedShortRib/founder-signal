@@ -296,7 +296,7 @@ Estimates assume 2 engineers (1 mobile-leaning, 1 backend-leaning). Solo, and le
 | # | Milestone | Weeks | Deliverables | Exit check |
 |---|---|---|---|---|
 | **M0** | Foundations | 1–2 | AWS Org and accounts, Terraform bootstrap, network, RDS, API Lambda, CI/CD, monorepo, Expo shell with tabs, Better Auth sign-in end to end, `/client-logs` → CloudWatch. **Long-lead items started:** SES production access, Apple Developer and APNs key, Firebase project, links domain, Anthropic API organization and spend limits, Bedrock embedding model access, Supadata account. | Sign in on a device against `dev`; `terraform plan` clean in CI |
-| **M1** | Ingestion | 3–5 | Source add API, RSS/URL/YouTube adapters, canonicalization and dedupe, extraction to blocks, rights rules (personal-use defaults), Supadata transcript provider, enrich (tags, embeddings), publisher table and feed autodetection | Adding 3 real sources yields items with correct rights flags; a paywalled URL produces a metadata-only item |
+| **M1** ✅ | Ingestion | 3–5 | Source add API, RSS/URL/YouTube adapters, canonicalization and dedupe, extraction to blocks, rights rules (personal-use defaults), Supadata transcript provider, enrich (tags, embeddings), publisher table and feed autodetection | Adding 3 real sources yields items with correct rights flags; a paywalled URL produces a metadata-only item |
 | **M2** | Profile and onboarding | 4–6 | Onboarding flow, preferences/schedule API, goals and topics, `next_run_at` computation | A new user finishes onboarding in under 3 minutes |
 | **M3** | Letter engine and discovery | 6–9 | Sweep, occurrence idempotency, collect/rank/generate/verify/lock, pick signals, test letter, eval set v1, **web-search discovery and publisher promotion (§6.3a)** | **Acceptance #1** (test letter with no operator work); duplicate-sweep chaos test yields exactly 1 letter |
 | **M4** | Reader and feedback | 8–11 | Today, Reader (blocks/digest/video), section summaries, reviews with reasons, save, events, outbox sync, feedback history | **Acceptance #4** (offline review found after sync); **#5** (no invented text) |
@@ -340,6 +340,9 @@ Prod adds Multi-AZ RDS (about 2× the DB cost) and swaps fck-nat for the managed
 | Transcripts | Supadata (free tier), with TranscriptAPI.com or Apify as backup (§6.3) |
 | Models | Sonnet 5.5 for writing, summaries, verification and search; Haiku 4.5 for enrichment and parsing |
 | Discovery | Open web search with a growing publisher catalog and an exploration slot; no fixed publisher list (§6.3a). This replaces spec §6's "bounded set of editorially approved discovery sources" |
+| Ingestion networking (M1) | Fetch and extract workers run **in the VPC with DB access** rather than outside it (§2). Dedupe (`ON CONFLICT` on canonical URL), source status and per-host politeness all need the DB, and routing them through extra queues isn't worth it at personal volume: fck-nat has no per-GB charge, and the managed NAT's $0.045/GB is cents here. Revisit if fetch volume grows. |
+| Embeddings (M1) | Titan Text Embeddings v2 at 1024 dimensions (normalized), behind an `Embedder` interface so Cohere Embed can replace it |
+| Short posts (M1) | Extraction only treats a page as a stub below 20 words; complete 30-word posts exist (found in the live exit check). Teasers are caught by paywall signals instead |
 
 **Open**
 

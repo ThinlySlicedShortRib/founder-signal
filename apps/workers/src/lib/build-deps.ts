@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { anthropicEnrichmentBatches, bedrockTitanEmbedder } from "@fs/ai";
+import { anthropicEnrichmentBatches, bedrockTitanEmbedder, ENRICHMENT_MODEL, ENRICHMENT_PROMPT_VERSION, type EnrichmentBatches } from "@fs/ai";
 import { type Env, resolveAnthropicApiKey, resolveDatabaseConfig, resolveSupadataApiKey, resolveYouTubeApiKey } from "@fs/config";
 import { createDb } from "@fs/db";
 import { createSafeFetcher, supadataProvider, youTubeDataClient } from "@fs/ingest";
@@ -18,10 +18,7 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
 
   const enricher =
     env.ENRICHMENT === "anthropic"
-      ? {
-          batches: anthropicEnrichmentBatches(new Anthropic({ apiKey: await resolveAnthropicApiKey(env) })),
-          embedder: bedrockTitanEmbedder({ modelId: env.EMBEDDING_MODEL_ID }),
-        }
+      ? { batches: lazyEnrichmentBatches(env), embedder: bedrockTitanEmbedder({ modelId: env.EMBEDDING_MODEL_ID }) }
       : null;
 
   return {
@@ -33,5 +30,24 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
     transcripts: supadataKey ? supadataProvider({ apiKey: supadataKey }) : null,
     enricher,
     close: () => pool.end(),
+  };
+}
+
+/**
+ * Resolves the Anthropic key on first use, so a key that hasn't been set yet
+ * only fails enrichment (retried later), not every worker's cold start.
+ */
+function lazyEnrichmentBatches(env: Env): EnrichmentBatches {
+  let inner: Promise<EnrichmentBatches> | undefined;
+  const get = () => {
+    inner ??= resolveAnthropicApiKey(env).then((apiKey) => anthropicEnrichmentBatches(new Anthropic({ apiKey })));
+    inner.catch(() => (inner = undefined));
+    return inner;
+  };
+  return {
+    model: ENRICHMENT_MODEL,
+    promptVersion: ENRICHMENT_PROMPT_VERSION,
+    submit: async (inputs) => (await get()).submit(inputs),
+    results: async (id) => (await get()).results(id),
   };
 }

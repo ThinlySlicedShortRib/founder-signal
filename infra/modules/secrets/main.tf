@@ -22,3 +22,18 @@ resource "aws_secretsmanager_secret" "anthropic" {
   description             = "Anthropic API key (set manually)"
   recovery_window_in_days = var.recovery_window_days
 }
+
+# Optional integrations; values set by hand like the Anthropic key. Until a
+# value is set, the app treats the integration as off (YouTube links are
+# refused; videos are saved without a transcript).
+resource "aws_secretsmanager_secret" "youtube" {
+  name                    = "founder-signal/${var.env}/youtube-api-key"
+  description             = "YouTube Data API v3 key (set manually)"
+  recovery_window_in_days = var.recovery_window_days
+}
+
+resource "aws_secretsmanager_secret" "supadata" {
+  name                    = "founder-signal/${var.env}/supadata-api-key"
+  description             = "Supadata transcript API key (set manually)"
+  recovery_window_in_days = var.recovery_window_days
+}

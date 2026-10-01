@@ -89,3 +89,26 @@ variable "api_certificate_arn" {
   type    = string
   default = null
 }
+
+variable "enrichment_enabled" {
+  description = "Enrich items with Claude (Message Batches) and Bedrock embeddings. Needs the Anthropic key set and Bedrock model access."
+  type        = bool
+  default     = true
+}
+
+variable "embedding_model_id" {
+  type    = string
+  default = "amazon.titan-embed-text-v2:0"
+}
+
+variable "sweep_enabled" {
+  description = "Turn the 5-minute sweep off to pause all background work."
+  type        = bool
+  default     = true
+}
+
+variable "content_force_destroy" {
+  description = "Allow `terraform destroy` to delete the content bucket with objects in it (dev only)."
+  type        = bool
+  default     = false
+}

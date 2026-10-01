@@ -50,6 +50,8 @@ locals {
     module.database.master_secret_arn,
     module.secrets.better_auth_secret_arn,
     module.secrets.anthropic_api_key_secret_arn,
+    # The API validates YouTube links when sources are added.
+    module.secrets.youtube_api_key_secret_arn,
   ]
 
   # Env contract shared by the api and migrate functions (the app reads exactly these).
@@ -67,6 +69,7 @@ locals {
     EMAIL_FROM                   = var.email_from
     CLIENT_LOG_SINK              = "cloudwatch"
     CLIENT_LOG_GROUP             = module.observability.mobile_log_group_name
+    YOUTUBE_API_KEY_SECRET_ARN   = module.secrets.youtube_api_key_secret_arn
   }
 }
 
@@ -127,4 +130,186 @@ module "migrate" {
   environment      = merge(local.app_env, { BETTER_AUTH_URL = module.api.public_url })
 
   log_retention_days = var.log_retention_days
+}
+
+# --- Ingestion pipeline (M1): sweep → fetch-source → extract → enrich -----------
+# All workers run in the VPC because they use the database. Fetch traffic goes
+# through the NAT; at personal volume that costs nothing on fck-nat (no
+# per-GB charge) and little on a managed gateway. See build plan §2.
+
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+module "content" {
+  source        = "../content_storage"
+  bucket_name   = "${local.name}-content-${data.aws_caller_identity.current.account_id}"
+  force_destroy = var.content_force_destroy
+}
+
+locals {
+  # Queue consumers. visibility = 6x the function timeout (AWS guidance for SQS triggers).
+  workers = {
+    sweep = {
+      description = "Every 5 minutes: claims due sources and queues enrichment"
+      timeout     = 60
+      memory      = 256
+      queue       = null
+      batch_size  = null
+      concurrency = null
+      sends_to    = ["fetch-source", "enrich"]
+      secrets     = [module.database.master_secret_arn]
+      content     = []
+      bedrock     = false
+    }
+    fetch-source = {
+      description = "Lists a source's entries and queues new items for extraction"
+      timeout     = 60
+      memory      = 512
+      queue       = "fetch-source"
+      batch_size  = 1
+      concurrency = 5
+      sends_to    = ["extract"]
+      secrets     = [module.database.master_secret_arn, module.secrets.youtube_api_key_secret_arn]
+      content     = []
+      bedrock     = false
+    }
+    extract = {
+      description = "Fetches and extracts one item, applies the rights gate"
+      timeout     = 120
+      memory      = 1024
+      queue       = "extract"
+      batch_size  = 5
+      concurrency = 5
+      # Re-queues itself to wait out per-host politeness.
+      sends_to = ["extract"]
+      secrets = [
+        module.database.master_secret_arn,
+        module.secrets.youtube_api_key_secret_arn,
+        module.secrets.supadata_api_key_secret_arn,
+      ]
+      content = ["s3:PutObject"]
+      bedrock = false
+    }
+    enrich = {
+      description = "Submits and applies Message Batches; computes embeddings"
+      timeout     = 300
+      memory      = 512
+      queue       = "enrich"
+      batch_size  = 1
+      concurrency = 2
+      sends_to    = []
+      secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
+      content     = ["s3:GetObject"]
+      bedrock     = true
+    }
+  }
+
+  queued_workers = { for k, w in local.workers : k => w if w.queue != null }
+
+  embedding_model_arn = "arn:aws:bedrock:${data.aws_region.current.region}::foundation-model/${var.embedding_model_id}"
+
+  worker_env = merge(local.app_env, {
+    QUEUE_URL_FETCH_SOURCE      = module.queues.urls["fetch-source"]
+    QUEUE_URL_EXTRACT           = module.queues.urls["extract"]
+    QUEUE_URL_ENRICH            = module.queues.urls["enrich"]
+    CONTENT_BUCKET              = module.content.bucket_name
+    SUPADATA_API_KEY_SECRET_ARN = module.secrets.supadata_api_key_secret_arn
+    ENRICHMENT                  = var.enrichment_enabled ? "anthropic" : "none"
+    EMBEDDING_MODEL_ID          = var.embedding_model_id
+  })
+}
+
+module "queues" {
+  source           = "../queues"
+  name             = local.name
+  alerts_topic_arn = module.observability.alerts_topic_arn
+  queues = {
+    for k, w in local.queued_workers : w.queue => { visibility_timeout_seconds = 6 * w.timeout }
+  }
+}
+
+data "aws_iam_policy_document" "worker" {
+  for_each = local.workers
+
+  statement {
+    sid       = "ReadSecrets"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = each.value.secrets
+  }
+
+  dynamic "statement" {
+    for_each = length(each.value.sends_to) > 0 ? [1] : []
+    content {
+      sid       = "SendToQueues"
+      actions   = ["sqs:SendMessage"]
+      resources = [for q in each.value.sends_to : module.queues.arns[q]]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.queue != null ? [1] : []
+    content {
+      sid       = "ConsumeOwnQueue"
+      actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"]
+      resources = [module.queues.arns[each.value.queue]]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(each.value.content) > 0 ? [1] : []
+    content {
+      sid       = "ContentBucket"
+      actions   = each.value.content
+      resources = ["${module.content.bucket_arn}/items/*"]
+    }
+  }
+
+  # Only the embedding model (build plan §9).
+  dynamic "statement" {
+    for_each = each.value.bedrock ? [1] : []
+    content {
+      sid       = "EmbedWithBedrock"
+      actions   = ["bedrock:InvokeModel"]
+      resources = [local.embedding_model_arn]
+    }
+  }
+}
+
+module "worker" {
+  source   = "../lambda_fn"
+  for_each = local.workers
+
+  name             = "${local.name}-${each.key}"
+  description      = each.value.description
+  artifact_name    = each.key
+  artifacts_bucket = var.artifacts_bucket
+  release          = var.release
+  runtime          = var.lambda_runtime
+  timeout_seconds  = each.value.timeout
+  memory_mb        = each.value.memory
+  vpc_config       = local.vpc_config
+  policy_json      = data.aws_iam_policy_document.worker[each.key].json
+  environment      = local.worker_env
+
+  log_retention_days = var.log_retention_days
+}
+
+resource "aws_lambda_event_source_mapping" "worker" {
+  for_each = local.queued_workers
+
+  event_source_arn        = module.queues.arns[each.value.queue]
+  function_name           = module.worker[each.key].function_arn
+  batch_size              = each.value.batch_size
+  function_response_types = ["ReportBatchItemFailures"]
+
+  scaling_config {
+    maximum_concurrency = each.value.concurrency
+  }
+}
+
+module "sweep_schedule" {
+  source              = "../scheduler"
+  name                = "${local.name}-sweep"
+  target_function_arn = module.worker["sweep"].function_arn
+  enabled             = var.sweep_enabled
 }

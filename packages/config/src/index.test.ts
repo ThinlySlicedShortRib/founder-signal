@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readEnv, resolveAnthropicApiKey, resolveBetterAuthSecret, resolveDatabaseConfig } from "./index.ts";
+import {
+  readEnv,
+  resolveAnthropicApiKey,
+  resolveBetterAuthSecret,
+  resolveDatabaseConfig,
+  resolveSupadataApiKey,
+  resolveYouTubeApiKey,
+} from "./index.ts";
 
 describe("readEnv", () => {
   it("applies defaults", () => {
@@ -35,5 +42,12 @@ describe("secrets", () => {
 
   it("names the missing variable", async () => {
     await expect(resolveAnthropicApiKey(readEnv({}))).rejects.toThrow(/ANTHROPIC_API_KEY/);
+  });
+});
+
+describe("optional integrations", () => {
+  it("are null when not configured", async () => {
+    expect(await resolveYouTubeApiKey(readEnv({}))).toBeNull();
+    expect(await resolveSupadataApiKey(readEnv({ SUPADATA_API_KEY: "sd" }))).toBe("sd");
   });
 });

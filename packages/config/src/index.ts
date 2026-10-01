@@ -115,11 +115,22 @@ export function resolveBetterAuthSecret(env: Env): Promise<string> {
   return fromEnvOrSecret(env.BETTER_AUTH_SECRET, env.BETTER_AUTH_SECRET_ARN, "BETTER_AUTH_SECRET");
 }
 
-/** Like fromEnvOrSecret, but null when neither is set (for optional integrations). */
+/**
+ * Like fromEnvOrSecret, but null when neither is set, or when the secret
+ * exists but nobody has set its value yet (Terraform creates these empty).
+ */
 async function optionalFromEnvOrSecret(value: string | undefined, arn: string | undefined) {
   if (value) return value;
-  if (arn) return getSecret(arn);
-  return null;
+  if (!arn) return null;
+  try {
+    return await getSecret(arn);
+  } catch (err) {
+    if ((err as { name?: string }).name === "ResourceNotFoundException") {
+      console.warn(JSON.stringify({ level: "warn", message: `Secret ${arn} has no value; integration disabled` }));
+      return null;
+    }
+    throw err;
+  }
 }
 
 export function resolveYouTubeApiKey(env: Env): Promise<string | null> {

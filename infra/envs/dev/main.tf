@@ -16,6 +16,8 @@ module "stack" {
   db_skip_final_snapshot   = true
   db_enable_proxy          = false
 
+  content_force_destroy = true
+
   secret_recovery_window_days = 0
   log_retention_days          = 14
 

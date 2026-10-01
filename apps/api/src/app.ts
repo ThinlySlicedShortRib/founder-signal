@@ -2,27 +2,21 @@ import { clientLogBatchSchema } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { createMiddleware } from "hono/factory";
 import type { Auth } from "./auth.ts";
 import type { ClientLogSink } from "./lib/client-log-sink.ts";
 import { apiError } from "./lib/errors.ts";
 import { createRateLimiter } from "./lib/rate-limit.ts";
+import { type AppEnv, requireUser } from "./lib/session.ts";
+import { type SourceRouteDeps, sourceRoutes } from "./routes/sources.ts";
 
-type SessionData = NonNullable<Awaited<ReturnType<Auth["api"]["getSession"]>>>;
+export type { AppEnv };
 
-export type AppEnv = {
-  Variables: {
-    user: SessionData["user"] | null;
-    session: SessionData["session"] | null;
-  };
-};
-
-export interface AppDeps {
+export interface AppDeps extends SourceRouteDeps {
   auth: Auth;
   clientLogs: ClientLogSink;
 }
 
-export function createApp({ auth, clientLogs }: AppDeps) {
+export function createApp({ auth, clientLogs, db, detect }: AppDeps) {
   const app = new Hono<AppEnv>();
 
   app.onError((err, c) => {
@@ -42,18 +36,13 @@ export function createApp({ auth, clientLogs }: AppDeps) {
     await next();
   });
 
-  const requireUser = createMiddleware<AppEnv & { Variables: { user: SessionData["user"] } }>(async (c, next) => {
-    if (!c.get("user")) return apiError(c, 401, "UNAUTHORIZED", "Sign in required");
-    await next();
-  });
-
   const clientLogLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
   const routes = app
     .get("/health", (c) => c.json({ ok: true as const }))
 
     .get("/me", requireUser, (c) => {
-      const user = c.get("user");
+      const user = c.get("user")!;
       return c.json({ user: { id: user.id, email: user.email, name: user.name } });
     })
 
@@ -78,7 +67,9 @@ export function createApp({ auth, clientLogs }: AppDeps) {
         await clientLogs.write(entries.map((entry) => ({ ...entry, userId: user?.id ?? null, receivedAt })));
         return c.json({ accepted: entries.length }, 202);
       },
-    );
+    )
+
+    .route("/me/sources", sourceRoutes({ db, detect }));
 
   return routes;
 }

@@ -1,4 +1,5 @@
 import { createDb } from "@fs/db";
+import type { FetchResult, YouTubeClient } from "@fs/ingest";
 import { createApp } from "../src/app.ts";
 import { createAuth } from "../src/auth.ts";
 import type { ClientLogRecord, ClientLogSink } from "../src/lib/client-log-sink.ts";
@@ -6,7 +7,13 @@ import type { EmailMessage, EmailSender } from "../src/lib/email.ts";
 
 export const BASE_URL = "http://localhost:8787";
 
-/** Builds the real app against the test database, with in-memory email and log sinks. */
+export interface FakePage {
+  status?: number;
+  contentType?: string;
+  body: string;
+}
+
+/** Builds the real app against the test database, with in-memory email and log sinks and a fake web. */
 export function createTestApp() {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
@@ -24,9 +31,35 @@ export function createTestApp() {
     email,
     allowDevOrigins: true,
   });
-  const app = createApp({ auth, clientLogs });
+  // URL → page. Tests add pages; anything else is a 404.
+  const web = new Map<string, FakePage>();
+  const fetch = async (url: string): Promise<FetchResult> => {
+    const page = web.get(url);
+    return {
+      status: page ? (page.status ?? 200) : 404,
+      url,
+      contentType: page?.contentType ?? "text/html; charset=utf-8",
+      headers: new Headers(),
+      body: page?.body ?? "",
+    };
+  };
+  const youtube: YouTubeClient = {
+    async resolveChannel(ref) {
+      return ref.kind === "handle" && ref.handle === "@founderstalk"
+        ? { channelId: "UCfounders", title: "Founders Talk", uploadsPlaylistId: "UUfounders" }
+        : null;
+    },
+    async listUploads() {
+      return [];
+    },
+    async getVideo() {
+      return null;
+    },
+  };
 
-  return { app, pool, sentEmails, clientLogRecords };
+  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube } });
+
+  return { app, db, pool, sentEmails, clientLogRecords, web };
 }
 
 /** Signs in through the real email-OTP flow and returns the session cookie header. */

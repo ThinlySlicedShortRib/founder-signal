@@ -62,7 +62,8 @@ export async function detectSource(raw: string, deps: DetectDeps): Promise<Detec
 
   let page;
   try {
-    page = await deps.fetch(input.toString(), { accept: "application/rss+xml,application/atom+xml,text/html;q=0.9,*/*;q=0.5" });
+    // Fetch the canonical form: no tracking parameters pinged on the user's behalf.
+    page = await deps.fetch(canonicalizeUrl(input), { accept: "application/rss+xml,application/atom+xml,text/html;q=0.9,*/*;q=0.5" });
   } catch (err) {
     const message = err instanceof FetchError && err.reason === "blocked_address" ? "That address isn't allowed" : "We couldn't reach that link";
     throw new SourceDetectionError("unreachable", message);

@@ -32,6 +32,26 @@ const envSchema = z.object({
 
   CLIENT_LOG_SINK: z.enum(["console", "cloudwatch"]).default("console"),
   CLIENT_LOG_GROUP: z.string().default("/founder-signal/local/mobile"),
+
+  // Ingestion (M1). YouTube and transcripts are optional: without keys,
+  // YouTube links are refused and videos are saved without a transcript.
+  YOUTUBE_API_KEY: z.string().optional(),
+  YOUTUBE_API_KEY_SECRET_ARN: z.string().optional(),
+  SUPADATA_API_KEY: z.string().optional(),
+  SUPADATA_API_KEY_SECRET_ARN: z.string().optional(),
+
+  // Extracted blocks and transcripts: an S3 bucket on AWS, a directory locally.
+  CONTENT_BUCKET: z.string().optional(),
+  CONTENT_DIR: z.string().default(".data/content"),
+
+  // SQS queue URLs on AWS. Unset locally, where the dev runner uses in-memory queues.
+  QUEUE_URL_FETCH_SOURCE: z.string().optional(),
+  QUEUE_URL_EXTRACT: z.string().optional(),
+  QUEUE_URL_ENRICH: z.string().optional(),
+
+  // Enrichment: "anthropic" (Message Batches + Bedrock embeddings) or "none" to skip it locally.
+  ENRICHMENT: z.enum(["anthropic", "none"]).default("none"),
+  EMBEDDING_MODEL_ID: z.string().default("amazon.titan-embed-text-v2:0"),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -93,6 +113,21 @@ async function fromEnvOrSecret(value: string | undefined, arn: string | undefine
 
 export function resolveBetterAuthSecret(env: Env): Promise<string> {
   return fromEnvOrSecret(env.BETTER_AUTH_SECRET, env.BETTER_AUTH_SECRET_ARN, "BETTER_AUTH_SECRET");
+}
+
+/** Like fromEnvOrSecret, but null when neither is set (for optional integrations). */
+async function optionalFromEnvOrSecret(value: string | undefined, arn: string | undefined) {
+  if (value) return value;
+  if (arn) return getSecret(arn);
+  return null;
+}
+
+export function resolveYouTubeApiKey(env: Env): Promise<string | null> {
+  return optionalFromEnvOrSecret(env.YOUTUBE_API_KEY, env.YOUTUBE_API_KEY_SECRET_ARN);
+}
+
+export function resolveSupadataApiKey(env: Env): Promise<string | null> {
+  return optionalFromEnvOrSecret(env.SUPADATA_API_KEY, env.SUPADATA_API_KEY_SECRET_ARN);
 }
 
 export function resolveAnthropicApiKey(env: Env): Promise<string> {

@@ -20,12 +20,12 @@ export interface DetectedSource {
 export type DetectionFailure = "invalid_url" | "unreachable" | "not_supported" | "youtube_unavailable";
 
 export class SourceDetectionError extends Error {
-  constructor(
-    readonly reason: DetectionFailure,
-    message: string,
-  ) {
+  readonly reason: DetectionFailure;
+
+  constructor(reason: DetectionFailure, message: string) {
     super(message);
     this.name = "SourceDetectionError";
+    this.reason = reason;
   }
 }
 
@@ -67,6 +67,19 @@ export async function detectSource(raw: string, deps: DetectDeps): Promise<Detec
   } catch (err) {
     const message = err instanceof FetchError && err.reason === "blocked_address" ? "That address isn't allowed" : "We couldn't reach that link";
     throw new SourceDetectionError("unreachable", message);
+  }
+  // Paywalls and bot walls: keep the link; extraction records it as metadata-only (access_denied).
+  if (page.status === 401 || page.status === 402 || page.status === 403) {
+    const key = publisherKeyForUrl(page.url);
+    return {
+      type: "url",
+      canonicalKey: canonicalizeUrl(page.url),
+      inputUrl: raw.trim(),
+      fetchUrl: page.url,
+      title: page.url,
+      creator: null,
+      publisher: { key, name: key, feedUrl: null },
+    };
   }
   if (page.status >= 400) throw new SourceDetectionError("unreachable", `That link returned an error (${page.status})`);
 

@@ -60,13 +60,12 @@ export function isBlockedAddress(address: string): boolean {
 export type FetchFailure = "blocked_address" | "timeout" | "too_large" | "too_many_redirects" | "bad_url" | "network";
 
 export class FetchError extends Error {
-  constructor(
-    readonly reason: FetchFailure,
-    message: string,
-    options?: ErrorOptions,
-  ) {
+  readonly reason: FetchFailure;
+
+  constructor(reason: FetchFailure, message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "FetchError";
+    this.reason = reason;
   }
 }
 

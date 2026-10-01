@@ -152,6 +152,12 @@ describe("extractArticle", () => {
     expect(article.sections[1]!.endBlock).toBe(article.blocks.length);
   });
 
+  it("keeps headings whose class looks like page chrome", () => {
+    const html = articleHtml().replace("<h2>Pricing the first package</h2>", '<h2 class="header-anchor-post">Pricing the first package</h2>');
+    const extracted = extractArticle(html, "https://example.substack.com/p/x");
+    expect(extracted.sections.map((s) => s.title)).toContain("Pricing the first package");
+  });
+
   it("is deterministic", () => {
     const again = extractArticle(articleHtml(), "https://example.com/posts/productized-service");
     expect(again.contentHash).toBe(article.contentHash);
@@ -165,9 +171,11 @@ describe("extractArticle", () => {
     expect(paywalled.metadata.title).toBe("The subscriber-only playbook");
   });
 
-  it("marks stubs too short", () => {
+  it("marks empty pages too short but keeps genuinely short posts", () => {
     const stub = extractArticle("<html><head><title>Hi</title></head><body><p>Just a stub.</p></body></html>", "https://e.com/x");
     expect(stub.unavailableReason).toBe("too_short");
+    const short = extractArticle(articleHtml({ paragraphs: 2 }), "https://e.com/y");
+    expect(short.unavailableReason).toBeNull();
   });
 });
 
@@ -259,6 +267,7 @@ describe("detectSource", () => {
     "https://example.com/posts/productized-service": { contentType: "text/html", body: articleHtml() },
     "https://nofeed.example.com/": { contentType: "text/html", body: "<html><head><title>No feed</title></head><body></body></html>" },
     "https://example.com/gone": { status: 404, contentType: "text/html", body: "" },
+    "https://news.example.com/premium": { status: 403, contentType: "text/html", body: "Subscribe" },
   };
   const fetch: Fetcher = async (url) => {
     const page = pages[url];
@@ -316,6 +325,14 @@ describe("detectSource", () => {
     expect(await detectSource("https://youtu.be/vid1", { fetch, youtube })).toMatchObject({
       type: "url",
       canonicalKey: "https://www.youtube.com/watch?v=vid1",
+    });
+  });
+
+  it("keeps a paywalled or bot-walled link as a single page", async () => {
+    expect(await detectSource("https://news.example.com/premium", { fetch, youtube })).toMatchObject({
+      type: "url",
+      canonicalKey: "https://news.example.com/premium",
+      publisher: { key: "news.example.com" },
     });
   });
 

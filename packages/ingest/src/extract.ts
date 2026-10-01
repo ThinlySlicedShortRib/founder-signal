@@ -30,8 +30,12 @@ export interface ExtractedArticle {
   unavailableReason: UnavailableReason | null;
 }
 
-/** Below this, a page is a teaser, a stub or a landing page, not an article. */
-export const MIN_ARTICLE_WORDS = 150;
+/**
+ * Below this, extraction found essentially nothing. Kept low on purpose: some
+ * writers publish complete 30-word posts. Teasers are caught by the paywall
+ * signals instead.
+ */
+export const MIN_ARTICLE_WORDS = 20;
 /** A page that signals a paywall and has less text than this is treated as truncated. */
 const PAYWALL_TRUNCATION_WORDS = 600;
 
@@ -51,6 +55,13 @@ export function extractArticle(html: string, pageUrl: string): ExtractedArticle 
   const { document } = parseHTML(html);
   const metadata = readMetadata(document, pageUrl);
   const paywallSignal = hasPaywallSignal(document);
+
+  // Readability drops headings whose class or id looks like page chrome (e.g. Substack's
+  // "header-anchor-post"), which loses every section title. Headings carry no chrome we need.
+  for (const h of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    h.removeAttribute("class");
+    h.removeAttribute("id");
+  }
 
   // Readability mutates the document, so metadata and paywall checks go first.
   let blocks: Block[] = [];

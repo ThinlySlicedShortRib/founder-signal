@@ -14,7 +14,7 @@ export interface FakePage {
 }
 
 /** Builds the real app against the test database, with in-memory email and log sinks and a fake web. */
-export function createTestApp() {
+export function createTestApp({ corsOrigins }: { corsOrigins?: string[] } = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
   const { db, pool } = createDb({ connectionString, ssl: false });
@@ -57,7 +57,7 @@ export function createTestApp() {
     },
   };
 
-  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube } });
+  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, corsOrigins });
 
   return { app, db, pool, sentEmails, clientLogRecords, web };
 }

@@ -158,7 +158,7 @@ export function createSafeFetcher({
           continue;
         }
 
-        const body = await readCapped(res.body, maxBytes);
+        const body = await readCapped(res.body as ReadableStream<Uint8Array> | null, maxBytes);
         const contentType = res.headers.get("content-type") ?? "";
         return {
           status: res.status,

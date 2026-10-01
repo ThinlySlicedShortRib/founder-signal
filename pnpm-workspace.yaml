@@ -5,6 +5,8 @@ packages:
 # Packages allowed to run install scripts (pnpm blocks them by default).
 allowBuilds:
   esbuild: true
+  # Only a fallback for its prebuilt native binary (eslint-config-expo's import resolver).
+  unrs-resolver: false
 
 # pnpm holds back very new releases by default; these were accepted when the repo was set up.
 minimumReleaseAgeExclude:

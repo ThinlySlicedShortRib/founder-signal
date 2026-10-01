@@ -2,6 +2,7 @@ import { clientLogBatchSchema } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { cors } from "hono/cors";
 import type { Auth } from "./auth.ts";
 import type { ClientLogSink } from "./lib/client-log-sink.ts";
 import { apiError } from "./lib/errors.ts";
@@ -14,10 +15,16 @@ export type { AppEnv };
 export interface AppDeps extends SourceRouteDeps {
   auth: Auth;
   clientLogs: ClientLogSink;
+  /** Browser origins allowed to call the API with cookies (the Expo web dev server). Native apps don't need CORS. */
+  corsOrigins?: string[];
 }
 
-export function createApp({ auth, clientLogs, db, detect }: AppDeps) {
+export function createApp({ auth, clientLogs, db, detect, corsOrigins = [] }: AppDeps) {
   const app = new Hono<AppEnv>();
+
+  if (corsOrigins.length) {
+    app.use("*", cors({ origin: corsOrigins, credentials: true, allowHeaders: ["content-type"], maxAge: 600 }));
+  }
 
   app.onError((err, c) => {
     console.error(JSON.stringify({ level: "error", message: err.message, stack: err.stack, path: c.req.path }));

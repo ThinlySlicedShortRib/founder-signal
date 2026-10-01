@@ -9,6 +9,9 @@ import type { EmailSender } from "./lib/email.ts";
 /** The app's URL scheme (apps/mobile/app.json → expo.scheme). */
 export const APP_SCHEME = "foundersignal";
 
+/** The Expo dev server, when the app runs in a browser during development. */
+export const DEV_WEB_ORIGINS = ["http://localhost:8081"];
+
 export interface CreateAuthOptions {
   db: Db;
   secret: string;
@@ -28,7 +31,7 @@ export function createAuth({ db, secret, baseURL, email, allowDevOrigins }: Crea
     database: drizzleAdapter(db, { provider: "pg", schema }),
     trustedOrigins: [
       `${APP_SCHEME}://`,
-      ...(allowDevOrigins ? ["exp://", "exp://**", "exp://192.168.*.*:*/**"] : []),
+      ...(allowDevOrigins ? ["exp://", "exp://**", "exp://192.168.*.*:*/**", ...DEV_WEB_ORIGINS] : []),
     ],
     session: {
       // Lets most requests skip the session lookup in Postgres (build plan §7).

@@ -2,7 +2,7 @@ import { type Env, resolveBetterAuthSecret, resolveDatabaseConfig, resolveYouTub
 import { createDb } from "@fs/db";
 import { createSafeFetcher, youTubeDataClient } from "@fs/ingest";
 import { createApp } from "./app.ts";
-import { createAuth } from "./auth.ts";
+import { createAuth, DEV_WEB_ORIGINS } from "./auth.ts";
 import { cloudWatchClientLogSink, consoleClientLogSink } from "./lib/client-log-sink.ts";
 import { consoleEmailSender, sesEmailSender } from "./lib/email.ts";
 
@@ -33,5 +33,5 @@ export async function buildApp(env: Env) {
     youtube: youTubeKey ? youTubeDataClient({ apiKey: youTubeKey }) : null,
   };
 
-  return createApp({ auth, clientLogs, db, detect });
+  return createApp({ auth, clientLogs, db, detect, corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS });
 }

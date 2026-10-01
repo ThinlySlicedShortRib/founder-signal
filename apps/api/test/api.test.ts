@@ -96,3 +96,28 @@ describe("client logs", () => {
     expect(statuses[20]).toBe(429);
   });
 });
+
+describe("cors", () => {
+  it("is off unless origins are configured", async () => {
+    const res = await ctx.app.request(`${BASE_URL}/health`, { headers: { origin: "http://localhost:8081" } });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("lets the Expo web dev server call the API with cookies, and nobody else", async () => {
+    const web = createTestApp({ corsOrigins: ["http://localhost:8081"] });
+    try {
+      const preflight = await web.app.request(`${BASE_URL}/me/sources`, {
+        method: "OPTIONS",
+        headers: { origin: "http://localhost:8081", "access-control-request-method": "POST", "access-control-request-headers": "content-type" },
+      });
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get("access-control-allow-origin")).toBe("http://localhost:8081");
+      expect(preflight.headers.get("access-control-allow-credentials")).toBe("true");
+
+      const other = await web.app.request(`${BASE_URL}/health`, { headers: { origin: "https://evil.example" } });
+      expect(other.headers.get("access-control-allow-origin")).toBeNull();
+    } finally {
+      await web.pool.end();
+    }
+  });
+});

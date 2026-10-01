@@ -2,7 +2,9 @@
   "name": "founder-signal",
   "private": true,
   "packageManager": "pnpm@11.5.2",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
@@ -14,7 +16,9 @@
     "db:migrate": "pnpm --filter @fs/db migrate",
     "dev:api": "pnpm --filter @fs/api dev",
     "dev:mobile": "pnpm --filter @fs/mobile start",
-    "bundle": "pnpm --filter @fs/api bundle && pnpm --filter @fs/workers bundle"
+    "bundle": "pnpm --filter @fs/api bundle && pnpm --filter @fs/workers bundle",
+    "dev:workers": "pnpm --filter @fs/workers dev",
+    "ingest": "pnpm --filter @fs/workers ingest"
   },
   "devDependencies": {
     "turbo": "^2.11.5"

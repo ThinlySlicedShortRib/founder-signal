@@ -1,9 +1,9 @@
 import { resolveRights } from "@fs/core";
-import { type Db, loadRightsRules, schema } from "@fs/db";
+import { addUserSource, type Db, loadRightsRules, schema } from "@fs/db";
 import { type DetectDeps, detectSource, SourceDetectionError } from "@fs/ingest";
 import { addSourceInputSchema, type SourceView, updateSourceInputSchema } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
-import { and, count, eq, inArray, sql } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { apiError } from "../lib/errors.ts";
@@ -47,51 +47,7 @@ export function sourceRoutes({ db, detect }: SourceRouteDeps) {
             return apiError(c, 422, code, err.message);
           }
 
-          const sourceId = await db.transaction(async (tx) => {
-            const [pub] = await tx
-              .insert(publisher)
-              .values({
-                key: detected.publisher.key,
-                name: detected.publisher.name,
-                feedUrl: detected.publisher.feedUrl,
-                origin: "user_added",
-              })
-              .onConflictDoUpdate({
-                target: publisher.key,
-                // Keep the name we have; learn the feed if we didn't know it.
-                set: { feedUrl: sql`coalesce(${publisher.feedUrl}, excluded.feed_url)` },
-              })
-              .returning({ id: publisher.id });
-
-            const [src] = await tx
-              .insert(source)
-              .values({
-                canonicalKey: detected.canonicalKey,
-                type: detected.type,
-                publisherId: pub!.id,
-                title: detected.title,
-                creator: detected.creator,
-                inputUrl: detected.inputUrl,
-                fetchUrl: detected.fetchUrl,
-                nextFetchAt: new Date(),
-              })
-              .onConflictDoUpdate({
-                target: source.canonicalKey,
-                // Re-adding a feed that was given up on (too many failures) revives it.
-                set: {
-                  nextFetchAt: sql`case when ${source.type} <> 'url' and ${source.nextFetchAt} is null then now() else ${source.nextFetchAt} end`,
-                  consecutiveFailures: sql`case when ${source.type} <> 'url' and ${source.nextFetchAt} is null then 0 else ${source.consecutiveFailures} end`,
-                },
-              })
-              .returning({ id: source.id });
-
-            await tx
-              .insert(userSource)
-              .values({ userId, sourceId: src!.id, mode })
-              .onConflictDoUpdate({ target: [userSource.userId, userSource.sourceId], set: { mode, blocked: false } });
-
-            return src!.id;
-          });
+          const sourceId = await addUserSource(db, { userId, mode, detected });
 
           const [view] = await loadSourceViews(db, userId, [sourceId]);
           return c.json({ source: view! }, 201);

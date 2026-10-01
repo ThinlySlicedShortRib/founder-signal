@@ -1,0 +1,25 @@
+import type { Db } from "@fs/db";
+import type { Fetcher, TranscriptProvider, YouTubeClient } from "@fs/ingest";
+import type { ContentStore } from "../lib/content-store.ts";
+import type { Queues } from "../lib/queues.ts";
+import type { Enricher } from "./enrich.ts";
+
+/** Everything the pipeline steps touch, injected so tests and the local runner can swap them. */
+export interface PipelineDeps {
+  db: Db;
+  queues: Queues;
+  store: ContentStore;
+  fetch: Fetcher;
+  youtube: YouTubeClient | null;
+  transcripts: TranscriptProvider | null;
+  /** Null disables enrichment (items stay `extracted`). */
+  enricher: Enricher | null;
+  /** Minimum gap between requests to one host; defaults to PER_HOST_INTERVAL_MS. */
+  politenessMs?: number;
+  now?: () => Date;
+  log?: (event: string, data?: Record<string, unknown>) => void;
+}
+
+export function logger(deps: PipelineDeps) {
+  return deps.log ?? ((event, data) => console.log(JSON.stringify({ level: "info", event, ...data })));
+}

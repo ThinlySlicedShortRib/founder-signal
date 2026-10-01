@@ -32,7 +32,7 @@ export function isUsableTranscript(t: Transcript | null): t is Transcript {
   return t.confidence === null || t.confidence >= MIN_TRANSCRIPT_CONFIDENCE;
 }
 
-export function transcriptText(t: Transcript): string {
+export function transcriptText(t: Pick<Transcript, "segments">): string {
   return t.segments.map((s) => s.text).join(" ");
 }
 

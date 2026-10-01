@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: fs
+          POSTGRES_PASSWORD: fs
+          POSTGRES_DB: founder_signal
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fs -d founder_signal"
+          --health-interval 2s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://fs:fs@localhost:5433/founder_signal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Migrations match the schema
+        run: |
+          pnpm db:generate
+          git diff --exit-code -- packages/db/migrations

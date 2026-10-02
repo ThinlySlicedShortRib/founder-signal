@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding 7: agent builds your letter</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;box-sizing:border-box;background:#FBFBFA;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em;margin:0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.muted{color:#5B5F68}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.av{width:26px;height:26px;border-radius:50%;background:#FF5A1F;flex-shrink:0}
+.me .av{display:none}
+.msg{max-width:76%;padding:10px 13px;border-radius:18px;font-size:15px;line-height:1.42}
+.bot .msg{background:#FFFFFF;border:1.5px solid #E2E4E8;border-bottom-left-radius:6px}
+.me .msg{background:#2B4BFF;color:#FFFFFF;border-bottom-right-radius:6px}
+.piece{background:#FFFFFF;border:1.5px solid #E2E4E8;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;max-width:80%}
+.chip{border:1.5px solid #D6D8DE;background:#FFFFFF;border-radius:999px;padding:9px 14px;font:inherit;font-size:14px;color:#121316;cursor:pointer;min-height:44px;white-space:nowrap}
+.chip.on{background:#121316;border-color:#121316;color:#FFFFFF}
+.chip.go{background:#2B4BFF;border-color:#2B4BFF;color:#FFFFFF;font-weight:600}
+.drawer{background:#121316;color:#FFFFFF;border-radius:22px 22px 0 0;padding:14px 18px 10px;display:flex;flex-direction:column;gap:6px}
+.ln{display:flex;gap:8px;align-items:center;font-size:14px}
+.ln .b{width:6px;height:6px;border-radius:50%;background:#FF5A1F;flex-shrink:0}
+.ln.ghost{color:rgba(255,255,255,.35)}
+.ln.ghost .b{background:rgba(255,255,255,.25)}
+.tag{font-size:11px;font-weight:600;color:#4A4E57;background:#EEF0F4;border-radius:5px;padding:2px 6px;align-self:flex-start}
+</style>
+</helmet>
+<div class="ph">
+<div style="display: flex; align-items: center; gap: 10px; padding: 20px 18px 12px; border-bottom: 1px solid #ECEEF1">
+<span class="av" style="width: 32px; height: 32px"></span>
+<div style="display: flex; flex-direction: column"><span style="font-weight: 600">Signal</span><span class="muted" style="font-size: 13px">Building your letter with you</span></div>
+<button style="margin-left: auto; background: none; border: 0; font: inherit; font-size: 14px; color: #4A4E57; min-height: 44px; cursor: pointer" onClick="{{restart}}">Restart</button>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 8px; padding: 14px 14px 10px">
+<sc-if value="{{showCard}}" hint-placeholder-val="{{ false }}">
+<div class="row bot"><span class="av"></span><div class="piece">
+<span class="tag">{{card.from}}</span>
+<span style="font-weight: 700; font-size: 16px; line-height: 1.25">{{card.title}}</span>
+<span class="muted" style="font-size: 13px">{{card.meta}}</span>
+</div></div>
+</sc-if>
+<sc-for list="{{log}}" as="m" hint-placeholder-count="4">
+<div class="{{m.cls}}"><span class="av"></span><div class="msg">{{m.text}}</div></div>
+</sc-for>
+</div>
+
+<div style="padding: 0 14px 10px; display: flex; flex-wrap: wrap; gap: 7px">
+<sc-for list="{{replies}}" as="r" hint-placeholder-count="3"><button class="{{r.cls}}" aria-pressed="{{r.on}}" onClick="{{r.pick}}">{{r.label}}</button></sc-for>
+</div>
+
+<div class="drawer">
+<div style="display: flex; align-items: center; justify-content: space-between"><span class="mono" style="color: rgba(255,255,255,.7)">Your letter · {{when}}</span><span class="mono" style="color: #FF8A5C">{{filled}} of 4</span></div>
+<sc-for list="{{lines}}" as="l" hint-placeholder-count="4"><div class="{{l.cls}}"><span class="b"></span><span>{{l.text}}</span></div></sc-for>
+<div style="height: 10px"></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var FOUND = { YouTube: "48 channels", X: "312 accounts", Substack: "9 newsletters" };
+var TOPICS = ["Pricing", "Hiring", "AI tools", "Indie hacking"];
+var CARDS = [
+  { from: "From a channel you watch", topic: "Pricing", title: "How we priced our first B2B contract", meta: "Video · 18 min" },
+  { from: "New to you", topic: "Hiring", title: "Hiring your first engineer without a recruiter", meta: "Essay · 9 min read" }
+];
+var ROLE_QUIP = {
+  "I run a company": "A founder who follows this many pricing people. Your customers might want to brace themselves.",
+  "I work at a startup": "An operator with a reading list this good. Your founder is lucky.",
+  "Freelance / consulting": "Consulting, with a side of indie hacking. Planning an escape, or just curious?",
+  "Planning to start": "Not started yet, already reading like a founder. That's usually how it begins."
+};
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = this.initial(); }
+  initial() {
+    return { step: 0, linked: {}, role: null, ci: 0, liked: [], time: null,
+      log: [{ who: "bot", text: "Hi, I'm Signal. I read so you don't have to." }, { who: "bot", text: "Want me to peek at who you already follow? I only see the list, never your messages." }] };
+  }
+  push(me, bots, patch) {
+    var log = this.state.log.concat(me ? [{ who: "me", text: me }] : []).concat(bots.map(function (t) { return { who: "bot", text: t }; }));
+    this.setState(Object.assign({ log: log }, patch));
+  }
+  renderVals() {
+    var s = this.state, self = this;
+    var linked = Object.keys(FOUND).filter(function (a) { return s.linked[a]; });
+    var replies = [];
+    if (s.step === 0) {
+      replies = Object.keys(FOUND).filter(function (a) { return !s.linked[a]; }).map(function (a) {
+        return { label: "Connect " + a, cls: "chip", on: false, pick: function () { var m = Object.assign({}, s.linked); m[a] = true; self.push("Connect " + a, ["Got " + FOUND[a] + " from " + a + "."], { linked: m }); } };
+      });
+      replies.push({ label: linked.length ? "That's everything" : "Skip", cls: "chip go", on: false, pick: function () {
+        var said = linked.length ? ["Okay. Mostly pricing and hiring, with a suspicious amount of indie hacking. Bold of you.", "So what do you do all day?"] : ["No problem, I'll learn as we go.", "So what do you do all day?"];
+        self.push(linked.length ? "That's everything" : "Skip", said, { step: 1 });
+      } });
+    } else if (s.step === 1) {
+      replies = Object.keys(ROLE_QUIP).map(function (r) { return { label: r, cls: "chip", on: false, pick: function () { self.push(r, [ROLE_QUIP[r], "Quick taste test. Would you read this?"], { role: r, step: 2 }); } }; });
+    } else if (s.step === 2) {
+      var c = CARDS[s.ci];
+      var after = function (v) { return function () {
+        var liked = v ? s.liked.concat([c.topic]) : s.liked;
+        var last = s.ci + 1 >= CARDS.length;
+        var line = v ? (c.meta.indexOf("Video") === 0 ? "A video person. Noted, and added to your letter." : "Good pick. Added.") : "Fair. I'll go lighter on " + c.topic.toLowerCase() + ".";
+        self.push(v ? "I'd read it" : "Not for me", last ? [line, "Last thing: when should your letter show up?"] : [line, "And this one?"], { liked: liked, ci: last ? s.ci : s.ci + 1, step: last ? 3 : 2 });
+      }; };
+      replies = [{ label: "I'd read it", cls: "chip go", on: false, pick: after(true) }, { label: "Not for me", cls: "chip", on: false, pick: after(false) }];
+    } else if (s.step === 3) {
+      replies = ["Weekdays 7:30", "Sundays 9:00", "Every evening"].map(function (t) { return { label: t, cls: "chip", on: false, pick: function () { self.push(t, [t + " it is. Shorter than your coffee, I promise.", "Your letter is ready below. The real one lands in a few minutes."], { time: t, step: 4 }); } }; });
+    } else {
+      replies = [{ label: "Open Founder Signal", cls: "chip go", on: false, pick: function () {} }];
+    }
+    var lines = [
+      linked.length ? "Sources: " + linked.length + " accounts, filtered" : null,
+      s.role ? "Written for: " + s.role.toLowerCase() : null,
+      s.liked.length ? "Leaning: " + s.liked.join(", ").toLowerCase() : (s.step > 2 ? "Leaning: still learning" : null),
+      s.time ? "Arrives: " + s.time : null
+    ];
+    return {
+      log: s.log.slice().reverse().map(function (m) { return { text: m.text, cls: m.who === "me" ? "row me" : "row bot" }; }),
+      showCard: s.step === 2,
+      card: CARDS[s.ci],
+      replies: replies,
+      restart: function () { self.setState(self.initial()); },
+      when: s.time || "not scheduled yet",
+      filled: lines.filter(Boolean).length,
+      lines: lines.map(function (l, i) { return l ? { cls: "ln", text: l } : { cls: "ln ghost", text: ["Sources", "Written for", "Leaning", "Arrives"][i] + ": …" }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

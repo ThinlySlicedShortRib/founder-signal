@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swipe cards C: source first</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{position:relative;width:390px;height:844px;box-sizing:border-box;background:#FBFBFA;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em;margin:0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.muted{color:#5B5F68}
+.deck{position:relative;height:470px}
+.under{position:absolute;left:16px;right:16px;top:14px;bottom:-12px;border-radius:24px;background:#EEF0F4}
+.card{position:absolute;inset:0;touch-action:none;user-select:none;cursor:grab;box-sizing:border-box}
+.stamp{position:absolute;top:18px;z-index:2;padding:5px 11px;border-radius:10px;border:3px solid;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px;background:rgba(255,255,255,.92)}
+.stamp.yes{left:16px;color:#1F7A4D;border-color:#1F7A4D;transform:rotate(-10deg)}
+.stamp.no{right:16px;color:#B4380F;border-color:#B4380F;transform:rotate(10deg)}
+.round{width:64px;height:64px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.face{position:absolute;inset:0;background:#FFFFFF;border:1.5px solid #E2E4E8;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 14px 34px rgba(18,19,22,.08);overflow:hidden}
+.avatar{width:38px;height:38px;border-radius:50%;background:#121316;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500}
+.tint{border-radius:16px;height:178px;display:flex;align-items:center;justify-content:center;position:relative}
+.t0{background:#DCE3FF}.t1{background:#FFE3D6}.t2{background:#E3F1E8}.t3{background:#EFE6FA}.t4{background:#FFF0C7}
+.play{width:54px;height:54px;border-radius:50%;background:rgba(18,19,22,.85);display:flex;align-items:center;justify-content:center}
+.dur{position:absolute;right:10px;bottom:10px;background:rgba(18,19,22,.85);color:#FFFFFF;font-family:'JetBrains Mono',monospace;font-size:11px;border-radius:6px;padding:3px 6px}
+.lede{font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:19px;line-height:1.35;color:#3A3D44;margin:0}
+.why{font-size:14px;color:#C2410C;line-height:1.4}
+</style>
+</helmet>
+<div class="ph">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 26px 20px 22px; gap: 14px; min-height: 0">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span class="mono">Before your first letter</span><span class="mono">{{counter}}</span></div>
+<h2 class="disp" style="font-size: 24px; line-height: 1.12; font-weight: 700">Five picks for you. Swipe right if you'd read it.</h2>
+<div class="deck">
+<sc-if value="{{hasNext}}" hint-placeholder-val="{{ true }}"><div class="under"></div></sc-if>
+<div class="card" style="transform: translateX({{dx}}px) rotate({{rot}}deg); transition: {{transition}}" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}">
+<sc-if value="{{likeStamp}}" hint-placeholder-val="{{ false }}"><span class="stamp yes">I'd read it</span></sc-if>
+<sc-if value="{{nopeStamp}}" hint-placeholder-val="{{ false }}"><span class="stamp no">Skip</span></sc-if>
+<div class="face">
+<div style="display: flex; align-items: center; gap: 10px">
+<span class="avatar">{{c.initials}}</span>
+<span style="display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 15px">{{c.source}}</span><span class="muted" style="font-size: 13px">{{c.ago}}</span></span>
+<span class="mono" style="margin-left: auto">{{c.topic}}</span>
+</div>
+<div class="{{c.tintCls}}">
+<sc-if value="{{c.video}}" hint-placeholder-val="{{ false }}"><span class="play"><svg width="22" height="22" viewBox="0 0 24 24" fill="#FFFFFF"><path d="M8 5v14l11-7z"/></svg></span><span class="dur">{{c.length}}</span></sc-if>
+<sc-if value="{{c.article}}" hint-placeholder-val="{{ true }}"><p class="lede" style="padding: 0 22px; text-align: center">&#8220;{{c.quote}}&#8221;</p></sc-if>
+</div>
+<span class="disp" style="font-size: 23px; line-height: 1.15; font-weight: 700">{{c.title}}</span>
+<span class="muted" style="font-size: 14px; line-height: 1.45">{{c.summary}}</span>
+<div style="flex-grow: 1"></div>
+<span class="why">{{c.why}}</span>
+</div>
+</div>
+</div>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; justify-content: center; gap: 30px">
+<button class="round" style="background: #FFFFFF; box-shadow: 0 4px 14px rgba(18,19,22,.10)" aria-label="Skip" onClick="{{nope}}"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#B4380F" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+<button class="round" style="background: #2B4BFF" aria-label="I'd read it" onClick="{{yes}}"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
+</div>
+<span class="muted" style="font-size: 13px; text-align: center">{{hint}}</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var CARDS = [
+  { kind: "Article", video: false, topic: "Pricing", length: "9 min read", title: "How we priced our first B2B contract", why: "Because you're into pricing.", source: "[Publisher]", initials: "PB", ago: "2 days ago", quote: "We asked for three times what felt comfortable. They said yes in a day.", summary: "A founder walks through the first offer, the counter, and what they'd change next time." },
+  { kind: "Video", video: true, topic: "Hiring", length: "18 min", title: "Hiring your first engineer without a recruiter", why: "Because you keep asking about a first hire.", source: "[YouTube channel]", initials: "YT", ago: "last week", quote: "The best first engineer is the one who'd build it even if you didn't pay them. Then you pay them well.", summary: "Where to look, what to test for, and how to close someone who has other offers." },
+  { kind: "Article", video: false, topic: "Open source", length: "12 min read", title: "Building a company on an open-source project", why: "Because you said you've been into open source.", source: "[Newsletter]", initials: "NL", ago: "Monday", quote: "Stars don't pay salaries. The hosted version does.", summary: "How one team turned GitHub stars into paying customers without annoying the community." },
+  { kind: "Video", video: true, topic: "Distribution", length: "7 min", title: "Cold emails that don't read as cold", why: "A wildcard: something new to you.", source: "[Creator on X]", initials: "CX", ago: "3 days ago", quote: "If it could be sent to anyone, it'll be read by no one.", summary: "Twelve real emails, annotated: what got replies and what didn't." },
+  { kind: "Article", video: false, topic: "First customers", length: "6 min read", title: "Our first ten customers, and the eight who said no", why: "Because you're chasing your first ten.", source: "[Blog]", initials: "BL", ago: "yesterday", quote: "Every no told us something the yeses never did.", summary: "What the rejections taught them about who the product was really for." }
+];
+var TINTS = ["#DCE3FF", "#FFE3D6", "#E3F1E8", "#EFE6FA", "#FFF0C7"];
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { i: 0, dx: 0, dragging: false, startX: 0, done: false, liked: 0 }; }
+  swipe(liked) {
+    var self = this;
+    this.setState({ dx: liked ? 520 : -520, dragging: false });
+    setTimeout(function () {
+      var s = self.state;
+      var last = s.i + 1 >= CARDS.length;
+      self.setState({ i: last ? 0 : s.i + 1, dx: 0, liked: s.liked + (liked ? 1 : 0), done: last });
+    }, 220);
+  }
+  renderVals() {
+    var s = this.state, self = this;
+    var c = CARDS[s.i];
+    return {
+      counter: (s.i + 1) + " / " + CARDS.length,
+      hint: s.done ? "That was all five (" + s.liked + " liked). Starting over." : "Drag the card, or use the buttons.",
+      hasNext: s.i + 1 < CARDS.length,
+      c: { kind: c.kind, video: c.video, article: !c.video, topic: c.topic, length: c.length, title: c.title, why: c.why, source: c.source, initials: c.initials, ago: c.ago, quote: c.quote, summary: c.summary, n: "0" + (s.i + 1), tintCls: "tint t" + s.i },
+      dx: s.dx, rot: (s.dx / 18).toFixed(1), transition: s.dragging ? "none" : "transform .22s ease",
+      likeStamp: s.dx > 40, nopeStamp: s.dx < -40,
+      down: function (e) { self.setState({ dragging: true, startX: e.clientX - s.dx }); try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} },
+      move: function (e) { if (self.state.dragging) self.setState({ dx: e.clientX - self.state.startX }); },
+      up: function () { var d = self.state.dx; if (!self.state.dragging) return; if (d > 110) self.swipe(true); else if (d < -110) self.swipe(false); else self.setState({ dx: 0, dragging: false }); },
+      yes: function () { self.swipe(true); }, nope: function () { self.swipe(false); }
+    };
+  }
+}
+</script>
+</body>
+</html>

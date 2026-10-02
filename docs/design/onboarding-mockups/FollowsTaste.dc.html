@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding 9: taste test from your follows</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;box-sizing:border-box;background:#EEF0F4;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em;margin:0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.muted{color:#5B5F68}
+.agent{display:flex;gap:10px;align-items:flex-start}
+.av{width:30px;height:30px;border-radius:50%;background:#FF5A1F;flex-shrink:0}
+.say{background:#FFFFFF;border-radius:16px;border-top-left-radius:6px;padding:11px 14px;font-size:15px;line-height:1.45}
+.acc{border:0;background:#FFFFFF;border-radius:18px;padding:16px;font:inherit;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%;min-height:64px;box-sizing:border-box;color:#121316}
+.acc.on{background:#121316;color:#FFFFFF}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:56px;border-radius:16px;border:0;font:inherit;font-weight:600;font-size:16px;cursor:pointer;width:100%;box-sizing:border-box}
+.pri{background:#2B4BFF;color:#FFFFFF}
+.wht{background:#FFFFFF;color:#121316}
+.round{width:64px;height:64px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.big{background:#FFFFFF;border-radius:26px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 14px 34px rgba(18,19,22,.10);height:330px;box-sizing:border-box}
+.src{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.srcdot{width:22px;height:22px;border-radius:7px;background:#121316;color:#FFFFFF;font-size:11px;display:flex;align-items:center;justify-content:center}
+.score{background:#FFFFFF;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:12px}
+.meter{flex-grow:1;height:8px;background:#EEF0F4;border-radius:999px;overflow:hidden}
+.meter i{display:block;height:100%;background:#2B4BFF}
+.m0{width:4%}.m1{width:50%}.m2{width:100%}
+.chip{border:1.5px solid #D6D8DE;background:#FFFFFF;border-radius:999px;padding:9px 15px;font:inherit;font-size:15px;color:#121316;cursor:pointer;min-height:44px}
+.chip.on{background:#121316;border-color:#121316;color:#FFFFFF}
+</style>
+</helmet>
+<div class="ph">
+
+<sc-if value="{{s0}}" hint-placeholder-val="{{ true }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 48px 22px 26px; gap: 14px">
+<span class="mono">Founder Signal</span>
+<h1 class="disp" style="font-size: 38px; line-height: 1.02; font-weight: 700">Your feeds, minus the noise.</h1>
+<div class="agent"><span class="av"></span><div class="say">Connect what you follow and I'll pull a few recent pieces from it. You tell me which ones were worth it. That's the whole setup.</div></div>
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px">
+<sc-for list="{{accounts}}" as="a" hint-placeholder-count="3">
+<button class="{{a.cls}}" aria-pressed="{{a.on}}" onClick="{{a.pick}}"><span class="srcdot">{{a.short}}</span><span style="font-weight: 600; font-size: 16px">{{a.label}}</span><span style="margin-left: auto; font-size: 14px">{{a.state}}</span></button>
+</sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{start}}">{{startLabel}}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s1}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 26px 20px 26px; gap: 14px">
+<div style="display: flex; justify-content: space-between"><span class="mono">From your feeds</span><span class="mono">{{counter}}</span></div>
+<div class="big">
+<div class="src"><span class="srcdot">{{card.short}}</span><span>{{card.who}}</span><span class="muted" style="font-weight: 500; margin-left: auto">{{card.when}}</span></div>
+<span class="disp" style="font-size: 27px; line-height: 1.12; font-weight: 700">{{card.title}}</span>
+<span class="muted" style="font-size: 15px; line-height: 1.45">{{card.blurb}}</span>
+<div style="flex-grow: 1"></div>
+<span class="mono">{{card.meta}}</span>
+</div>
+<div class="agent"><span class="av"></span><div class="say">{{quip}}</div></div>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; justify-content: center; gap: 28px">
+<button class="round" style="background: #FFFFFF" aria-label="Not worth it" onClick="{{nope}}"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#121316" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+<button class="round" style="background: #2B4BFF" aria-label="Worth it" onClick="{{yes}}"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{s2}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 32px 22px 26px; gap: 12px">
+<span class="mono">Scorecard</span>
+<h2 class="disp" style="font-size: 30px; line-height: 1.05; font-weight: 700">{{scoreTitle}}</h2>
+<sc-for list="{{scores}}" as="sc" hint-placeholder-count="3">
+<div class="score"><span class="srcdot">{{sc.short}}</span><span style="font-weight: 600; width: 76px">{{sc.label}}</span><div class="meter"><i class="{{sc.cls}}"></i></div><span class="mono" style="width: 36px; text-align: right">{{sc.text}}</span></div>
+</sc-for>
+<div class="agent" style="margin-top: 6px"><span class="av"></span><div class="say">{{scoreQuip}} One more thing: what do you do?</div></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{roles}}" as="r" hint-placeholder-count="4"><button class="{{r.cls}}" aria-pressed="{{r.on}}" onClick="{{r.pick}}">{{r.label}}</button></sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{finish}}">Build my letter</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s3}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 32px 22px 26px; gap: 14px">
+<span class="mono">Your letter</span>
+<div class="agent"><span class="av"></span><div class="say">{{doneQuip}}</div></div>
+<div style="background: #FFFFFF; border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+<span class="mono">Weekdays 7:30 · {{forWho}}</span>
+<sc-for list="{{letter}}" as="l" hint-placeholder-count="3"><div style="display: flex; flex-direction: column; gap: 3px; padding-bottom: 8px; border-bottom: 1px solid #EEF0F4"><span class="src"><span class="srcdot">{{l.short}}</span><span>{{l.label}}</span></span><span style="font-weight: 600">{{l.title}}</span></div></sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{restart}}">Looks good (start over)</button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var ACCS = [["YouTube", "YT"], ["X", "X"], ["Substack", "S"]];
+var POOL = [
+  { acc: "YouTube", short: "YT", who: "[A channel you watch]", when: "2 days ago", title: "How we priced our first B2B contract", blurb: "A founder walks through the first offer and what they'd change.", meta: "Video · 18 min", topic: "Pricing" },
+  { acc: "X", short: "X", who: "[Someone you follow]", when: "yesterday", title: "Cold emails that don't read as cold", blurb: "Twelve real emails, annotated: what got replies.", meta: "Thread · 4 min read", topic: "Distribution" },
+  { acc: "Substack", short: "S", who: "[A newsletter you get]", when: "Monday", title: "Running a support inbox with AI agents", blurb: "A small team's setup and where people still step in.", meta: "Newsletter · 11 min read", topic: "AI tools" },
+  { acc: "YouTube", short: "YT", who: "[Another channel]", when: "last week", title: "My 4am morning routine for maximum output", blurb: "Cold showers, three journals and a lot of supplements.", meta: "Video · 26 min", topic: "Productivity" },
+  { acc: "X", short: "X", who: "[Someone you follow]", when: "3 days ago", title: "What pre-seed investors skim for in a deck", blurb: "The three slides they read first, and why.", meta: "Thread · 6 min read", topic: "Fundraising" }
+];
+var ROLES = ["Founder", "Operator", "Consultant", "Planning to start"];
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = this.initial(); }
+  initial() { return { step: 0, linked: { YouTube: true, X: true }, i: 0, votes: [], quip: "First one. Be honest, I can take it.", role: null }; }
+  renderVals() {
+    var s = this.state, self = this;
+    var linked = ACCS.filter(function (a) { return s.linked[a[0]]; }).map(function (a) { return a[0]; });
+    var deck = POOL.filter(function (p) { return linked.indexOf(p.acc) >= 0; });
+    var vote = function (v) { return function () {
+      var c = deck[s.i];
+      var q = v ? (c.acc === "Substack" ? "A newsletter person. Old school, I respect it." : "Worth it, noted. More like this.") : (c.topic === "Productivity" ? "Skipping the 4am routine. Good, me too." : "Not worth it. I'll stop showing you " + c.topic.toLowerCase() + " from them.");
+      var last = s.i + 1 >= deck.length;
+      self.setState({ votes: s.votes.concat([{ acc: c.acc, v: v, c: c }]), quip: q, i: last ? s.i : s.i + 1, step: last ? 2 : 1 });
+    }; };
+    var scores = linked.map(function (a) {
+      var mine = s.votes.filter(function (x) { return x.acc === a; });
+      var kept = mine.filter(function (x) { return x.v; }).length;
+      var ratio = mine.length ? kept / mine.length : 0;
+      return { label: a, short: ACCS.filter(function (x) { return x[0] === a; })[0][1], kept: kept, total: mine.length, ratio: ratio, cls: ratio === 0 ? "m0" : ratio < 1 ? "m1" : "m2", text: kept + "/" + mine.length };
+    });
+    var best = scores.slice().sort(function (a, b) { return b.ratio - a.ratio; })[0];
+    var worst = scores.slice().sort(function (a, b) { return a.ratio - b.ratio; })[0];
+    var kept = s.votes.filter(function (x) { return x.v; });
+    return {
+      s0: s.step === 0, s1: s.step === 1, s2: s.step === 2, s3: s.step === 3,
+      accounts: ACCS.map(function (a) { var on = !!s.linked[a[0]]; return { label: a[0], short: a[1], on: on, cls: on ? "acc on" : "acc", state: on ? "Connected" : "Connect", pick: function () { var m = Object.assign({}, s.linked); m[a[0]] = !m[a[0]]; self.setState({ linked: m }); } }; }),
+      startLabel: linked.length ? "Show me what they posted" : "Connect at least one",
+      start: function () { if (linked.length) self.setState({ step: 1, i: 0, votes: [] }); },
+      card: deck[s.i] || POOL[0],
+      counter: (s.i + 1) + " / " + deck.length,
+      quip: s.quip,
+      yes: vote(true), nope: vote(false),
+      scoreTitle: best && best.ratio > (worst ? worst.ratio : 0) ? best.label + " wins. " + (worst.ratio === 0 ? worst.label + ", we need to talk." : "") : "A tie. You're hard to please.",
+      scores: scores,
+      scoreQuip: scores.length > 1 && best.label === "X" ? "You liked threads more than videos. Readers, not watchers." : "Noted which feeds earn their place.",
+      roles: ROLES.map(function (r) { var on = s.role === r; return { label: r, on: on, cls: on ? "chip on" : "chip", pick: function () { self.setState({ role: r }); } }; }),
+      finish: function () { self.setState({ step: 3 }); },
+      forWho: s.role ? "for a " + s.role.toLowerCase() : "for you",
+      doneQuip: "Here's your first letter: the good stuff from your feeds plus a couple of new finds. " + (s.role === "Founder" ? "Founder edition, with extra pricing." : "It'll get sharper every time you tap."),
+      letter: (kept.length ? kept.map(function (x) { return x.c; }) : deck).slice(0, 2).map(function (c) { return { short: c.short, label: c.who, title: c.title }; }).concat([{ short: "+", label: "New to you", title: "[A new source on " + (kept[0] ? kept[0].c.topic.toLowerCase() : "your topics") + "]" }]),
+      restart: function () { self.setState(self.initial()); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding 10: fill in the blanks</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{position:relative;width:390px;height:844px;box-sizing:border-box;background:#FBFBFA;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em;margin:0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.muted{color:#5B5F68}
+.brief{font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:27px;line-height:1.42;letter-spacing:-0.015em;margin:0}
+.blank{font:inherit;font-weight:700;color:#2B4BFF;background:none;border:0;border-bottom:3px solid #2B4BFF;padding:0 2px;cursor:pointer;line-height:1.2}
+.blank.empty{color:#B4B8C0;border-bottom-color:#D6D8DE}
+.blank.next{color:#E8461A;border-bottom-color:#E8461A}
+.note{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.45;color:#3A2418;background:#FFF4EE;border-radius:14px;padding:11px 13px}
+.av{width:22px;height:22px;border-radius:50%;background:#FF5A1F;flex-shrink:0;margin-top:1px}
+.prev{background:#121316;color:#FFFFFF;border-radius:22px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.it{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid rgba(255,255,255,.12)}
+.it.ghost span{color:rgba(255,255,255,.3)}
+.scrim{position:absolute;inset:0;background:rgba(18,19,22,.38);display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:#FFFFFF;border-radius:24px 24px 0 0;padding:20px 20px 28px;display:flex;flex-direction:column;gap:14px}
+.chip{border:1.5px solid #D6D8DE;background:#FFFFFF;border-radius:999px;padding:9px 15px;font:inherit;font-size:15px;color:#121316;cursor:pointer;min-height:44px}
+.chip.on{background:#121316;border-color:#121316;color:#FFFFFF}
+.btn{display:flex;align-items:center;justify-content:center;min-height:52px;border-radius:14px;border:0;font:inherit;font-weight:600;font-size:16px;cursor:pointer;width:100%;box-sizing:border-box}
+.pri{background:#2B4BFF;color:#FFFFFF}
+.off{background:#E6E8EC;color:#8A8E97;cursor:default}
+</style>
+</helmet>
+<div class="ph">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 40px 24px 26px; gap: 18px; min-height: 0">
+<span class="mono">Fill in the blanks. That's the whole setup.</span>
+<p class="brief">I'm a <button class="{{b.role.cls}}" onClick="{{b.role.open}}">{{b.role.text}}</button> who wants to get better at <button class="{{b.topics.cls}}" onClick="{{b.topics.open}}">{{b.topics.text}}</button>. I already follow people on <button class="{{b.accounts.cls}}" onClick="{{b.accounts.open}}">{{b.accounts.text}}</button>, so start there. Send it <button class="{{b.time.cls}}" onClick="{{b.time.open}}">{{b.time.text}}</button>.</p>
+<div class="note"><span class="av"></span><span>{{note}}</span></div>
+<div style="flex-grow: 1"></div>
+<div class="prev">
+<div style="display: flex; justify-content: space-between"><span class="mono" style="color: rgba(255,255,255,.6)">Which gets you</span><span class="mono" style="color: #FF8A5C">{{when}}</span></div>
+<sc-for list="{{items}}" as="it" hint-placeholder-count="3"><div class="{{it.cls}}"><span class="mono" style="color: rgba(255,255,255,.55)">{{it.topic}}</span><span style="font-weight: 600; font-size: 15px">{{it.title}}</span></div></sc-for>
+</div>
+<button class="{{doneCls}}" onClick="{{finish}}">{{doneLabel}}</button>
+</div>
+
+<sc-if value="{{sheetOpen}}" hint-placeholder-val="{{ false }}">
+<div class="scrim">
+<div class="sheet" role="dialog" aria-label="{{sheetTitle}}">
+<span class="disp" style="font-size: 22px; font-weight: 700">{{sheetTitle}}</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{options}}" as="o" hint-placeholder-count="5"><button class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+</div>
+<sc-if value="{{sheetHint}}" hint-placeholder-val="{{ false }}"><span class="muted" style="font-size: 13px">We read only the list of who you follow, never messages.</span></sc-if>
+<button class="btn pri" onClick="{{closeSheet}}">Done</button>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var OPTS = {
+  role: { title: "I'm a…", multi: false, list: ["founder", "startup operator", "consultant", "founder-to-be", "investor"] },
+  topics: { title: "Get better at…", multi: true, list: ["pricing", "hiring", "fundraising", "distribution", "sales", "AI tools", "bootstrapping"] },
+  accounts: { title: "I follow people on…", multi: true, list: ["YouTube", "X", "Substack"] },
+  time: { title: "Send it…", multi: false, list: ["weekday mornings", "at lunch", "Sunday mornings", "every evening"] }
+};
+var EMPTY = { role: "something", topics: "a few things", accounts: "nowhere yet", time: "whenever" };
+var ORDER = ["role", "topics", "accounts", "time"];
+var FOUND = { YouTube: "48 channels", X: "312 accounts", Substack: "9 newsletters" };
+var ROLE_NOTE = {
+  founder: "A founder. So you read this between investor emails. I'll keep it short.",
+  "startup operator": "An operator. Someone has to actually make things happen.",
+  consultant: "A consultant. I'll find you things worth billing for.",
+  "founder-to-be": "Founder-to-be. Reading first is the right move.",
+  investor: "An investor. I'll show you what founders are reading."
+};
+
+function listText(xs) { return xs.length <= 2 ? xs.join(" and ") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1]; }
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { role: null, topics: [], accounts: [], time: null, sheet: null, note: "Hi. Tap the orange blank to start. I'll fill in your letter as you go." }; }
+  noteFor(key, s) {
+    if (key === "role") return ROLE_NOTE[s.role] || "Mysterious. I like it.";
+    if (key === "topics") return s.topics.length ? (s.topics.indexOf("pricing") >= 0 ? "Pricing! The topic everyone avoids until it's too late." : "Good picks.") + " Now, where do you already read?" : "Nothing? I'll guess from what you follow.";
+    if (key === "accounts") return s.accounts.length ? s.accounts.map(function (a) { return FOUND[a] + " on " + a; }).join(", ") + ". I'll keep the good ones and quietly ignore the rest." : "No accounts. I'll find sources for you.";
+    return (s.time ? s.time.charAt(0).toUpperCase() + s.time.slice(1) : "Whenever") + " it is. Shorter than your coffee, I promise.";
+  }
+  renderVals() {
+    var s = this.state, self = this;
+    var filled = { role: !!s.role, topics: s.topics.length > 0, accounts: s.accounts.length > 0, time: !!s.time };
+    var nextKey = ORDER.filter(function (k) { return !filled[k]; })[0];
+    var text = { role: s.role, topics: s.topics.length ? listText(s.topics) : null, accounts: s.accounts.length ? listText(s.accounts) : null, time: s.time };
+    var b = {};
+    ORDER.forEach(function (k) {
+      b[k] = { text: text[k] || EMPTY[k], cls: filled[k] ? "blank" : k === nextKey ? "blank next" : "blank empty", open: function () { self.setState({ sheet: k }); } };
+    });
+    var sheet = s.sheet ? OPTS[s.sheet] : null;
+    var options = sheet ? sheet.list.map(function (o) {
+      var on = sheet.multi ? s[s.sheet].indexOf(o) >= 0 : s[s.sheet] === o;
+      return { label: o, on: on, cls: on ? "chip on" : "chip", pick: function () {
+        var patch = {};
+        if (sheet.multi) { var cur = s[s.sheet]; patch[s.sheet] = on ? cur.filter(function (x) { return x !== o; }) : cur.concat([o]); }
+        else patch[s.sheet] = o;
+        self.setState(patch);
+      } };
+    }) : [];
+    var srcs = s.accounts.length ? s.accounts : ["new sources"];
+    var items = [0, 1, 2].map(function (i) {
+      var t = s.topics[i];
+      return t ? { cls: "it", topic: t + " · via " + srcs[i % srcs.length], title: "[A piece on " + t + (s.role ? " for a " + s.role : "") + "]" } : { cls: "it ghost", topic: "topic", title: "Fill in what you want to get better at" };
+    });
+    var complete = filled.role && filled.topics && filled.time;
+    return {
+      b: b,
+      note: s.note,
+      sheetOpen: !!sheet,
+      sheetTitle: sheet ? sheet.title : "",
+      sheetHint: s.sheet === "accounts",
+      options: options,
+      closeSheet: function () { var key = s.sheet; self.setState({ sheet: null, note: self.noteFor(key, s) }); },
+      when: s.time || "not scheduled",
+      items: items,
+      doneCls: complete ? "btn pri" : "btn off",
+      doneLabel: complete ? "Send my first letter" : "Fill in the blanks first",
+      finish: function () { if (complete) self.setState({ note: "Done. Your first letter is on its way. Change any blank later from Preferences." }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding 2: conversation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;box-sizing:border-box;background:#FBFBFA;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em;margin:0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.muted{color:#5B5F68}
+.row{display:flex}
+.row.me{justify-content:flex-end}
+.msg{max-width:78%;padding:11px 14px;border-radius:18px;font-size:15px;line-height:1.42}
+.bot .msg{background:#FFFFFF;border:1.5px solid #E2E4E8;border-bottom-left-radius:6px}
+.me .msg{background:#2B4BFF;color:#FFFFFF;border-bottom-right-radius:6px}
+.chip{border:1.5px solid #D6D8DE;background:#FFFFFF;border-radius:999px;padding:9px 15px;font:inherit;font-size:15px;color:#121316;cursor:pointer;min-height:44px;white-space:nowrap}
+.chip.on{background:#121316;border-color:#121316;color:#FFFFFF}
+.chip.go{background:#2B4BFF;border-color:#2B4BFF;color:#FFFFFF;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:#FF5A1F;display:inline-block}
+.field{flex-grow:1;min-height:46px;border:1.5px solid #D6D8DE;border-radius:999px;padding:0 16px;font:inherit;font-size:15px;background:#FFFFFF;color:#121316;box-sizing:border-box}
+.send{width:46px;height:46px;border-radius:50%;border:0;background:#121316;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+</style>
+</helmet>
+<div class="ph">
+<div style="display: flex; align-items: center; gap: 10px; padding: 22px 20px 14px; border-bottom: 1px solid #ECEEF1">
+<span class="dot"></span>
+<div style="display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 16px">Founder Signal</span><span class="muted" style="font-size: 13px">Setting up your letter</span></div>
+<button style="margin-left: auto; background: none; border: 0; font: inherit; color: #4A4E57; font-size: 14px; min-height: 44px; cursor: pointer" onClick="{{restart}}">Restart</button>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 8px; padding: 16px 16px 8px">
+<sc-if value="{{s5}}" hint-placeholder-val="{{ false }}">
+<div class="row bot"><div style="width: 86%; background: #FFFFFF; border: 1.5px solid #E2E4E8; border-radius: 18px; border-bottom-left-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px"><span class="dot"></span><span class="mono" style="color: #121316">{{letterTitle}}</span></div>
+<sc-for list="{{preview}}" as="pv" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid #EEF0F4">
+<span class="mono">{{pv.topic}}</span>
+<span style="font-weight: 600; font-size: 15px; line-height: 1.3">[A piece about {{pv.topic}}, picked for you]</span>
+</div>
+</sc-for>
+</div></div>
+</sc-if>
+<sc-for list="{{log}}" as="m" hint-placeholder-count="4">
+<div class="{{m.cls}}"><div class="msg">{{m.text}}</div></div>
+</sc-for>
+</div>
+
+<div style="border-top: 1px solid #ECEEF1; padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 12px; background: #FBFBFA">
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{replies}}" as="r" hint-placeholder-count="3">
+<button class="{{r.cls}}" aria-pressed="{{r.on}}" onClick="{{r.pick}}">{{r.label}}</button>
+</sc-for>
+</div>
+<div style="display: flex; gap: 8px; align-items: center">
+<label for="chatin" style="position: absolute; left: -9999px">Message</label>
+<input id="chatin" class="field" placeholder="Or type anything, like a link or a topic">
+<button class="send" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var INTRO = [
+  "Hi. I read the internet so you don't have to, then send you a short letter with the few things worth your time.",
+  "First, what kind of work do you do?"
+];
+var Q = {
+  1: "Good to know. What do you want to get better at right now? Pick as many as you like.",
+  2: "Any newsletters, sites or channels you already read? Paste a link, or I can suggest a few.",
+  3: "I can also look at who you follow on YouTube, X or Substack and keep only what fits. I only see the list of accounts, never your messages.",
+  4: "Last thing: when should I write to you?"
+};
+var ROLES = ["I run a company", "I work at a startup", "Freelance / consulting", "Planning to start"];
+var INTERESTS = ["Pricing", "Fundraising", "Hiring", "Distribution", "Sales", "AI tools", "Product-market fit", "Bootstrapping"];
+var FOUND = { YouTube: "Found 48 YouTube channels. 11 fit what you're working on, so I'll keep those.", X: "Found 312 accounts on X. 26 write about your topics; I'll watch those.", Substack: "Found 9 Substack newsletters. 5 fit, the rest I'll ignore." };
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = this.initial();
+  }
+  initial() {
+    return { step: 0, log: INTRO.map(function (t) { return { who: "bot", text: t }; }), interests: {}, linked: {}, when: null };
+  }
+  say(userText, botTexts, nextStep, extra) {
+    var log = this.state.log.concat([{ who: "me", text: userText }]).concat(botTexts.map(function (t) { return { who: "bot", text: t }; }));
+    if (Q[nextStep] && nextStep !== this.state.step) log.push({ who: "bot", text: Q[nextStep] });
+    this.setState(Object.assign({ log: log, step: nextStep }, extra || {}));
+  }
+  renderVals() {
+    var s = this.state;
+    var self = this;
+    var replies = [];
+    if (s.step === 0) {
+      replies = ROLES.map(function (r) { return { label: r, cls: "chip", on: false, pick: function () { self.say(r, [], 1, { role: r }); } }; });
+    } else if (s.step === 1) {
+      var chosen = INTERESTS.filter(function (x) { return s.interests[x]; });
+      replies = INTERESTS.map(function (x) { return { label: x, on: !!s.interests[x], cls: s.interests[x] ? "chip on" : "chip", pick: function () { var m = Object.assign({}, s.interests); m[x] = !m[x]; self.setState({ interests: m }); } }; });
+      replies.push({ label: chosen.length ? "Done (" + chosen.length + ")" : "Done", cls: "chip go", on: false, pick: function () { self.say(chosen.length ? chosen.join(", ") : "Not sure yet", [chosen.length ? "Noted. I'll lean towards " + chosen.slice(0, 2).join(" and ").toLowerCase() + "." : "No problem, I'll learn from what you read."], 2); } });
+    } else if (s.step === 2) {
+      replies = [
+        { label: "Paste a link", cls: "chip", on: false, pick: function () { self.say("stratechery.com", ["Got it: Stratechery. I'll follow it closely."], 3); } },
+        { label: "Suggest some", cls: "chip", on: false, pick: function () { self.say("Suggest some", ["Founders like you often read Lenny's Newsletter, Paul Graham's essays and Y Combinator's channel. I've added them; remove any later."], 3); } },
+        { label: "Not really", cls: "chip", on: false, pick: function () { self.say("Not really", ["That's fine. I'll find sources for you."], 3); } }
+      ];
+    } else if (s.step === 3) {
+      replies = ["YouTube", "X", "Substack"].filter(function (a) { return !s.linked[a]; }).map(function (a) {
+        return { label: "Connect " + a, cls: "chip", on: false, pick: function () { var m = Object.assign({}, s.linked); m[a] = true; self.say("Connect " + a, [FOUND[a]], 3, { linked: m }); } };
+      });
+      var any = Object.keys(s.linked).length > 0;
+      replies.push({ label: any ? "That's all" : "Not now", cls: "chip go", on: false, pick: function () { self.say(any ? "That's all" : "Not now", [], 4); } });
+    } else if (s.step === 4) {
+      replies = ["Weekday mornings", "Sunday mornings", "Every evening"].map(function (w) {
+        return { label: w, cls: "chip", on: false, pick: function () { self.say(w, ["Done. Here's roughly what your first letter will look like. A real one arrives in a few minutes."], 5, { when: w }); } };
+      });
+    } else {
+      replies = [{ label: "Open Founder Signal", cls: "chip go", on: false, pick: function () {} }];
+    }
+    var topics = INTERESTS.filter(function (x) { return s.interests[x]; });
+    return {
+      s5: s.step === 5,
+      log: s.log.slice().reverse().map(function (m) { return { text: m.text, cls: m.who === "me" ? "row me" : "row bot" }; }),
+      replies: replies,
+      restart: function () { self.setState(self.initial()); },
+      letterTitle: (s.when || "Your letter") + " · preview",
+      preview: (topics.length ? topics : ["Pricing", "Hiring", "Distribution"]).slice(0, 3).map(function (t) { return { topic: t }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

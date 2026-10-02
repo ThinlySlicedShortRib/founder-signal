@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding 1: step by step</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;box-sizing:border-box;background:#FBFBFA;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em;margin:0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.muted{color:#5B5F68}
+.chip{border:1.5px solid #D6D8DE;background:#FFFFFF;border-radius:999px;padding:9px 15px;font:inherit;font-size:15px;color:#121316;cursor:pointer;min-height:44px}
+.chip.on{background:#121316;border-color:#121316;color:#FFFFFF}
+.card{border:1.5px solid #E2E4E8;background:#FFFFFF;border-radius:16px;padding:12px 16px;font:inherit;font-size:15px;text-align:left;color:#121316;cursor:pointer;display:flex;align-items:center;gap:12px;min-height:56px;width:100%;box-sizing:border-box}
+.card.on{border-color:#2B4BFF;box-shadow:0 0 0 3px rgba(43,75,255,.14)}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border-radius:14px;border:0;font:inherit;font-weight:600;font-size:16px;cursor:pointer;width:100%;box-sizing:border-box}
+.pri{background:#2B4BFF;color:#FFFFFF}
+.sec{background:#EEF0F4;color:#121316}
+.small{min-height:40px;width:auto;padding:0 14px;font-size:14px;border-radius:10px}
+.link{background:none;border:0;font:inherit;color:#4A4E57;font-size:15px;cursor:pointer;min-height:44px;padding:0 4px}
+.bar{height:4px;background:#E6E8EC;border-radius:999px;overflow:hidden;flex-grow:1}
+.bar i{display:block;height:100%;background:#2B4BFF;border-radius:999px}
+.p1{width:20%}.p2{width:40%}.p3{width:60%}.p4{width:80%}.p5{width:100%}
+.field{flex-grow:1;min-height:48px;border:1.5px solid #D6D8DE;border-radius:12px;padding:0 14px;font:inherit;font-size:15px;background:#FFFFFF;color:#121316;box-sizing:border-box}
+.ico{width:40px;height:40px;border-radius:12px;background:#EEF0F4;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dot{width:10px;height:10px;border-radius:50%;background:#FF5A1F;display:inline-block}
+.ok{color:#1F7A4D;font-size:13px;font-weight:600}
+</style>
+</helmet>
+<div class="ph">
+
+<sc-if value="{{s0}}" hint-placeholder-val="{{ true }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 72px 28px 36px; gap: 20px">
+<div style="display: flex; align-items: center; gap: 10px"><span class="dot"></span><span class="mono" style="color: #121316">Founder Signal</span></div>
+<h1 class="disp" style="font-size: 44px; line-height: 1.02; font-weight: 700; margin-top: 64px">One short letter. Only what's worth your time.</h1>
+<p class="muted" style="margin: 0; font-size: 17px; line-height: 1.5">Tell us what you're working on and what you already follow. We'll do the reading and send you the few pieces that matter.</p>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{next}}">Get started</button>
+<button class="link" style="align-self: center">I already have an account</button>
+</div>
+</sc-if>
+
+<sc-if value="{{inFlow}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 12px; padding: 20px 20px 0">
+<button class="link" aria-label="Back" onClick="{{back}}" style="display: flex; align-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#121316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+<div class="bar"><i class="{{progCls}}"></i></div>
+<span class="mono" style="width: 44px; text-align: right">{{stepLabel}}</span>
+</div>
+</sc-if>
+
+<sc-if value="{{s1}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 28px 24px 28px; gap: 16px; min-height: 0">
+<span class="mono">Interests</span>
+<h2 class="disp" style="font-size: 32px; line-height: 1.08; font-weight: 700">What do you want to get better at?</h2>
+<p class="muted" style="margin: 0; font-size: 15px">Pick a few. You can change these any time.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start">
+<sc-for list="{{interests}}" as="it" hint-placeholder-count="12">
+<button class="{{it.cls}}" aria-pressed="{{it.on}}" onClick="{{it.pick}}">{{it.label}}</button>
+</sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<p class="muted" style="margin: 0; font-size: 14px; text-align: center">{{interestCount}}</p>
+<button class="btn pri" onClick="{{next}}">Continue</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s2}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 28px 24px 28px; gap: 12px; min-height: 0">
+<span class="mono">Your work</span>
+<h2 class="disp" style="font-size: 32px; line-height: 1.08; font-weight: 700">What's your line of work?</h2>
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px">
+<sc-for list="{{roles}}" as="r" hint-placeholder-count="5">
+<button class="{{r.cls}}" aria-pressed="{{r.on}}" onClick="{{r.pick}}"><span style="font-weight: 600">{{r.label}}</span><span class="muted" style="font-size: 13px; margin-left: auto">{{r.hint}}</span></button>
+</sc-for>
+</div>
+<span class="mono" style="margin-top: 12px">Where are you at?</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{stages}}" as="st" hint-placeholder-count="4">
+<button class="{{st.cls}}" aria-pressed="{{st.on}}" onClick="{{st.pick}}">{{st.label}}</button>
+</sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{next}}">Continue</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s3}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 28px 24px 28px; gap: 14px; min-height: 0">
+<span class="mono">Sources</span>
+<h2 class="disp" style="font-size: 32px; line-height: 1.08; font-weight: 700">Anything you already read?</h2>
+<p class="muted" style="margin: 0; font-size: 15px">Paste a site, newsletter, feed or YouTube channel.</p>
+<div style="display: flex; gap: 8px">
+<label for="src1" style="position: absolute; left: -9999px">Source link</label>
+<input id="src1" class="field" placeholder="stratechery.com">
+<button class="btn sec small">Add</button>
+</div>
+<span class="mono" style="margin-top: 6px">Popular with founders like you</span>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{suggestions}}" as="sg" hint-placeholder-count="4">
+<button class="{{sg.cls}}" aria-pressed="{{sg.on}}" onClick="{{sg.pick}}">
+<span class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#121316" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">{{sg.label}}</span><span class="muted" style="font-size: 13px">{{sg.kind}}</span></span>
+<span style="margin-left: auto; font-weight: 600; color: #2B4BFF">{{sg.action}}</span>
+</button>
+</sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{next}}">Continue</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s4}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 28px 24px 28px; gap: 14px; min-height: 0">
+<span class="mono">Connect</span>
+<h2 class="disp" style="font-size: 32px; line-height: 1.08; font-weight: 700">Bring in what you already follow</h2>
+<p class="muted" style="margin: 0; font-size: 15px; line-height: 1.45">We look at who you follow and subscribe to, keep the ones that fit your goals, and drop the rest.</p>
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px">
+<sc-for list="{{accounts}}" as="ac" hint-placeholder-count="3">
+<div class="card" style="cursor: default">
+<span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#121316" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">{{ac.label}}</span><span class="{{ac.subCls}}">{{ac.sub}}</span></span>
+<button class="{{ac.btnCls}}" style="margin-left: auto" onClick="{{ac.pick}}">{{ac.action}}</button>
+</div>
+</sc-for>
+</div>
+<p class="muted" style="margin: 4px 0 0; font-size: 13px; line-height: 1.45">Read-only. We see the list of accounts, never your messages, and you can disconnect any time.</p>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{next}}">Continue</button>
+<button class="link" style="align-self: center" onClick="{{next}}">Skip for now</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s5}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 28px 24px 28px; gap: 14px; min-height: 0">
+<span class="mono">Schedule</span>
+<h2 class="disp" style="font-size: 32px; line-height: 1.08; font-weight: 700">When should your letter arrive?</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{freqs}}" as="f" hint-placeholder-count="3">
+<button class="{{f.cls}}" aria-pressed="{{f.on}}" onClick="{{f.pick}}">{{f.label}}</button>
+</sc-for>
+</div>
+<span class="mono" style="margin-top: 8px">Time</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{times}}" as="t" hint-placeholder-count="4">
+<button class="{{t.cls}}" aria-pressed="{{t.on}}" onClick="{{t.pick}}">{{t.label}}</button>
+</sc-for>
+</div>
+<span class="mono" style="margin-top: 8px">How long</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{lengths}}" as="l" hint-placeholder-count="3">
+<button class="{{l.cls}}" aria-pressed="{{l.on}}" onClick="{{l.pick}}">{{l.label}}</button>
+</sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn pri" onClick="{{next}}">Send my first letter</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s6}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 28px 24px 28px; gap: 16px; min-height: 0">
+<span class="mono">You're set</span>
+<h2 class="disp" style="font-size: 32px; line-height: 1.08; font-weight: 700">Your first letter is being written</h2>
+<p class="muted" style="margin: 0; font-size: 15px">{{deliveryLine}}</p>
+<div style="background: #FFFFFF; border: 1.5px solid #E2E4E8; border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 8px"><span class="dot"></span><span class="mono" style="color: #121316">Preview</span></div>
+<sc-for list="{{preview}}" as="pv" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid #EEF0F4">
+<span class="mono">{{pv.topic}}</span>
+<span style="font-weight: 600; font-size: 16px; line-height: 1.3">[A piece about {{pv.topic}}, picked for you]</span>
+<span class="muted" style="font-size: 13px">Why it's here: matches "{{pv.topic}}"</span>
+</div>
+</sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn pri">Open Founder Signal</button>
+<button class="link" style="align-self: center" onClick="{{restart}}">Start over</button>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var INTERESTS = ["Pricing", "Fundraising", "Hiring", "Product-market fit", "Distribution", "Sales", "AI tools", "Marketing", "Bootstrapping", "Leadership", "Ops & finance", "Design"];
+var ROLES = [["Founder", "running a company"], ["Startup operator", "early team"], ["Freelancer or consultant", "selling services"], ["Planning to start", "not yet"], ["Investor", "backing founders"]];
+var STAGES = ["Idea", "Pre-revenue", "Early revenue", "Scaling"];
+var SUGGESTIONS = [["Stratechery", "Newsletter"], ["Lenny's Newsletter", "Newsletter"], ["Paul Graham essays", "Site"], ["Y Combinator", "YouTube channel"]];
+var ACCOUNTS = [["YouTube", "Channels you subscribe to", "48 channels found, 11 fit your goals"], ["X", "Accounts you follow", "312 accounts found, 26 fit your goals"], ["Substack", "Newsletters you get", "9 newsletters found, 5 fit your goals"]];
+var FREQS = ["Weekday mornings", "Every day", "Once a week"];
+var TIMES = ["6:30", "7:30", "8:30", "12:00"];
+var LENGTHS = ["3 pieces", "5 pieces", "7 pieces"];
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: 0, interests: {}, role: null, stage: null, sources: {}, linked: {}, freq: "Weekday mornings", time: "7:30", length: "5 pieces" };
+  }
+  renderVals() {
+    var s = this.state;
+    var self = this;
+    var go = function (n) { return function () { self.setState({ step: n }); }; };
+    var toggle = function (key, id) { return function () { var m = Object.assign({}, s[key]); m[id] = !m[id]; var o = {}; o[key] = m; self.setState(o); }; };
+    var pick = function (key, val) { return function () { var o = {}; o[key] = val; self.setState(o); }; };
+    var chosen = INTERESTS.filter(function (x) { return s.interests[x]; });
+    var n = chosen.length;
+    return {
+      s0: s.step === 0, s1: s.step === 1, s2: s.step === 2, s3: s.step === 3, s4: s.step === 4, s5: s.step === 5, s6: s.step === 6,
+      inFlow: s.step > 0 && s.step < 6,
+      progCls: "p" + Math.min(s.step, 5),
+      stepLabel: Math.min(s.step, 5) + " / 5",
+      next: go(s.step + 1),
+      back: go(Math.max(0, s.step - 1)),
+      restart: function () { self.setState({ step: 0, interests: {}, role: null, stage: null, sources: {}, linked: {} }); },
+      interests: INTERESTS.map(function (x) { return { label: x, on: !!s.interests[x], cls: s.interests[x] ? "chip on" : "chip", pick: toggle("interests", x) }; }),
+      interestCount: n === 0 ? "Pick at least 3" : n < 3 ? n + " picked. A couple more helps." : n + " picked",
+      roles: ROLES.map(function (r) { return { label: r[0], hint: r[1], on: s.role === r[0], cls: s.role === r[0] ? "card on" : "card", pick: pick("role", r[0]) }; }),
+      stages: STAGES.map(function (x) { return { label: x, on: s.stage === x, cls: s.stage === x ? "chip on" : "chip", pick: pick("stage", x) }; }),
+      suggestions: SUGGESTIONS.map(function (x) { var on = !!s.sources[x[0]]; return { label: x[0], kind: x[1], on: on, cls: on ? "card on" : "card", action: on ? "Added" : "Add", pick: toggle("sources", x[0]) }; }),
+      accounts: ACCOUNTS.map(function (a) { var on = !!s.linked[a[0]]; return { label: a[0], sub: on ? a[2] : a[1], subCls: on ? "ok" : "muted", action: on ? "Connected" : "Connect", btnCls: on ? "btn sec small" : "btn pri small", pick: toggle("linked", a[0]) }; }),
+      freqs: FREQS.map(function (x) { return { label: x, on: s.freq === x, cls: s.freq === x ? "chip on" : "chip", pick: pick("freq", x) }; }),
+      times: TIMES.map(function (x) { return { label: x, on: s.time === x, cls: s.time === x ? "chip on" : "chip", pick: pick("time", x) }; }),
+      lengths: LENGTHS.map(function (x) { return { label: x, on: s.length === x, cls: s.length === x ? "chip on" : "chip", pick: pick("length", x) }; }),
+      deliveryLine: s.freq + " at " + s.time + ", " + s.length + ". A test letter arrives in a few minutes.",
+      preview: (n ? chosen : ["Pricing", "Hiring", "Distribution"]).slice(0, 3).map(function (t) { return { topic: t }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

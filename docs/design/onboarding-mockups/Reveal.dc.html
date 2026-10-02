@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding 6: the reveal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;box-sizing:border-box;color:#FFFFFF;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.bg0{background:#121316}.bg1{background:#2B4BFF}.bg2{background:#121316}.bg3{background:#E8461A}.bg4{background:#121316}.bg5{background:#2B4BFF}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.03em;margin:0;font-weight:800}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+.quip{font-size:17px;line-height:1.45;color:rgba(255,255,255,.92)}
+.btn{display:flex;align-items:center;justify-content:center;min-height:54px;border-radius:999px;border:0;font:inherit;font-weight:600;font-size:16px;cursor:pointer;width:100%;box-sizing:border-box}
+.light{background:#FFFFFF;color:#121316}
+.ghostb{background:rgba(255,255,255,.14);color:#FFFFFF}
+.acc{border:1.5px solid rgba(255,255,255,.22);background:transparent;color:#FFFFFF;border-radius:18px;padding:16px;font:inherit;text-align:left;cursor:pointer;display:flex;align-items:center;gap:14px;width:100%;min-height:68px;box-sizing:border-box}
+.acc.on{background:#FFFFFF;color:#121316;border-color:#FFFFFF}
+.word{background:none;border:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-0.03em;font-size:40px;line-height:1.02;color:#FFFFFF;cursor:pointer;padding:2px 0;text-align:left;min-height:44px}
+.word.off{color:rgba(255,255,255,.28);text-decoration:line-through}
+.opt{border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#FFFFFF;border-radius:999px;padding:10px 16px;font:inherit;font-size:15px;cursor:pointer;min-height:44px}
+.opt.on{background:#FFFFFF;color:#121316}
+.pc{background:#FFFFFF;color:#121316;border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:10px}
+.tag{font-size:12px;font-weight:600;color:#4A4E57;background:#EEF0F4;border-radius:6px;padding:3px 7px}
+.seg{height:3px;flex-grow:1;border-radius:2px;background:rgba(255,255,255,.25)}
+.seg.on{background:#FFFFFF}
+</style>
+</helmet>
+<div class="{{phCls}}">
+<div style="display: flex; gap: 4px; padding: 18px 18px 0">
+<sc-for list="{{segs}}" as="g" hint-placeholder-count="6"><span class="{{g.cls}}"></span></sc-for>
+</div>
+
+<sc-if value="{{s0}}" hint-placeholder-val="{{ true }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 40px 24px 28px; gap: 14px">
+<span class="mono">Founder Signal</span>
+<h1 class="disp" style="font-size: 44px; line-height: 0.98">Let's see what you're into.</h1>
+<p class="quip" style="margin: 0">Connect what you already follow. I'll read the list and tell you what I see. No posting, no messages.</p>
+<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px">
+<sc-for list="{{accounts}}" as="a" hint-placeholder-count="3">
+<button class="{{a.cls}}" aria-pressed="{{a.on}}" onClick="{{a.pick}}"><span style="font-weight: 600; font-size: 17px">{{a.label}}</span><span style="margin-left: auto; font-size: 14px">{{a.state}}</span></button>
+</sc-for>
+</div>
+<div style="flex-grow: 1"></div>
+<button class="btn light" onClick="{{next}}">{{cta0}}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s1}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 40px 24px 28px; gap: 16px">
+<span class="mono">You follow</span>
+<h1 class="disp" style="font-size: 120px; line-height: 0.9">{{total}}</h1>
+<span class="disp" style="font-size: 30px; line-height: 1.05">people, channels and newsletters.</span>
+<p class="quip" style="margin: 0">{{connectQuip}}</p>
+<div style="flex-grow: 1"></div>
+<button class="btn light" onClick="{{next}}">Show me what they talk about</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s2}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 40px 24px 28px; gap: 6px">
+<span class="mono">Your feeds are mostly</span>
+<div style="display: flex; flex-direction: column; margin: 8px 0">
+<sc-for list="{{topics}}" as="t" hint-placeholder-count="6"><button class="{{t.cls}}" aria-pressed="{{t.on}}" onClick="{{t.pick}}">{{t.label}}</button></sc-for>
+</div>
+<p class="quip" style="margin: 0">{{topicQuip}}</p>
+<span class="mono" style="margin-top: 6px">Tap anything I got wrong</span>
+<div style="flex-grow: 1"></div>
+<button class="btn light" onClick="{{next}}">That's me</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s3}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 40px 24px 28px; gap: 16px">
+<span class="mono">And you are</span>
+<h1 class="disp" style="font-size: 46px; line-height: 0.98">{{roleTitle}}</h1>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{roles}}" as="r" hint-placeholder-count="4"><button class="{{r.cls}}" aria-pressed="{{r.on}}" onClick="{{r.pick}}">{{r.label}}</button></sc-for>
+</div>
+<p class="quip" style="margin: 0">{{roleQuip}}</p>
+<div style="flex-grow: 1"></div>
+<button class="btn light" onClick="{{next}}">Next: your taste</button>
+</div>
+</sc-if>
+
+<sc-if value="{{s4}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 32px 24px 28px; gap: 14px">
+<span class="mono">Quick taste test · {{counter}}</span>
+<div class="pc">
+<span style="display: flex; gap: 6px; align-items: center"><span class="tag">{{card.kind}}</span><span class="tag">{{card.from}}</span></span>
+<span class="disp" style="font-size: 26px; line-height: 1.1">{{card.title}}</span>
+<span style="font-size: 14px; color: #5B5F68">{{card.meta}}</span>
+</div>
+<p class="quip" style="margin: 0; min-height: 50px">{{voteQuip}}</p>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; gap: 10px">
+<button class="btn ghostb" onClick="{{nope}}">Skip it</button>
+<button class="btn light" onClick="{{yes}}">I'd read it</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{s5}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; padding: 32px 24px 28px; gap: 14px">
+<span class="mono">Which makes your letter</span>
+<div class="pc">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #5B5F68">{{when}} · for {{rolePlural}}</span>
+<sc-for list="{{letter}}" as="l" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 3px; padding: 6px 0; border-bottom: 1px solid #EEF0F4"><span class="tag" style="align-self: flex-start">{{l.topic}}</span><span style="font-weight: 600; font-size: 15px">[A piece on {{l.topic}}]</span></div>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{times}}" as="t" hint-placeholder-count="3"><button class="{{t.cls}}" aria-pressed="{{t.on}}" onClick="{{t.pick}}">{{t.label}}</button></sc-for>
+</div>
+<p class="quip" style="margin: 0">{{timeQuip}}</p>
+<div style="flex-grow: 1"></div>
+<button class="btn light" onClick="{{restart}}">Send it (and start over)</button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var FOUND = { YouTube: [48, "channels"], X: [312, "accounts"], Substack: [9, "newsletters"] };
+var TOPICS = ["Pricing", "Hiring", "AI tools", "Indie hacking", "Fundraising", "Distribution"];
+var ROLES = [["Founder", "founders"], ["Operator", "operators"], ["Consultant", "consultants"], ["Not yet", "future founders"]];
+var CARDS = [
+  { kind: "Video", from: "Someone you follow on YouTube", topic: "Pricing", title: "How we priced our first B2B contract", meta: "18 min" },
+  { kind: "Thread", from: "Someone you follow on X", topic: "Distribution", title: "Cold emails that don't read as cold", meta: "4 min read" },
+  { kind: "Podcast", from: "New to you", topic: "Bootstrapping", title: "Growing without raising, five years in", meta: "52 min" },
+  { kind: "Newsletter", from: "From your Substack", topic: "AI tools", title: "Running a support inbox with AI agents", meta: "11 min read" }
+];
+function roleQuip(role, topic) {
+  if (!role) return "Pick one. I won't tell anyone.";
+  var t = topic.toLowerCase();
+  return { Founder: "A founder who reads about " + t + ". Your customers might want to brace themselves.", Operator: "An operator studying " + t + ". The founders you work with are lucky.", Consultant: "A consultant reading up on " + t + ". Billable hours, but smarter.", "Not yet": "Not yet a founder, already deep in " + t + ". That's usually how it starts." }[role];
+}
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = this.initial(); }
+  initial() { return { step: 0, linked: {}, dropped: {}, role: null, i: 0, last: null, votes: [], time: "Weekdays 7:30" }; }
+  renderVals() {
+    var s = this.state, self = this;
+    var linked = Object.keys(FOUND).filter(function (a) { return s.linked[a]; });
+    var total = linked.reduce(function (n, a) { return n + FOUND[a][0]; }, 0);
+    var topics = TOPICS.filter(function (t) { return !s.dropped[t]; });
+    var top = topics[0] || "startups";
+    var vote = function (v) { return function () {
+      var c = CARDS[s.i];
+      var q = v ? (c.kind === "Video" ? "A video person. Noted." : "Good pick. More " + c.topic.toLowerCase() + " coming.") : (c.meta.indexOf("52") === 0 ? "Skipping the 52-minute podcast. Respect for your calendar." : "Fair enough. Less " + c.topic.toLowerCase() + ".");
+      var done = s.i + 1 >= CARDS.length;
+      self.setState({ votes: s.votes.concat([v ? c.topic : null]), last: q, i: done ? s.i : s.i + 1, step: done ? 5 : 4 });
+    }; };
+    var liked = s.votes.filter(Boolean);
+    var role = ROLES.filter(function (r) { return r[0] === s.role; })[0];
+    return {
+      phCls: "ph bg" + s.step,
+      segs: [0, 1, 2, 3, 4, 5].map(function (n) { return { cls: n <= s.step ? "seg on" : "seg" }; }),
+      s0: s.step === 0, s1: s.step === 1, s2: s.step === 2, s3: s.step === 3, s4: s.step === 4, s5: s.step === 5,
+      next: function () { self.setState({ step: s.step === 0 && !linked.length ? 2 : s.step + 1 }); },
+      restart: function () { self.setState(self.initial()); },
+      accounts: Object.keys(FOUND).map(function (a) { var on = !!s.linked[a]; return { label: a, on: on, cls: on ? "acc on" : "acc", state: on ? "Connected" : "Connect", pick: function () { var m = Object.assign({}, s.linked); m[a] = !m[a]; self.setState({ linked: m }); } }; }),
+      cta0: linked.length ? "Reveal" : "Skip, I'll just tell you",
+      total: total,
+      connectQuip: linked.map(function (a) { return FOUND[a][0] + " " + FOUND[a][1]; }).join(", ") + ". You're not short on things to read. Let's make it shorter.",
+      topics: TOPICS.map(function (t) { var off = !!s.dropped[t]; return { label: t, on: !off, cls: off ? "word off" : "word", pick: function () { var m = Object.assign({}, s.dropped); m[t] = !m[t]; self.setState({ dropped: m }); } }; }),
+      topicQuip: topics.length >= 3 ? "Mostly " + topics[0].toLowerCase() + " and " + topics[1].toLowerCase() + ", with a suspicious amount of " + topics[2].toLowerCase() + "." : "A focused reader. I like it.",
+      roleTitle: s.role ? (s.role === "Not yet" ? "A founder-to-be." : "A " + s.role.toLowerCase() + ".") : (linked.length ? "A founder, I'm guessing?" : "So, what do you do?"),
+      roles: ROLES.map(function (r) { var on = s.role === r[0]; return { label: r[0], on: on, cls: on ? "opt on" : "opt", pick: function () { self.setState({ role: r[0] }); } }; }),
+      roleQuip: roleQuip(s.role, top),
+      card: CARDS[s.i],
+      counter: (s.i + 1) + " of " + CARDS.length,
+      voteQuip: s.last || "These come from people you already follow, plus one wildcard.",
+      yes: vote(true), nope: vote(false),
+      when: s.time, rolePlural: role ? role[1] : "you",
+      letter: (liked.length ? liked : topics).slice(0, 3).map(function (t) { return { topic: t }; }),
+      times: ["Weekdays 7:30", "Sundays 9:00", "Every evening"].map(function (t) { var on = s.time === t; return { label: t, on: on, cls: on ? "opt on" : "opt", pick: function () { self.setState({ time: t }); } }; }),
+      timeQuip: s.time + " it is. It'll take less time than your coffee."
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-02T12:00:00Z"
+  },
+  "title": "Founder Signal onboarding",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "1 \u00b7 Step by step",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "Chat.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "2 \u00b7 Conversation",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "ConnectFirst.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "3 \u00b7 Connect first",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "LiveLetter.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "4 \u00b7 Build your letter live",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "Calibrate.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "5 \u00b7 Pick what you'd read",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "Reveal.dc.html": {
+      "x": 0,
+      "y": 1264,
+      "w": 390,
+      "h": 844,
+      "title": "6 \u00b7 The reveal",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "AgentLetter.dc.html": {
+      "x": 470,
+      "y": 1264,
+      "w": 390,
+      "h": 844,
+      "title": "7 \u00b7 Agent builds your letter",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "Guided.dc.html": {
+      "x": 940,
+      "y": 1264,
+      "w": 390,
+      "h": 844,
+      "title": "8 \u00b7 Guided, with commentary",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "FollowsTaste.dc.html": {
+      "x": 1410,
+      "y": 1264,
+      "w": 390,
+      "h": 844,
+      "title": "9 \u00b7 Taste test from your follows",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "FillIn.dc.html": {
+      "x": 1880,
+      "y": 1264,
+      "w": 390,
+      "h": 844,
+      "title": "10 \u00b7 Fill in the blanks",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PostOffice.dc.html": {
+      "x": 0,
+      "y": 2528,
+      "w": 390,
+      "h": 844,
+      "title": "11 \u00b7 The post office (10 + 4)",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "ImportAI.dc.html": {
+      "x": 470,
+      "y": 2528,
+      "w": 390,
+      "h": 844,
+      "title": "12 \u00b7 Start from your AI",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "FillInSwipe.dc.html": {
+      "x": 940,
+      "y": 2528,
+      "w": 390,
+      "h": 844,
+      "title": "13 \u00b7 AI import first, then post office, then swipe",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "SwipeLetter.dc.html": {
+      "x": 0,
+      "y": 3792,
+      "w": 390,
+      "h": 844,
+      "title": "Swipe card A \u00b7 From the letter",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "SwipeQuote.dc.html": {
+      "x": 470,
+      "y": 3792,
+      "w": 390,
+      "h": 844,
+      "title": "Swipe card B \u00b7 Pull quote",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "SwipeSource.dc.html": {
+      "x": 940,
+      "y": 3792,
+      "w": 390,
+      "h": 844,
+      "title": "Swipe card C \u00b7 Source first",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "SwipeType.dc.html": {
+      "x": 1410,
+      "y": 3792,
+      "w": 390,
+      "h": 844,
+      "title": "Swipe card D \u00b7 Big type",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "SwipeQuoteType.dc.html": {
+      "x": 1880,
+      "y": 3792,
+      "w": 390,
+      "h": 844,
+      "title": "Swipe card E \u00b7 B + D (used in 13)",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewInbox.dc.html": {
+      "x": 0,
+      "y": 5056,
+      "w": 390,
+      "h": 844,
+      "title": "Letter preview 1 \u00b7 Inbox email",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewPaper.dc.html": {
+      "x": 470,
+      "y": 5056,
+      "w": 390,
+      "h": 844,
+      "title": "Letter preview 2 \u00b7 Paper letter",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewTimeline.dc.html": {
+      "x": 940,
+      "y": 5056,
+      "w": 390,
+      "h": 844,
+      "title": "Letter preview 3 \u00b7 Progress strip",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewSlip.dc.html": {
+      "x": 1410,
+      "y": 5056,
+      "w": 390,
+      "h": 844,
+      "title": "Letter preview 4 \u00b7 Post office slip",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewEditorial.dc.html": {
+      "x": 1880,
+      "y": 5056,
+      "w": 390,
+      "h": 844,
+      "title": "Letter preview 5 \u00b7 Editorial, no card",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewNavy.dc.html": {
+      "x": 0,
+      "y": 6320,
+      "w": 390,
+      "h": 844,
+      "title": "Original layout \u00b7 1 \u00b7 Deep navy",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewBlue.dc.html": {
+      "x": 470,
+      "y": 6320,
+      "w": 390,
+      "h": 844,
+      "title": "Original layout \u00b7 2 \u00b7 Signal blue",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewSlate.dc.html": {
+      "x": 940,
+      "y": 6320,
+      "w": 390,
+      "h": 844,
+      "title": "Original layout \u00b7 3 \u00b7 Slate",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewDusk.dc.html": {
+      "x": 1410,
+      "y": 6320,
+      "w": 390,
+      "h": 844,
+      "title": "Original layout \u00b7 4 \u00b7 Dusk blue",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewRust.dc.html": {
+      "x": 1880,
+      "y": 6320,
+      "w": 390,
+      "h": 844,
+      "title": "Original layout \u00b7 5 \u00b7 Rust",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewCardList.dc.html": {
+      "x": 0,
+      "y": 7584,
+      "w": 390,
+      "h": 844,
+      "title": "Letter card 1 \u00b7 Tinted card, simple list",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewCardRows.dc.html": {
+      "x": 470,
+      "y": 7584,
+      "w": 390,
+      "h": 844,
+      "title": "Letter card 2 \u00b7 Neutral card, white rows",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewCardHeadline.dc.html": {
+      "x": 940,
+      "y": 7584,
+      "w": 390,
+      "h": 844,
+      "title": "Letter card 3 \u00b7 Headline only",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewCardBand.dc.html": {
+      "x": 1410,
+      "y": 7584,
+      "w": 390,
+      "h": 844,
+      "title": "Letter card 4 \u00b7 White card, tinted header",
+      "is_interactive": true,
+      "radius": 36
+    },
+    "PreviewCardStack.dc.html": {
+      "x": 1880,
+      "y": 7584,
+      "w": 390,
+      "h": 844,
+      "title": "Letter card 5 \u00b7 Mini card stack",
+      "is_interactive": true,
+      "radius": 36
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Chat.dc.html",
+    "ConnectFirst.dc.html",
+    "LiveLetter.dc.html",
+    "Calibrate.dc.html",
+    "Reveal.dc.html",
+    "AgentLetter.dc.html",
+    "Guided.dc.html",
+    "FollowsTaste.dc.html",
+    "FillIn.dc.html",
+    "PostOffice.dc.html",
+    "ImportAI.dc.html",
+    "FillInSwipe.dc.html",
+    "SwipeLetter.dc.html",
+    "SwipeQuote.dc.html",
+    "SwipeSource.dc.html",
+    "SwipeType.dc.html",
+    "SwipeQuoteType.dc.html",
+    "PreviewInbox.dc.html",
+    "PreviewPaper.dc.html",
+    "PreviewTimeline.dc.html",
+    "PreviewSlip.dc.html",
+    "PreviewEditorial.dc.html",
+    "PreviewNavy.dc.html",
+    "PreviewBlue.dc.html",
+    "PreviewSlate.dc.html",
+    "PreviewDusk.dc.html",
+    "PreviewRust.dc.html",
+    "PreviewCardList.dc.html",
+    "PreviewCardRows.dc.html",
+    "PreviewCardHeadline.dc.html",
+    "PreviewCardBand.dc.html",
+    "PreviewCardStack.dc.html"
+  ],
+  "notes": {
+    "title": {
+      "x": 0,
+      "y": -260,
+      "text": "Onboarding: five directions",
+      "kind": "title1",
+      "maxW": 2270
+    },
+    "title2": {
+      "x": 0,
+      "y": 1004,
+      "text": "Round 2: connect first, taste test, live letter, with a voice",
+      "kind": "title1",
+      "maxW": 2270
+    },
+    "title3": {
+      "x": 0,
+      "y": 2268,
+      "text": "Round 3: the chosen direction",
+      "kind": "title1",
+      "maxW": 2270
+    },
+    "title4": {
+      "x": 0,
+      "y": 3532,
+      "text": "Round 4: swipe card designs",
+      "kind": "title1",
+      "maxW": 2270
+    },
+    "title5": {
+      "x": 0,
+      "y": 4796,
+      "text": "Round 5: letter preview designs",
+      "kind": "title1",
+      "maxW": 2270
+    },
+    "title6": {
+      "x": 0,
+      "y": 6060,
+      "text": "Round 6: the original letter card, not black",
+      "kind": "title1",
+      "maxW": 2270
+    },
+    "title7": {
+      "x": 0,
+      "y": 7324,
+      "text": "Round 7: letter preview in the swipe-card style",
+      "kind": "title1",
+      "maxW": 2270
+    }
+  },
+  "designSystems": []
+}

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding 4: build your letter live</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;box-sizing:border-box;background:#121316;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.disp{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;letter-spacing:-0.02em;margin:0}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.muted{color:#5B5F68}
+.chip{border:1.5px solid #D6D8DE;background:#FFFFFF;border-radius:999px;padding:8px 14px;font:inherit;font-size:14px;color:#121316;cursor:pointer;min-height:44px}
+.chip.on{background:#121316;border-color:#121316;color:#FFFFFF}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:14px;border:0;font:inherit;font-weight:600;font-size:16px;cursor:pointer;box-sizing:border-box}
+.pri{background:#2B4BFF;color:#FFFFFF;flex-grow:1}
+.sec{background:#EEF0F4;color:#121316;width:50px}
+.dot{width:8px;height:8px;border-radius:50%;background:#FF5A1F;display:inline-block}
+.pip{width:6px;height:6px;border-radius:50%;background:#D6D8DE}
+.pip.on{background:#2B4BFF;width:18px;border-radius:3px}
+.item{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid #EEF0F4}
+.item.ghost span{color:#B4B8C0}
+.tag{font-size:11px;font-weight:600;color:#4A4E57;background:#EEF0F4;border-radius:5px;padding:2px 6px}
+.tag.new{background:#FFE9E0;color:#9A3412}
+.flash{animation:fl .5s ease}
+@keyframes fl{from{background:#E8EDFF}to{background:#FFFFFF}}
+</style>
+</helmet>
+<div class="ph">
+<div style="padding: 22px 18px 14px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span class="mono" style="color: #A3A7B0">Your letter, as you answer</span><span class="mono" style="color: #A3A7B0">{{when}}</span></div>
+<div style="background: #FFFFFF; border-radius: 20px; padding: 16px 18px 8px; display: flex; flex-direction: column; height: 318px; box-sizing: border-box; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 8px"><span class="dot"></span><span class="mono" style="color: #121316">Founder Signal</span></div>
+<h2 class="disp" style="font-size: 22px; line-height: 1.15; font-weight: 700; margin-top: 8px">{{headline}}</h2>
+<span class="muted" style="font-size: 13px; margin-top: 2px">{{subline}}</span>
+<div style="display: flex; flex-direction: column; margin-top: 6px">
+<sc-for list="{{items}}" as="it" hint-placeholder-count="3">
+<div class="{{it.cls}}">
+<span style="display: flex; gap: 6px; align-items: center"><span class="{{it.tagCls}}">{{it.source}}</span><span class="mono">{{it.topic}}</span></span>
+<span style="font-weight: 600; font-size: 15px; line-height: 1.3">{{it.title}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="flex-grow: 1; background: #FBFBFA; border-radius: 26px 26px 0 0; padding: 22px 22px 26px; display: flex; flex-direction: column; gap: 12px; min-height: 0">
+<div style="display: flex; gap: 6px; align-items: center">
+<sc-for list="{{pips}}" as="p" hint-placeholder-count="5"><span class="{{p.cls}}"></span></sc-for>
+<span class="mono" style="margin-left: auto">{{stepLabel}}</span>
+</div>
+
+<sc-if value="{{q0}}" hint-placeholder-val="{{ true }}">
+<h3 class="disp" style="font-size: 24px; line-height: 1.1; font-weight: 700">What do you want to get better at?</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 7px">
+<sc-for list="{{interests}}" as="o" hint-placeholder-count="10"><button class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{q1}}" hint-placeholder-val="{{ false }}">
+<h3 class="disp" style="font-size: 24px; line-height: 1.1; font-weight: 700">What's your line of work?</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 7px">
+<sc-for list="{{roles}}" as="o" hint-placeholder-count="5"><button class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{q2}}" hint-placeholder-val="{{ false }}">
+<h3 class="disp" style="font-size: 24px; line-height: 1.1; font-weight: 700">Anything you already read?</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 7px">
+<sc-for list="{{sources}}" as="o" hint-placeholder-count="5"><button class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+</div>
+<span class="muted" style="font-size: 13px">Or paste any link: a newsletter, blog or channel.</span>
+</sc-if>
+<sc-if value="{{q3}}" hint-placeholder-val="{{ false }}">
+<h3 class="disp" style="font-size: 24px; line-height: 1.1; font-weight: 700">Pull from accounts you follow?</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 7px">
+<sc-for list="{{accounts}}" as="o" hint-placeholder-count="3"><button class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+</div>
+<span class="muted" style="font-size: 13px; line-height: 1.4">We read only who you follow, never messages, and keep just the ones that fit.</span>
+</sc-if>
+<sc-if value="{{q4}}" hint-placeholder-val="{{ false }}">
+<h3 class="disp" style="font-size: 24px; line-height: 1.1; font-weight: 700">When should it land?</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 7px">
+<sc-for list="{{times}}" as="o" hint-placeholder-count="4"><button class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{q5}}" hint-placeholder-val="{{ false }}">
+<h3 class="disp" style="font-size: 24px; line-height: 1.1; font-weight: 700">That's your letter.</h3>
+<p class="muted" style="margin: 0; font-size: 15px; line-height: 1.45">The real one, with real pieces, arrives in a few minutes. Everything above can be changed later.</p>
+</sc-if>
+
+<div style="flex-grow: 1"></div>
+<div style="display: flex; gap: 8px">
+<button class="btn sec" aria-label="Back" onClick="{{back}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#121316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+<button class="btn pri" onClick="{{next}}">{{nextLabel}}</button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var INTERESTS = ["Pricing", "Fundraising", "Hiring", "Distribution", "Sales", "AI tools", "Product-market fit", "Bootstrapping", "Marketing", "Leadership"];
+var ROLES = [["Founder", "founders"], ["Startup operator", "startup operators"], ["Consultant", "consultants"], ["Planning to start", "future founders"], ["Investor", "investors"]];
+var SOURCES = ["Stratechery", "Lenny's Newsletter", "Paul Graham essays", "Y Combinator", "Not Boring"];
+var ACCOUNTS = ["YouTube", "X", "Substack"];
+var TIMES = ["Weekdays 7:30", "Weekdays 12:00", "Sundays 8:00", "Every evening"];
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { q: 0, interests: {}, role: null, sources: {}, linked: {}, time: "Weekdays 7:30" };
+  }
+  renderVals() {
+    var s = this.state;
+    var self = this;
+    var toggle = function (key, id) { return function () { var m = Object.assign({}, s[key]); m[id] = !m[id]; var o = {}; o[key] = m; self.setState(o); }; };
+    var pick = function (key, val) { return function () { var o = {}; o[key] = val; self.setState(o); }; };
+    var chip = function (key, list, single) { return list.map(function (x) { var on = single ? s[key] === x : !!s[key][x]; return { label: x, on: on, cls: on ? "chip on" : "chip", pick: single ? pick(key, x) : toggle(key, x) }; }); };
+    var topics = INTERESTS.filter(function (x) { return s.interests[x]; });
+    var srcs = SOURCES.filter(function (x) { return s.sources[x]; }).concat(ACCOUNTS.filter(function (x) { return s.linked[x]; }).map(function (a) { return "via " + a; }));
+    var role = ROLES.filter(function (r) { return r[0] === s.role; })[0];
+    var items = [];
+    for (var i = 0; i < 3; i++) {
+      var t = topics[i];
+      if (t) {
+        var src = srcs.length ? srcs[i % srcs.length] : "New source";
+        var fresh = !srcs.length || i === 2;
+        items.push({ cls: "item flash", topic: t, source: fresh && srcs.length ? "New source" : src, tagCls: fresh ? "tag new" : "tag", title: "[A piece on " + t.toLowerCase() + (role ? " for " + role[1] : "") + "]" });
+      } else {
+        items.push({ cls: "item ghost", topic: "Topic", source: "Source", tagCls: "tag", title: "Pick a topic to fill this in" });
+      }
+    }
+    var labels = ["Interests", "Work", "Sources", "Accounts", "Timing", "Done"];
+    return {
+      q0: s.q === 0, q1: s.q === 1, q2: s.q === 2, q3: s.q === 3, q4: s.q === 4, q5: s.q === 5,
+      pips: [0, 1, 2, 3, 4].map(function (n) { return { cls: n === s.q ? "pip on" : "pip" }; }),
+      stepLabel: labels[s.q],
+      next: function () { self.setState({ q: Math.min(5, s.q + 1) }); },
+      back: function () { self.setState({ q: Math.max(0, s.q - 1) }); },
+      nextLabel: s.q === 4 ? "Send me this" : s.q === 5 ? "Open Founder Signal" : "Next",
+      interests: chip("interests", INTERESTS, false),
+      roles: chip("role", ROLES.map(function (r) { return r[0]; }), true),
+      sources: chip("sources", SOURCES, false),
+      accounts: ACCOUNTS.map(function (a) { var on = !!s.linked[a]; return { label: on ? a + " · connected" : "Connect " + a, on: on, cls: on ? "chip on" : "chip", pick: toggle("linked", a) }; }),
+      times: chip("time", TIMES, true),
+      when: s.time,
+      headline: topics.length ? "This week: " + topics.slice(0, 2).join(" and ").toLowerCase() : "Your letter",
+      subline: (role ? "Written for " + role[1] : "Tell us your work to tailor it") + (srcs.length ? " · from " + srcs.length + " of your sources + new finds" : ""),
+      items: items
+    };
+  }
+}
+</script>
+</body>
+</html>

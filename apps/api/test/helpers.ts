@@ -2,6 +2,7 @@ import { createDb } from "@fs/db";
 import type { FetchResult, YouTubeClient } from "@fs/ingest";
 import { createApp } from "../src/app.ts";
 import { createAuth } from "../src/auth.ts";
+import { createOtpRecorder } from "../src/routes/dev.ts";
 import type { ClientLogRecord, ClientLogSink } from "../src/lib/client-log-sink.ts";
 import type { EmailMessage, EmailSender } from "../src/lib/email.ts";
 
@@ -14,7 +15,7 @@ export interface FakePage {
 }
 
 /** Builds the real app against the test database, with in-memory email and log sinks and a fake web. */
-export function createTestApp({ corsOrigins }: { corsOrigins?: string[] } = {}) {
+export function createTestApp({ corsOrigins, devSignIn = false }: { corsOrigins?: string[]; devSignIn?: boolean } = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
   const { db, pool } = createDb({ connectionString, ssl: false });
@@ -24,12 +25,14 @@ export function createTestApp({ corsOrigins }: { corsOrigins?: string[] } = {}) 
   const clientLogRecords: ClientLogRecord[] = [];
   const clientLogs: ClientLogSink = { async write(records) { clientLogRecords.push(...records); } };
 
+  const devOtps = devSignIn ? createOtpRecorder() : undefined;
   const auth = createAuth({
     db,
     secret: "test-secret-test-secret-test-secret-123",
     baseURL: BASE_URL,
     email,
     allowDevOrigins: true,
+    onOtp: devOtps?.record,
   });
   // URL → page. Tests add pages; anything else is a 404.
   const web = new Map<string, FakePage>();
@@ -57,7 +60,7 @@ export function createTestApp({ corsOrigins }: { corsOrigins?: string[] } = {}) 
     },
   };
 
-  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, corsOrigins });
+  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, corsOrigins, devOtps });
 
   return { app, db, pool, sentEmails, clientLogRecords, web };
 }

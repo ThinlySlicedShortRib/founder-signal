@@ -3,6 +3,7 @@ import { createDb } from "@fs/db";
 import { createSafeFetcher, youTubeDataClient } from "@fs/ingest";
 import { createApp } from "./app.ts";
 import { createAuth, DEV_WEB_ORIGINS } from "./auth.ts";
+import { createOtpRecorder } from "./routes/dev.ts";
 import { cloudWatchClientLogSink, consoleClientLogSink } from "./lib/client-log-sink.ts";
 import { consoleEmailSender, sesEmailSender } from "./lib/email.ts";
 
@@ -15,12 +16,16 @@ export async function buildApp(env: Env) {
   ]);
   const { db } = createDb(dbConfig);
 
+  // The dev sign-in shortcut exists only for an API on your machine that prints emails.
+  const devOtps = env.APP_ENV === "local" && env.EMAIL_TRANSPORT === "console" ? createOtpRecorder() : undefined;
+
   const auth = createAuth({
     db,
     secret,
     baseURL: env.BETTER_AUTH_URL,
     email: env.EMAIL_TRANSPORT === "ses" ? sesEmailSender(env.EMAIL_FROM) : consoleEmailSender(),
     allowDevOrigins: env.APP_ENV !== "prod",
+    onOtp: devOtps?.record,
   });
 
   const clientLogs =
@@ -33,5 +38,5 @@ export async function buildApp(env: Env) {
     youtube: youTubeKey ? youTubeDataClient({ apiKey: youTubeKey }) : null,
   };
 
-  return createApp({ auth, clientLogs, db, detect, corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS });
+  return createApp({ auth, clientLogs, db, detect, corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS, devOtps });
 }

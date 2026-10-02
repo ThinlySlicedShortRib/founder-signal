@@ -20,9 +20,11 @@ export interface CreateAuthOptions {
   email: EmailSender;
   /** Allows Expo Go / dev-client origins outside prod. */
   allowDevOrigins: boolean;
+  /** Local development only: sees every code that's sent (backs the dev sign-in shortcut). */
+  onOtp?: (email: string, otp: string) => void;
 }
 
-export function createAuth({ db, secret, baseURL, email, allowDevOrigins }: CreateAuthOptions) {
+export function createAuth({ db, secret, baseURL, email, allowDevOrigins, onOtp }: CreateAuthOptions) {
   return betterAuth({
     appName: "Founder Signal",
     secret,
@@ -46,6 +48,7 @@ export function createAuth({ db, secret, baseURL, email, allowDevOrigins }: Crea
         expiresIn: 10 * 60,
         // Awaited on purpose: an un-awaited send can be frozen mid-flight when Lambda suspends.
         async sendVerificationOTP({ email: to, otp }) {
+          onOtp?.(to, otp);
           await email.send({
             to,
             subject: `Your Founder Signal code: ${otp}`,

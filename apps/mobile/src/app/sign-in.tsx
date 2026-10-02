@@ -2,6 +2,7 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, Text, View } from "react-native";
 import { Body, Button, Card, Screen, Small, TextField, Title } from "@/components/ui";
 import { authClient } from "@/lib/auth";
+import { API_URL } from "@/lib/config";
 import { queryClient } from "@/lib/query";
 import { space, useColors } from "@/lib/theme";
 
@@ -37,6 +38,24 @@ export default function SignIn() {
     if (err) return setError(err.status === 400 || err.status === 401 ? "That code didn't work. Check it or send a new one." : (err.message ?? "Sign-in failed"));
     // Start the signed-in app with a clean cache.
     queryClient.clear();
+  }
+
+  /** Development only: the local API hands back a code for the dev account. */
+  async function skipSignIn() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/dev/sign-in-code`, { method: "POST" });
+      if (!res.ok) throw new Error(res.status === 404 ? "Dev sign-in only works against a local API" : `Dev sign-in failed (${res.status})`);
+      const { email: devEmail, otp } = (await res.json()) as { email: string; otp: string };
+      const { error: err } = await authClient.signIn.emailOtp({ email: devEmail, otp });
+      if (err) throw new Error(err.message ?? "Dev sign-in failed");
+      queryClient.clear();
+    } catch (err) {
+      setError(err instanceof TypeError ? `Can't reach the API at ${API_URL}` : (err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -103,6 +122,13 @@ export default function SignIn() {
             </>
           )}
         </Card>
+
+        {__DEV__ && (
+          <View style={{ gap: space.sm }}>
+            <Button title="Skip sign-in (dev)" variant="secondary" icon="flash-outline" onPress={skipSignIn} loading={busy} />
+            <Small style={{ textAlign: "center" }}>Signs in as dev@founder-signal.local. Only in development builds against a local API.</Small>
+          </View>
+        )}
       </Screen>
     </KeyboardAvoidingView>
   );

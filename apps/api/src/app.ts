@@ -8,6 +8,7 @@ import type { ClientLogSink } from "./lib/client-log-sink.ts";
 import { apiError } from "./lib/errors.ts";
 import { createRateLimiter } from "./lib/rate-limit.ts";
 import { type AppEnv, requireUser } from "./lib/session.ts";
+import { devRoutes, type OtpRecorder } from "./routes/dev.ts";
 import { type SourceRouteDeps, sourceRoutes } from "./routes/sources.ts";
 
 export type { AppEnv };
@@ -17,9 +18,11 @@ export interface AppDeps extends SourceRouteDeps {
   clientLogs: ClientLogSink;
   /** Browser origins allowed to call the API with cookies (the Expo web dev server). Native apps don't need CORS. */
   corsOrigins?: string[];
+  /** Set only for a local API: enables /dev/sign-in-code. */
+  devOtps?: OtpRecorder;
 }
 
-export function createApp({ auth, clientLogs, db, detect, corsOrigins = [] }: AppDeps) {
+export function createApp({ auth, clientLogs, db, detect, corsOrigins = [], devOtps }: AppDeps) {
   const app = new Hono<AppEnv>();
 
   if (corsOrigins.length) {
@@ -31,6 +34,8 @@ export function createApp({ auth, clientLogs, db, detect, corsOrigins = [] }: Ap
     return apiError(c, 500, "INTERNAL", "Something went wrong");
   });
   app.notFound((c) => apiError(c, 404, "NOT_FOUND", "Not found"));
+
+  if (devOtps) app.route("/dev", devRoutes({ auth, otps: devOtps }));
 
   // Better Auth owns everything under /api/auth (sign-in, sessions, sign-out).
   app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));

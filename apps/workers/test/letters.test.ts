@@ -44,6 +44,7 @@ function fakeWriter({ bad = new Set<string>(), fail = false }: { bad?: Set<strin
       return {
         headline: "Model headline",
         intro: `${picks.length} things I picked. ${minutes} minutes in all.`,
+        postscript: `In short: ${picks.map((p) => `“${p.title}”`).join(", ")}.`,
         pieces: input.pieces.map((p) => ({
           ref: p.ref,
           whyPicked: p.signals.find((s) => s.kind === "topic") ? `On ${p.topic.toLowerCase()}.` : null,
@@ -205,6 +206,9 @@ describe("scheduled letters", () => {
     expect(l!.leanings.length).toBeGreaterThanOrEqual(2);
     expect(l!.leanings.at(-1)).toBe("Something new");
     expect(l!.stepAttempts).toEqual({ collecting: 1, ranking: 1, generating: 1, verifying: 1 });
+    // The writer's P.S. is stored as the default recap, for the pieces it was written for.
+    expect(l!.postscriptDefault).toBe(`In short: ${(await itemsOf(l!.id)).map((i) => `“${i.snapshot.title}”`).join(", ")}.`);
+    expect(l!.postscriptRecap).toBeNull();
 
     const items = await itemsOf(l!.id);
     expect(items).toHaveLength(3);
@@ -397,8 +401,10 @@ describe("verify", () => {
     expect(ids).toHaveLength(3);
     expect(ids).toEqual(expect.arrayContaining([b!.id, c!.id]));
     expect(ids).toContain(d!.id);
-    // The pieces changed, so the cover line is recomputed rather than the model's.
+    // The pieces changed, so the cover line and the P.S. are recomputed rather than the model's.
     expect(l!.intro).toBe(`Three things I picked for you. 12 minutes in all.`);
+    const titles = (await itemsOf(l!.id)).map((i) => i.snapshot.title);
+    expect(l!.postscriptDefault).toBe(`Today was “${titles[0]}”, “${titles[1]}” and “${titles[2]}”. Tell me which were worth your time.`);
   });
 
   it("writes from the pieces' own words when the model fails", async () => {
@@ -412,6 +418,7 @@ describe("verify", () => {
     const [l] = await lettersOf(userId);
     expect(l).toMatchObject({ status: "sent", headline: expect.stringMatching(/, for a founder$/) });
     expect(l!.generationMeta).toMatchObject({ method: "fallback", model: null, fallbackReason: "model unavailable" });
+    expect(l!.postscriptDefault).toMatch(/^Today was “.+”, “.+” and “.+”\. Tell me which were worth your time\.$/);
     for (const i of await itemsOf(l!.id)) expect(i.snapshot.summary).toBe(paragraph(i.snapshot.topic.toLowerCase(), 1));
   });
 

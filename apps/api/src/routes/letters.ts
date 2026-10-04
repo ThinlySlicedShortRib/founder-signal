@@ -23,7 +23,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { apiError } from "../lib/errors.ts";
 import type { LetterQueue } from "../lib/letter-queue.ts";
-import { buildLetterView, latestDelivered, postscriptFor } from "../lib/letter-views.ts";
+import { buildLetterView, latestDelivered, postscriptFor, storedRecap } from "../lib/letter-views.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { type AuthedEnv, requireUser } from "../lib/session.ts";
 
@@ -150,7 +150,7 @@ export function letterRoutes({ db, reader }: Pick<LetterRouteDeps, "db" | "reade
           .where(and(eq(letter.id, id), eq(letter.userId, userId)))
           .returning();
         if (!row) return apiError(c, 404, "NOT_FOUND", "Letter not found");
-        return c.json({ postscript: await postscriptFor(db, row, row.postscriptRecap) });
+        return c.json({ postscript: await postscriptFor(db, row, storedRecap(row)) });
       },
     );
 }

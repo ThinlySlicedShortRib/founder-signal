@@ -7,9 +7,11 @@ import {
   briefText,
   checkLetterCopy,
   checkPieceCopy,
+  checkPostscript,
   fallbackHeadline,
   fallbackIntro,
   fallbackLetterCopy,
+  fallbackPostscript,
   fallbackWhyPicked,
   leadSentences,
   numbersIn,
@@ -399,6 +401,44 @@ describe("checkLetterCopy", () => {
   });
 });
 
+describe("checkPostscript", () => {
+  const pieces = [
+    { title: "The fee is the product", summary: "A membership store makes most of its profit from the $60 fee." },
+    { title: "Hiring your first engineer", summary: "Hire someone who has shipped something on their own." },
+  ];
+  const ok = "Two today: “The fee is the product” on where a membership store's profit comes from, and “Hiring your first engineer” on hiring someone who has shipped.";
+
+  it("passes a recap that names each piece and adds nothing", () => {
+    expect(checkPostscript(ok, pieces)).toEqual([]);
+    expect(checkPostscript("“The fee is the product” says the $60 fee carries the profit. “Hiring your first engineer” is about shipping.", pieces)).toEqual([]);
+  });
+
+  it("names only the letter's pieces, each of them unless told otherwise", () => {
+    expect(checkPostscript(`${ok} Also see “Ten pricing myths”.`, pieces)).toContain("postscript_names_other_piece");
+    const one = "You liked “The fee is the product” for the numbers.";
+    expect(checkPostscript(one, pieces)).toEqual(["postscript_missing_piece"]);
+    expect(checkPostscript(one, pieces, { requireEach: false })).toEqual([]);
+  });
+
+  it("keeps to the length cap, with no new numbers, exclamation marks or links", () => {
+    expect(checkPostscript(`${ok} ${"More words here. ".repeat(20)}`, pieces)).toContain("postscript_length");
+    expect(checkPostscript("", pieces)).toContain("postscript_length");
+    expect(checkPostscript(`${ok} It made $90 a year.`, pieces)).toContain("postscript_number_unsupported:90");
+    expect(checkPostscript(`${ok} Enjoy!`, pieces)).toContain("postscript_exclamation");
+    expect(checkPostscript(`${ok} See https://example.com`, pieces)).toContain("contains_link");
+    // A title's own "!" is fine.
+    expect(checkPostscript("Just “Ship it!” today.", [{ title: "Ship it!", summary: "Ship." }])).toEqual([]);
+  });
+
+  it("writes a default from the titles that passes its own checks", () => {
+    expect(fallbackPostscript([])).toBeNull();
+    expect(fallbackPostscript(["The fee is the product"])).toBe("Today was “The fee is the product”. Tell me if it was worth your time.");
+    const three = fallbackPostscript(["A long title", "Another title", "A 3rd title"])!;
+    expect(three).toBe("Today was “A long title”, “Another title” and “A 3rd title”. Tell me which were worth your time.");
+    expect(checkPostscript(three, ["A long title", "Another title", "A 3rd title"].map((title) => ({ title, summary: "" })))).toEqual([]);
+  });
+});
+
 describe("fallback copy", () => {
   it("summarizes with the piece's own first sentences, which always verify", () => {
     const p = piece();
@@ -408,6 +448,7 @@ describe("fallback copy", () => {
     expect(copy.headline).toBe("Pricing, for a founder");
     expect(copy.intro).toBe("One thing I picked for you. 9 minutes in all.");
     expect(checkLetterCopy(copy, [1, 9], "")).toEqual([]);
+    expect(copy.postscript).toBe("Today was “How we priced our first B2B contract”. Tell me if it was worth your time.");
   });
 
   it("takes at most two sentences", () => {
@@ -483,12 +524,23 @@ describe("postscript", () => {
     expect(verdictSignature([a])).not.toBe(verdictSignature([{ ...a, reasons: [] }]));
   });
 
-  it("writes a recap from what was worth it", () => {
+  it("writes a recap from what was worth it and what wasn't", () => {
+    const yes = (title: string, reasons: string[] = []) => ({ title, vote: "interested" as const, reasons });
+    const no = (title: string, reasons: string[] = []) => ({ title, vote: "not_interested" as const, reasons });
     expect(fallbackRecap([])).toBeNull();
-    expect(fallbackRecap([{ title: "The fee is the product", reasons: ["numbers"] }])).toBe("You marked “The fee is the product” worth it, for the numbers.");
-    expect(fallbackRecap([{ title: "A", reasons: [] }, { title: "B", reasons: [] }, { title: "C", reasons: [] }])).toBe(
-      "You marked 3 pieces worth it, including “A”.",
+    expect(fallbackRecap([{ title: "Unread", vote: null, reasons: [] }])).toBeNull();
+    expect(fallbackRecap([yes("The fee is the product", ["numbers"])])).toBe("You marked “The fee is the product” worth it, for the numbers.");
+    expect(fallbackRecap([yes("A"), yes("B"), yes("C")])).toBe("You marked 3 pieces worth it, including “A”.");
+    expect(fallbackRecap([no("Growth hacks", ["too_basic", "too_long"])])).toBe("“Growth hacks” wasn't for you: too basic and too long.");
+    expect(fallbackRecap([yes("A", ["practical"]), no("B"), no("C", ["already_knew"]), { title: "D", vote: null, reasons: [] }])).toBe(
+      "You marked “A” worth it, for how practical it was. “B” and “C” weren't for you: nothing new to you.",
     );
+  });
+
+  it("signs no feedback as empty, and changes with a dislike's reasons", () => {
+    expect(verdictSignature([])).toBe("");
+    const b = { itemId: "b", vote: "not_interested" as const, reasons: ["too_basic"] };
+    expect(verdictSignature([b])).not.toBe(verdictSignature([{ ...b, reasons: ["too_long"] }]));
   });
 
   it("names a change in the mix after reasoned dislikes and chosen leanings", () => {

@@ -6,15 +6,16 @@ import { ClaudeCliError, jsonSchemaOf, runClaudeCli } from "./claude-cli.ts";
 
 /**
  * The letter's copy (build plan §6.5): one Sonnet 5.5 call per letter writes
- * the headline, the cover line and, per piece, "why I picked this", a one or
- * two sentence summary and an optional tag. The inputs are retrieved passages
+ * the headline, the cover line, the default P.S. (a quick recap of the pieces
+ * together) and, per piece, "why I picked this", a one or two sentence summary
+ * and an optional tag. The inputs are retrieved passages
  * with IDs and the user's brief, never a title alone. Every piece is then
  * checked deterministically (@fs/core `checkPieceCopy`) before it's sent.
  */
 
 export const LETTER_WRITER_MODEL = "claude-sonnet-5-5";
 /** Bump when the prompt or schema changes; stored on each letter so it can be reproduced. */
-export const LETTER_PROMPT_VERSION = "letter-v2";
+export const LETTER_PROMPT_VERSION = "letter-v3";
 
 export interface LetterWriter {
   /** "anthropic", "claude-cli" or "fallback". */
@@ -36,6 +37,9 @@ export class LetterWriterError extends Error {
 const outputSchema = z.object({
   headline: z.string().describe("A few words naming what this letter is about and who it's for, e.g. \"Pricing and hiring, for a founder\". Under 60 characters"),
   intro: z.string().describe("One line for the cover, e.g. \"Three things I picked for you. 33 minutes in all.\" Use only the piece count and total minutes given"),
+  postscript: z
+    .string()
+    .describe("The P.S.: two or three short sentences, under 60 words, recapping the letter's pieces together, each named by its title in curly quotes"),
   pieces: z.array(
     z.object({
       ref: z.string().describe("The piece's ref, exactly as given"),
@@ -56,6 +60,7 @@ export const LETTER_SYSTEM_PROMPT = `You write a short daily reading letter for 
 For the letter:
 - headline: a few plain words naming the letter's main topics and who it's for, like "Pricing and hiring, for a founder".
 - intro: one line for the cover, like "Three things I picked for you. 33 minutes in all." Use only the piece count and total minutes you're given.
+- postscript: the letter's P.S., one quick paragraph of two or three short sentences (under 60 words) recapping the letter's pieces together (not the reserve ones), speaking to the reader as "you". Name every one of them by its exact title in “curly quotes” and no other titles. Say nothing beyond what your summaries say: no new facts or numbers.
 
 For every piece, in the order given:
 - why_picked: one short sentence connecting the piece to something the reader told us (their role, what they're into lately, their topics, what they asked for more of). Quote their own words in “curly quotes” when it fits. Use the "picked because" signals. If nothing specific connects it, return null rather than something generic. A "discovered" signal means the piece was found by searching the web for this reader, from a publication they don't follow; its note is the search's, not the piece's, so say it's a new find and tie it to what they're into, but never repeat facts or numbers from the note.
@@ -128,6 +133,7 @@ export function letterCopyFromJson(json: unknown): LetterCopy {
   return {
     headline: parsed.data.headline.trim(),
     intro: parsed.data.intro.trim(),
+    postscript: parsed.data.postscript.trim(),
     pieces: parsed.data.pieces.map((p) => ({
       ref: p.ref,
       whyPicked: p.why_picked?.trim() || null,

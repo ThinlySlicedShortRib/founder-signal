@@ -77,7 +77,11 @@ export interface Verdict {
   reasons: string[];
 }
 
-/** Changes whenever a verdict on the letter's pieces changes, so the recap is rewritten lazily. */
+/**
+ * Changes whenever a verdict (either way) or its reasons on the letter's
+ * pieces change, so the recap is rewritten lazily. Pieces without a verdict
+ * aren't part of it, and no feedback signs as "".
+ */
 export function verdictSignature(verdicts: Verdict[]): string {
   return [...verdicts]
     .sort((a, b) => (a.itemId < b.itemId ? -1 : 1))
@@ -96,14 +100,41 @@ const REASON_PHRASES: Record<string, string> = {
   video: "the video",
 };
 
-/** The recap without a model: who was worth it and why, in the user's own reasons. */
-export function fallbackRecap(worthIt: { title: string; reasons: string[] }[]): string | null {
-  if (!worthIt.length) return null;
-  const reasons = [...new Set(worthIt.flatMap((w) => w.reasons))].map((r) => REASON_PHRASES[r]).filter(Boolean) as string[];
-  const why = reasons.length ? `, for ${reasons.slice(0, 2).join(" and ")}` : "";
-  if (worthIt.length === 1) return `You marked “${worthIt[0]!.title}” worth it${why}.`;
-  if (worthIt.length === 2) return `You marked “${worthIt[0]!.title}” and “${worthIt[1]!.title}” worth it${why}.`;
-  return `You marked ${worthIt.length} pieces worth it, including “${worthIt[0]!.title}”${why}.`;
+const DISLIKE_PHRASES: Record<string, string> = {
+  not_my_topic: "not your topic",
+  too_basic: "too basic",
+  too_long: "too long",
+  already_knew: "nothing new to you",
+  not_credible: "not credible",
+  too_promotional: "too promotional",
+};
+
+const phrasesFor = (reasons: string[], phrases: Record<string, string>) =>
+  [...new Set(reasons)].map((r) => phrases[r]).filter((p): p is string => !!p).slice(0, 2);
+
+/**
+ * The recap without a model: what was worth it and what wasn't, in the user's
+ * own reasons. Null when nothing has a verdict (the letter's default P.S. stands).
+ */
+export function fallbackRecap(pieces: { title: string; vote: ReviewVote | null; reasons: string[] }[]): string | null {
+  const worth = pieces.filter((p) => p.vote === "interested");
+  const not = pieces.filter((p) => p.vote === "not_interested");
+  const parts: string[] = [];
+  if (worth.length) {
+    const why = phrasesFor(worth.flatMap((w) => w.reasons), REASON_PHRASES);
+    const reason = why.length ? `, for ${why.join(" and ")}` : "";
+    if (worth.length === 1) parts.push(`You marked “${worth[0]!.title}” worth it${reason}.`);
+    else if (worth.length === 2) parts.push(`You marked “${worth[0]!.title}” and “${worth[1]!.title}” worth it${reason}.`);
+    else parts.push(`You marked ${worth.length} pieces worth it, including “${worth[0]!.title}”${reason}.`);
+  }
+  if (not.length) {
+    const why = phrasesFor(not.flatMap((n) => n.reasons), DISLIKE_PHRASES);
+    const reason = why.length ? `: ${why.join(" and ")}` : "";
+    if (not.length === 1) parts.push(`“${not[0]!.title}” wasn't for you${reason}.`);
+    else if (not.length === 2) parts.push(`“${not[0]!.title}” and “${not[1]!.title}” weren't for you${reason}.`);
+    else parts.push(`${not.length} pieces weren't for you${reason}.`);
+  }
+  return parts.length ? parts.join(" ") : null;
 }
 
 export interface MixFeedback {

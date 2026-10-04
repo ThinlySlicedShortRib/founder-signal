@@ -58,10 +58,14 @@ export interface PieceCopy {
 export interface LetterCopy {
   headline: string;
   intro: string;
+  /** The P.S.: one short paragraph recapping the letter's pieces together, until the user gives feedback. */
+  postscript: string;
   pieces: PieceCopy[];
 }
 
-export const COPY_LIMITS = { summary: 320, whyPicked: 220, headline: 80, intro: 160 } as const;
+export const COPY_LIMITS = { summary: 320, whyPicked: 220, headline: 80, intro: 160, postscript: 480 } as const;
+/** The P.S. is asked for in about 60 words; this is the hard cap, with room for long titles. */
+export const POSTSCRIPT_MAX_WORDS = 80;
 
 /**
  * Splits an item's text into passages for the writer: the opening, plus the
@@ -170,6 +174,27 @@ export function checkLetterCopy(copy: Pick<LetterCopy, "headline" | "intro">, al
   return reasons;
 }
 
+/**
+ * Checks a P.S. recap against the letter's pieces: within the length cap, no
+ * exclamation marks or links, every quoted string is one of the pieces'
+ * titles (so it names only this letter's pieces), and every number appears in
+ * a title or summary. With `requireEach`, every piece must be named.
+ */
+export function checkPostscript(text: string, pieces: { title: string; summary: string }[], { requireEach = true }: { requireEach?: boolean } = {}): string[] {
+  const reasons: string[] = [];
+  const t = text.trim();
+  if (!t || t.length > COPY_LIMITS.postscript || t.split(/\s+/).length > POSTSCRIPT_MAX_WORDS) reasons.push("postscript_length");
+  // A title may have its own "!"; the words around it may not.
+  if (normalizeText(t).replace(/"[^"]*"/g, "").includes("!")) reasons.push("postscript_exclamation");
+  if (/https?:\/\/|www\./i.test(t)) reasons.push("contains_link");
+  const quotes = quotesIn(t);
+  if (quotes.some((q) => !pieces.some((p) => containsQuote(p.title, q)))) reasons.push("postscript_names_other_piece");
+  if (requireEach && pieces.some((p) => !quotes.some((q) => containsQuote(p.title, q)))) reasons.push("postscript_missing_piece");
+  const known = new Set(numbersIn(pieces.map((p) => `${p.title}\n${p.summary}`).join("\n")));
+  for (const n of numbersIn(t)) if (!known.has(n)) reasons.push(`postscript_number_unsupported:${n}`);
+  return reasons;
+}
+
 /** Everything the user told us, as one text, for checking quotes of their words. */
 export function briefText(brief: WriterBrief): string {
   return [brief.role, brief.lately, ...brief.topics, ...brief.leanings, ...brief.facts].filter(Boolean).join("\n");
@@ -237,12 +262,21 @@ export function fallbackIntro(count: number, totalMinutes: number): string {
   return `${things} ${totalMinutes} minute${totalMinutes === 1 ? "" : "s"} in all.`;
 }
 
+/** "Today was “A”, “B” and “C”. Tell me which were worth your time." The P.S. without a model; null without pieces. */
+export function fallbackPostscript(titles: string[]): string | null {
+  if (!titles.length) return null;
+  const named = titles.map((t) => `“${t}”`);
+  const list = named.length === 1 ? named[0]! : `${named.slice(0, -1).join(", ")} and ${named.at(-1)!}`;
+  return `Today was ${list}. ${titles.length === 1 ? "Tell me if it was worth your time." : "Tell me which were worth your time."}`;
+}
+
 export function fallbackLetterCopy(input: WriterInput): LetterCopy {
   const picks = input.pieces.slice(0, input.pickCount);
   const total = picks.reduce((s, p) => s + p.minutes, 0);
   return {
     headline: fallbackHeadline(picks.map((p) => p.topic), input.brief.role),
     intro: fallbackIntro(picks.length, total),
+    postscript: fallbackPostscript(picks.map((p) => p.title)) ?? "",
     pieces: input.pieces.map(fallbackPieceCopy),
   };
 }

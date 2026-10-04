@@ -12,7 +12,7 @@ the same photos are on Unsplash (credits in `apps/api/src/lib/letter-fixture.ts`
 | `PagerReader` | Reading in place: photo header 200px → white 72px bar on scroll, author card, every action in the floating pill (save, time left ring, next section, ••• tray), verdict in the pill at the end, then "Next". |
 | `PagerVideo` | A video piece: play button on the still; transcript in chapters. |
 | `PagerLibrary`, `PagerActivity`, `PagerPreferences` | The rest of the app under the same floating pill + big-type menu sheet. |
-| `PsCountdown` | The chosen P.S. (board "P.S. 5"): two-line recap, "See you Tuesday, 7:30.", "Tomorrow, more of" multi-select + "+ Your own". |
+| `PsCountdown` | The chosen P.S. (board "P.S. 5"): a short recap, "See you Tuesday, 7:30.", "Tomorrow, more of" multi-select + "+ Your own". The recap is always there: a quick summary of the pieces written with the letter, rewritten from the user's verdicts once they give any (build plan §6.5). It runs two to four lines, and the page scrolls when it needs to. |
 
 Decisions: no tab bar (pill + menu sheet); moving between pieces is the pill's
 ↑/↓ and the "Up next" card (swipe up means "read"); verdict asked once, at the

@@ -420,7 +420,7 @@ export const letterPieceSchema = z.object({
 export type LetterPiece = z.infer<typeof letterPieceSchema>;
 
 export const postscriptSchema = z.object({
-  /** One or two short sentences about the pieces marked worth it; null until there's feedback to write from. */
+  /** A quick recap of the pieces, rewritten from the user's verdicts once they give any; null only while the letter has no pieces yet. */
   recap: z.string().nullable(),
   /** When the next letter arrives (from the schedule), null if paused or unscheduled. */
   nextLetterAt: z.iso.datetime().nullable(),

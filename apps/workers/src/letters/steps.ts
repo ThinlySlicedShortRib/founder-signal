@@ -8,9 +8,11 @@ import {
   DISCOVERED_CANDIDATE_DAYS,
   checkLetterCopy,
   checkPieceCopy,
+  checkPostscript,
   fallbackHeadline,
   fallbackIntro,
   fallbackPieceCopy,
+  fallbackPostscript,
   initialsFor,
   type LetterCopy,
   leaningOptions,
@@ -290,7 +292,7 @@ async function generate(deps: PipelineDeps, current: Letter) {
   } catch (err) {
     // No model available (or it failed): copy from the pieces' own words, never invented.
     log("letter_writer_fallback", { letterId: current.id, message: (err as Error).message });
-    copy = { headline: "", intro: "", pieces: pieces.map(fallbackPieceCopy) };
+    copy = { headline: "", intro: "", postscript: "", pieces: pieces.map(fallbackPieceCopy) };
     generation = { ...generation, method: "fallback", model: null, fallbackReason: (err as Error).message.slice(0, 200) };
   }
 
@@ -300,7 +302,7 @@ async function generate(deps: PipelineDeps, current: Letter) {
   }
   await completeStep(deps, current, "generating", {
     drafts,
-    letterCopy: { headline: copy.headline, intro: copy.intro },
+    letterCopy: { headline: copy.headline, intro: copy.intro, postscript: copy.postscript },
     generation,
     writer: { brief: ctx.brief as unknown as Record<string, unknown>, pieces: pieces as unknown as Record<string, unknown>[] },
   });
@@ -554,6 +556,13 @@ async function lock(
     !checkLetterCopy(modelCopy, [kept.length, totalMinutes, ...ids.map((id) => pieceById.get(id)!.minutes)], briefText(brief)).length;
   const headline = useModel ? modelCopy!.headline : fallbackHeadline(ids.map((id) => pieceById.get(id)!.topic), brief.role);
   const intro = useModel ? modelCopy!.intro : fallbackIntro(kept.length, totalMinutes);
+  // The default P.S. likewise: the model's only for the pieces it wrote for, naming just them and
+  // nothing beyond their delivered summaries; otherwise one from the titles. Feedback replaces it (API).
+  const titled = ids.map((id) => ({ title: pieceById.get(id)!.title, summary: drafts[id]!.summary }));
+  const postscriptDefault =
+    unchanged && modelCopy?.postscript && !checkPostscript(modelCopy.postscript, titled).length
+      ? modelCopy.postscript
+      : fallbackPostscript(titled.map((t) => t.title));
 
   const items: (typeof letterItem.$inferInsert)[] = [];
   for (const [i, id] of ids.entries()) {
@@ -608,6 +617,7 @@ async function lock(
         status: "ready",
         headline,
         intro,
+        postscriptDefault,
         whyThisMix: mix,
         leanings,
         short,

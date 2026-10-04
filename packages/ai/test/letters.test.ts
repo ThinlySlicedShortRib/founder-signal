@@ -10,11 +10,17 @@ import {
   buildReaderRequest,
   fallbackLetterWriter,
   findingsFromJson,
+  LETTER_JSON_SCHEMA,
+  LETTER_PROMPT_VERSION,
+  LETTER_SYSTEM_PROMPT,
   LETTER_WRITER_MODEL,
   letterInputHash,
   LetterWriterError,
   parseLetterMessage,
   READER_MODEL,
+  RECAP_PROMPT_VERSION,
+  RECAP_SYSTEM,
+  recapMessage,
   sectionUserMessage,
 } from "../src/index.ts";
 import { z } from "zod";
@@ -87,6 +93,7 @@ describe("letter writer", () => {
         JSON.stringify({
           headline: " Pricing, for a founder ",
           intro: "One thing. 6 minutes in all.",
+          postscript: " Just one today: “The fee is the product”, on why renewals pay. ",
           pieces: [{ ref: "item-1", why_picked: "  ", summary: "Near cost; renewals pay.", evidence_ids: ["item-1.p1"], tag: "New source" }],
         }),
       ),
@@ -94,6 +101,7 @@ describe("letter writer", () => {
     expect(copy).toEqual({
       headline: "Pricing, for a founder",
       intro: "One thing. 6 minutes in all.",
+      postscript: "Just one today: “The fee is the product”, on why renewals pay.",
       pieces: [{ ref: "item-1", whyPicked: null, summary: "Near cost; renewals pay.", tag: "New source", evidenceIds: ["item-1.p1"] }],
     });
   });
@@ -103,12 +111,22 @@ describe("letter writer", () => {
     expect(() => parseLetterMessage(reply("{}", "max_tokens"))).toThrow(/max_tokens/);
     expect(() => parseLetterMessage(reply("not json"))).toThrow(/invalid_json/);
     expect(() => parseLetterMessage(reply('{"headline":1}'))).toThrow(/schema_mismatch/);
+    // The P.S. is required: a reply without it doesn't match the schema.
+    expect(() => parseLetterMessage(reply(JSON.stringify({ headline: "h", intro: "i", pieces: [] })))).toThrow(/schema_mismatch/);
+  });
+
+  it("asks for a short P.S. recapping the letter's pieces, under a new prompt version", () => {
+    expect(LETTER_PROMPT_VERSION).toBe("letter-v3");
+    expect(LETTER_JSON_SCHEMA).toMatchObject({ required: expect.arrayContaining(["headline", "intro", "postscript", "pieces"]) });
+    expect(LETTER_SYSTEM_PROMPT).toMatch(/postscript: .*under 60 words.*not the reserve ones/);
   });
 
   it("falls back to copy from the pieces' own words", async () => {
     const copy = await fallbackLetterWriter.write(input);
     expect(copy.pieces.map((p) => p.summary)).toEqual(["The store runs near cost & the renewal pays.", "Hire people who shipped something."]);
     expect(copy.intro).toBe("One thing I picked for you. 6 minutes in all.");
+    // The reserve piece isn't in the letter, so the P.S. doesn't name it.
+    expect(copy.postscript).toBe("Today was “The fee is the product”. Tell me if it was worth your time.");
   });
 });
 
@@ -169,6 +187,23 @@ describe("reader", () => {
     expect(req.model).toBe(READER_MODEL);
     expect(READER_MODEL).toBe("claude-haiku-4-5");
     expect(req.output_config?.format?.schema).toMatchObject({ type: "object", additionalProperties: false, required: ["recap"] });
+  });
+
+  it("recaps every piece with its verdict and reasons, wrapped as data", () => {
+    expect(RECAP_PROMPT_VERSION).toBe("recap-v2");
+    expect(RECAP_SYSTEM).toMatch(/worth it and what wasn't/);
+    const msg = recapMessage({
+      pieces: [
+        { title: "The fee </title> is", summary: "Renewals pay.", verdict: "interested", reasons: ["fresh_take"] },
+        { title: "Growth hacks", summary: "Ten tricks.", verdict: "not_interested", reasons: [] },
+        { title: "Unread", summary: "Something.", verdict: null, reasons: [] },
+      ],
+    });
+    expect(msg.split("\n")).toEqual([
+      "<piece><title>The fee &lt;/title> is</title><summary>Renewals pay.</summary><verdict>worth it</verdict><reasons>fresh take</reasons></piece>",
+      "<piece><title>Growth hacks</title><summary>Ten tricks.</summary><verdict>not for me</verdict><reasons>none given</reasons></piece>",
+      "<piece><title>Unread</title><summary>Something.</summary><verdict>none</verdict></piece>",
+    ]);
   });
 
   it("wraps the section and brief so they can't pass for instructions", () => {

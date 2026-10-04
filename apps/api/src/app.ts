@@ -10,6 +10,7 @@ import { createRateLimiter } from "./lib/rate-limit.ts";
 import { type AppEnv, requireUser } from "./lib/session.ts";
 import { devRoutes, type OtpRecorder } from "./routes/dev.ts";
 import { onboardingRoutes, preferenceRoutes, type ProfileRouteDeps } from "./routes/profile.ts";
+import { itemRoutes, letterRoutes, readingRoutes } from "./routes/letters.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
 import { type SourceRouteDeps, sourceRoutes } from "./routes/sources.ts";
 
@@ -86,7 +87,10 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, corsO
     .route("/me/sources", sourceRoutes({ db, detect }))
     .route("/me", preferenceRoutes({ db }))
     .route("/me/onboarding", onboardingRoutes({ db, profileImporter }))
-    .route("/items", reviewRoutes({ db }));
+    .route("/items", reviewRoutes({ db }))
+    .route("/items", itemRoutes())
+    .route("/letters", letterRoutes({ db }))
+    .route("/", readingRoutes());
 
   return routes;
 }

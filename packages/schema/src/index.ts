@@ -312,3 +312,180 @@ export const calibrationPickSchema = z.object({
   tags: z.array(z.string()),
 });
 export type CalibrationPick = z.infer<typeof calibrationPickSchema>;
+
+// ── Letters (build plan §6.1–6.7, §7: /letters, /items/:id) ─────────────────
+// The app's reading experience (Layout 6 on the design canvas) is built on these.
+
+/** The picture behind a piece page: the article's own lead image, else a stock photo for its topic. */
+export const pieceImageSchema = z.object({
+  url: z.url(),
+  source: z.enum(["article", "stock"]),
+  /** Required for stock photos (e.g. "Oxana Melis on Unsplash"); shown somewhere quiet, not on the photo. */
+  credit: z.string().nullable(),
+  creditUrl: z.url().nullable(),
+});
+export type PieceImage = z.infer<typeof pieceImageSchema>;
+
+/** A number about the author, only ever from a source we can name. */
+export const authorStatSchema = z.object({
+  value: z.string().max(12),
+  label: z.string().max(60),
+});
+
+export const authorCardSchema = z.object({
+  /** Stable across letters, for following: e.g. "priyaraman.com" or "youtube:UC…". */
+  key: z.string(),
+  name: z.string(),
+  initials: z.string().max(3),
+  /** e.g. "Founder, clinic scheduling software". */
+  role: z.string().nullable(),
+  /** One line for the piece page, e.g. "3 companies founded · $5M ARR at the last one". */
+  headline: z.string().nullable(),
+  /** One sentence for the reader's card. */
+  short: z.string().nullable(),
+  /** A short paragraph for the dialog. */
+  bio: z.string().nullable(),
+  stats: z.array(authorStatSchema).max(3),
+  knownFor: z.array(z.string()).max(4),
+  siteUrl: z.url().nullable(),
+  /** Where the details came from and when, e.g. "From her blog and Crunchbase, checked Oct 3". */
+  provenance: z.string().nullable(),
+  /** Other pieces by them this user has read or saved. */
+  yourReading: z.array(z.object({ itemId: z.uuid(), title: z.string(), note: z.string() })).max(5),
+  following: z.boolean(),
+});
+export type AuthorCard = z.infer<typeof authorCardSchema>;
+
+export const letterPieceSchema = z.object({
+  /** The content item; stable across letters. */
+  itemId: z.uuid(),
+  position: z.number().int().min(1),
+  kind: z.enum(["article", "video"]),
+  title: z.string(),
+  topic: z.string(),
+  minutes: z.number().int().min(1),
+  /** "Why I picked this", tied to the user's own words where possible. Null when there's nothing specific to say. */
+  whyPicked: z.string().nullable(),
+  /** A short tag such as "New source" or "Via X". */
+  tag: z.string().nullable(),
+  /** One or two sentences under the title on the piece page. */
+  summary: z.string(),
+  sourceName: z.string(),
+  originalUrl: z.url(),
+  image: pieceImageSchema.nullable(),
+  author: authorCardSchema.nullable(),
+  /** `[A-Z]{2}[0-9]{2}`, unique within the letter (§6.7). */
+  feedbackCode: z.string(),
+  // The user's state for this piece.
+  verdict: z.enum(reviewVotes).nullable(),
+  skipped: z.boolean(),
+  completed: z.boolean(),
+  saved: z.boolean(),
+});
+export type LetterPiece = z.infer<typeof letterPieceSchema>;
+
+export const postscriptSchema = z.object({
+  /** One or two short sentences about the pieces marked worth it; null until there's feedback to write from. */
+  recap: z.string().nullable(),
+  /** When the next letter arrives (from the schedule), null if paused or unscheduled. */
+  nextLetterAt: z.iso.datetime().nullable(),
+  /** "Tomorrow, more of": short options written from today's feedback and the brief. */
+  leanings: z.array(z.string().max(40)).max(6),
+  /** What the user picked, including their own words. */
+  chosenLeanings: z.array(z.string().max(80)).max(10),
+});
+export type Postscript = z.infer<typeof postscriptSchema>;
+
+export const letterStatuses = [
+  "scheduled",
+  "collecting",
+  "ranking",
+  "generating",
+  "verifying",
+  "ready",
+  "sending",
+  "sent",
+  "short_sent",
+  "skipped_no_candidates",
+  "failed",
+] as const;
+export type LetterStatus = (typeof letterStatuses)[number];
+
+export const letterViewSchema = z.object({
+  id: z.uuid(),
+  /** "Letter No. 4": counts this user's delivered letters. */
+  number: z.number().int().min(1),
+  status: z.enum(letterStatuses),
+  /** When it was (or will be) delivered, and the user's local date for it. */
+  deliveredAt: z.iso.datetime().nullable(),
+  localDate: z.string(),
+  /** e.g. "Pricing and hiring, for a founder". */
+  headline: z.string(),
+  /** The post office's one line on the cover, e.g. "Three things I picked for you. 33 minutes in all." */
+  intro: z.string(),
+  totalMinutes: z.number().int(),
+  /** Explains a change in the mix, e.g. after a reasoned dislike (§6.4). */
+  whyThisMix: z.string().nullable(),
+  pieces: z.array(letterPieceSchema),
+  postscript: postscriptSchema,
+  isTest: z.boolean(),
+});
+export type LetterView = z.infer<typeof letterViewSchema>;
+
+export const letterSummarySchema = letterViewSchema.pick({ id: true, number: true, headline: true, localDate: true, totalMinutes: true, isTest: true }).extend({
+  pieceCount: z.number().int(),
+});
+export type LetterSummary = z.infer<typeof letterSummarySchema>;
+
+/** A chapter of a video's transcript, with where it starts. */
+export const chapterSchema = z.object({
+  startSeconds: z.number().int().min(0),
+  title: z.string(),
+  text: z.string(),
+});
+
+/** What the reader shows for one piece: full text as blocks, or a video's transcript. */
+export const itemViewSchema = z.object({
+  id: z.uuid(),
+  kind: z.enum(["article", "video"]),
+  title: z.string(),
+  sourceName: z.string(),
+  originalUrl: z.url(),
+  minutes: z.number().int().nullable(),
+  rights: rightsSchema,
+  /** Null when the rights rule doesn't allow showing the text (then `digest` is used) or it couldn't be extracted. */
+  blocks: z.array(blockSchema).nullable(),
+  sections: z.array(sectionSchema),
+  /** A short plain-text digest, for link-only or excerpt-only rights. */
+  digest: z.string().nullable(),
+  /** For videos: the YouTube ID, and chapters if there's a transcript. */
+  video: z.object({ youtubeId: z.string(), durationSeconds: z.number().int().nullable(), chapters: z.array(chapterSchema).nullable() }).nullable(),
+  unavailableReason: z.enum(unavailableReasons).nullable(),
+});
+export type ItemView = z.infer<typeof itemViewSchema>;
+
+/** "Summarize this section" (§6.5): claim / evidence / what it means for you. */
+export const sectionSummarySchema = z.object({
+  sectionId: z.string(),
+  claim: z.string(),
+  evidence: z.string(),
+  forYou: z.string(),
+});
+export type SectionSummary = z.infer<typeof sectionSummarySchema>;
+
+/** Reading events (§6.6). `localDay` is set on the device when it happens and never recomputed. */
+export const interactionTypes = ["open", "complete", "uncomplete", "save", "unsave", "summary_expand", "skip"] as const;
+export const interactionSchema = z.object({
+  eventId: z.uuid(),
+  type: z.enum(interactionTypes),
+  itemId: z.uuid(),
+  letterId: z.uuid().nullable(),
+  occurredAt: z.iso.datetime(),
+  localDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+export const eventsInputSchema = z.object({ events: z.array(interactionSchema).min(1).max(100) });
+export type Interaction = z.infer<typeof interactionSchema>;
+
+export const leaningsInputSchema = z.object({ chosen: z.array(z.string().trim().min(1).max(80)).max(10) });
+
+export const followAuthorInputSchema = z.object({ following: z.boolean() });

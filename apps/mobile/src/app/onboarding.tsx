@@ -1,37 +1,22 @@
 import { topicsFromText } from "@fs/core";
-import {
-  type Assistant,
-  type CalibrationPick,
-  type ImportProfileResult,
-  type ProfileView,
-  readingPlatforms,
-  roles,
-  type Topic,
-  topics as allTopics,
-  type UpdateProfileInput,
-} from "@fs/schema";
+import { type Assistant, type ImportProfileResult, type ProfileView, roles, type Topic, topics as allTopics, type UpdateProfileInput } from "@fs/schema";
 import { StatusBar } from "expo-status-bar";
 import { useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ImportStep, type ImportStage } from "@/components/onboarding/ImportStep";
-import { AgentNote, Chip, Chips, em, InlineError, LinkButton, OButton, OText, font, usePalette } from "@/components/onboarding/kit";
+import { Chip, Chips, InlineError, LinkButton, OButton, OText, font, usePalette } from "@/components/onboarding/kit";
 import { BoardIcon } from "@/components/onboarding/icons";
 import { LetterPreview } from "@/components/onboarding/LetterPreview";
 import { type Clause, Sentence } from "@/components/onboarding/Sentence";
-import { type Like, SwipeDeck } from "@/components/onboarding/SwipeDeck";
-import { reportError } from "@/lib/error-reporting";
 import {
   type Answers,
   answersFromImport,
   assistantLabel,
   buildPreview,
-  doneCopy,
   isAnswered,
   LATELY_EXAMPLES,
-  listText,
   nextStep,
-  platformLabel,
   PRESETS,
   presetLabel,
   quoteOf,
@@ -40,16 +25,7 @@ import {
   type Step,
   withArticle,
 } from "@/lib/onboarding";
-import {
-  useCalibrationPicks,
-  useCompleteOnboarding,
-  useImportProfile,
-  useLatestImport,
-  useProfile,
-  useReview,
-  useUpdateProfile,
-  useUpdateSchedule,
-} from "@/lib/profile";
+import { useCompleteOnboarding, useImportProfile, useLatestImport, useProfile, useUpdateProfile, useUpdateSchedule } from "@/lib/profile";
 
 /** Resumes where the user left off: everything answered so far is already saved. */
 function answersFrom(profile: ProfileView | undefined): Answers {
@@ -65,7 +41,7 @@ function answersFrom(profile: ProfileView | undefined): Answers {
     latelySkipped: !profile?.lately && topics.length > 0,
     topics,
     platforms: profile?.platforms ?? [],
-    platformsDone: !!profile?.platforms.length || !!profile?.schedule,
+    // The schedule is the last answer: with a preset saved, only "Send my first letter" is left.
     preset: profile?.schedule?.preset ?? null,
   };
 }
@@ -78,7 +54,6 @@ export default function Onboarding() {
   const updateSchedule = useUpdateSchedule();
   const importProfile = useImportProfile();
   const complete = useCompleteOnboarding();
-  const review = useReview();
 
   const [answers, setAnswers] = useState<Answers>(() => answersFrom(profile.data));
   const [at, setAt] = useState<Step | null>(() => nextStep(answersFrom(profile.data)));
@@ -90,13 +65,9 @@ export default function Onboarding() {
   const [importResult, setImportResult] = useState<ImportProfileResult | null>(null);
   const [draft, setDraft] = useState("");
   const [heard, setHeard] = useState<Topic[]>([]);
-  const [phase, setPhase] = useState<"setup" | "swipe" | "done">("setup");
-  const [likes, setLikes] = useState<Like[]>([]);
-  const [pickCount, setPickCount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const retry = useRef<(() => void) | null>(null);
 
-  const picks = useCalibrationPicks({ enabled: at === null });
   const latestImport = useLatestImport({ enabled: at === "import" });
 
   /** Saves in the background; the sentence moves on straight away. */
@@ -169,7 +140,7 @@ export default function Onboarding() {
 
   function keepImport(kept: number[]) {
     const facts = (importResult?.facts ?? []).filter((_, i) => kept.includes(i));
-    // Each kept fact fills its part of the form; places to read are pre-selected for the next step.
+    // Each kept fact fills its part of the form. Places they read are kept quietly; that's no longer asked.
     const patch = answersFromImport(facts, answers);
     const imported = { importId: importResult?.importId ?? null, assistant, facts };
     // The note is saved with the import; the copy on screen isn't needed any more.
@@ -208,89 +179,7 @@ export default function Onboarding() {
     save(() => updateSchedule.mutateAsync(preset));
   }
 
-  // ── Swipes ────────────────────────────────────────────────────────────────
-
-  function sendReview(pick: CalibrationPick, input: Omit<Parameters<typeof review.mutate>[0], "itemId">) {
-    review.mutate({ itemId: pick.id, origin: "onboarding", ...input }, { onError: (err) => reportError(err, { context: "onboarding review" }) });
-  }
-
-  function startSwipes(list: CalibrationPick[]) {
-    setLikes([]);
-    setPickCount(list.length);
-    setPhase(list.length ? "swipe" : "done");
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
-
-  if (phase === "swipe" && picks.data?.length) {
-    return (
-      <View style={{ flex: 1, backgroundColor: p.ground }}>
-        <StatusBar style="dark" />
-        <View style={{ flex: 1, width: "100%", maxWidth: 520, alignSelf: "center" }}>
-          <SwipeDeck
-            picks={picks.data}
-            onSkip={(pick) => sendReview(pick, { vote: "not_interested" })}
-            onLike={(like) => {
-              setLikes((xs) => [...xs, like]);
-              sendReview(like.pick, { vote: "interested", reasons: like.reasons, freeText: like.why || null });
-            }}
-            onFinished={() => setPhase("done")}
-          />
-        </View>
-      </View>
-    );
-  }
-
-  if (phase === "done") {
-    const schedule = profile.data?.schedule;
-    const likedTopics = [...new Set(likes.map((l) => l.pick.matchedTopic ?? l.pick.tags[0]).filter((t): t is string => !!t))];
-    const copy = doneCopy({
-      liked: likes.length,
-      total: pickCount,
-      likedTopics,
-      reasons: likes.flatMap((l) => l.reasons),
-      preset: answers.preset,
-      nextRunAt: schedule?.nextRunAt ?? null,
-    });
-    return (
-      <View style={{ flex: 1, backgroundColor: p.ground }}>
-        <StatusBar style="dark" />
-        <View style={{ flex: 1, width: "100%", maxWidth: 560, alignSelf: "center", paddingTop: insets.top + 40, paddingBottom: insets.bottom + 26, paddingHorizontal: 24, gap: 16 }}>
-          <OText variant="mono">Out for delivery</OText>
-          <OText variant="display" style={{ fontSize: 30, lineHeight: 32.4, letterSpacing: em(-0.02, 30) }}>
-            {copy.title}
-          </OText>
-          <AgentNote>{copy.note}</AgentNote>
-          {!picks.data?.length && <OText color={p.muted}>Once your sources have a few pieces in, I’ll learn from how you read them.</OText>}
-          {copy.reasons.length > 0 && (
-            <Chips>
-              {copy.reasons.map((r) => (
-                <Chip key={r} label={r} on />
-              ))}
-            </Chips>
-          )}
-          <View style={{ flexGrow: 1 }} />
-          {complete.error && <InlineError message={complete.error.message} />}
-          {/* Finishing flips the route guard, which opens the app. */}
-          <OButton title="Open Founder Signal" loading={complete.isPending} onPress={() => complete.mutate()} />
-          <LinkButton
-            title="Start over"
-            onPress={() => {
-              const blank = answersFrom(undefined);
-              setAnswers(blank);
-              setAt(nextStep(blank));
-              setHistory([]);
-              setImportStage(0);
-              setImportResult(null);
-              setHeard([]);
-              setDraft("");
-              setPhase("setup");
-            }}
-          />
-        </View>
-      </View>
-    );
-  }
 
   const preview = buildPreview({
     answers,
@@ -319,14 +208,7 @@ export default function Onboarding() {
       answer: answers.topics.length ? value("topics", topicsText(answers.topics)) : null,
       onEdit: () => edit("topics"),
     });
-  if (shown("platforms", "topics"))
-    clauses.push({
-      key: "platforms",
-      lead: " I follow people on ",
-      answer: answers.platformsDone ? value("platforms", answers.platforms.length ? listText(answers.platforms.map(platformLabel)) : "places I'll add later") : null,
-      onEdit: () => edit("platforms"),
-    });
-  if (shown("time", "platforms"))
+  if (shown("time", "topics"))
     clauses.push({ key: "time", lead: " Send it ", answer: answers.preset ? value("time", presetLabel(answers.preset)) : null, onEdit: () => edit("time") });
 
   return (
@@ -399,35 +281,6 @@ export default function Onboarding() {
             </ChoiceStep>
           )}
 
-          {at === "platforms" && (
-            <ChoiceStep
-              prompt="Where do you already read?"
-              note="Connecting them comes later. We'll only ever read who you follow, never your messages."
-              next={{
-                label: answers.platforms.length ? "Next" : "Skip for now",
-                onPress: () => answer({ platformsDone: true }, { platforms: answers.platforms }),
-              }}
-            >
-              {withOwn(readingPlatforms, answers.platforms).map((x) => {
-                const on = answers.platforms.includes(x);
-                return (
-                  <Chip
-                    key={x}
-                    label={platformLabel(x)}
-                    on={on}
-                    onPress={() => setAnswers({ ...answers, platforms: on ? answers.platforms.filter((y) => y !== x) : [...answers.platforms, x] })}
-                  />
-                );
-              })}
-              <FreeText
-                label="Somewhere else you read"
-                placeholder="Somewhere else, e.g. LinkedIn"
-                action="Add"
-                onSubmit={(v) => !hasText(answers.platforms.map(platformLabel), v) && setAnswers({ ...answers, platforms: [...answers.platforms, v] })}
-              />
-            </ChoiceStep>
-          )}
-
           {at === "time" && (
             <ChoiceStep prompt="When should it arrive?">
               {PRESETS.map((x) => (
@@ -438,22 +291,11 @@ export default function Onboarding() {
 
           {at === null && (
             <View style={{ flexGrow: 1, gap: 11 }}>
-              {picks.isPending ? (
-                <ActivityIndicator color={p.muted} accessibilityLabel="Finding picks" />
-              ) : picks.data?.length ? (
-                <OText color={p.muted}>Sealed. Before it goes out: {picks.data.length === 5 ? "five" : picks.data.length} quick pick{picks.data.length === 1 ? "" : "s"} so I get your taste right.</OText>
-              ) : (
-                <OText color={p.muted}>Sealed. There’s nothing collected yet to pick from, so I’ll learn from what you read instead.</OText>
-              )}
+              <OText color={p.muted}>That’s everything I need. I’ll search the web for pieces that fit, and your first letter will be on Today in a few minutes. After that, it comes {answers.preset ? presetLabel(answers.preset) : "on your schedule"}.</OText>
               <View style={{ flexGrow: 1, minHeight: 12 }} />
-              {picks.data?.length ? (
-                <>
-                  <OButton title={picks.data.length === 5 ? "Show me five picks" : "Show me the picks"} onPress={() => startSwipes(picks.data!)} />
-                  <LinkButton title="Skip, just send it" onPress={() => startSwipes([])} />
-                </>
-              ) : (
-                <OButton title="Send it" disabled={picks.isPending} onPress={() => startSwipes([])} />
-              )}
+              {complete.error && <InlineError message={complete.error.message} onRetry={() => complete.mutate()} />}
+              {/* Finishing makes the first letter and flips the route guard, which opens Today. */}
+              <OButton title="Send my first letter" loading={complete.isPending} onPress={() => complete.mutate()} />
             </View>
           )}
 

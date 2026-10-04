@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { font, InlineError, OButton, palette } from "@/components/onboarding/kit";
 import { usePillSpace } from "@/components/pager/Pill";
@@ -10,8 +10,18 @@ import { useTestLetter } from "@/lib/letters";
 import { presetLabel } from "@/lib/onboarding";
 import { useProfile } from "@/lib/profile";
 
-/** Today before the first letter: when it arrives, and a test letter to try the app now. */
-export function EmptyToday({ polling, onPoll }: { polling: boolean; onPoll: () => void }) {
+/** What to say when the letter Today was following ended without being sent. */
+const ENDED = {
+  empty: "I couldn't find anything new for you this time. Add a source you like, or try again in a little while and I'll search again.",
+  failed: "Something went wrong while I was putting your letter together. Try again in a minute.",
+};
+
+/**
+ * Today before the first letter: when it arrives, and a test letter to try
+ * the app now. `ended` says why the letter it was following (the first one,
+ * or a test letter) didn't arrive.
+ */
+export function EmptyToday({ ended }: { ended: "empty" | "failed" | null }) {
   const insets = useSafeAreaInsets();
   const { space } = usePillSpace();
   const schedule = useProfile().data?.schedule;
@@ -25,11 +35,8 @@ export function EmptyToday({ polling, onPoll }: { polling: boolean; onPoll: () =
     setNote(null);
     test.mutate(undefined, {
       onSuccess: (res) => {
-        if (!res) {
-          setNote("Test letters aren't switched on yet. Your first letter will still arrive on schedule.");
-          return;
-        }
-        onPoll();
+        // Today follows the new letter from here (lib/letters.ts `trackLetter`).
+        if (!res) setNote("Test letters aren't switched on yet. Your first letter will still arrive on schedule.");
       },
     });
   }
@@ -45,20 +52,20 @@ export function EmptyToday({ polling, onPoll }: { polling: boolean; onPoll: () =
         <Display size={52} lineHeight={54}>
           {when ? `See you ${when}.` : "Your first letter is on its way."}
         </Display>
-        <AgentLine>
-          {schedule?.paused
-            ? "Your letters are paused. Pick a schedule in Preferences and I'll start again."
-            : schedule?.preset
-              ? `I'm reading your sources now. Your first letter arrives ${presetLabel(schedule.preset)}${when ? `, starting ${when}` : ""}: a few pieces, and a line on why each one is worth it.`
-              : "I'm reading your sources now. Choose when your letter arrives in Preferences and the first one will follow."}
-        </AgentLine>
-        <OButton title={polling ? "Writing your test letter…" : "Send me a test letter"} loading={test.isPending || polling} onPress={sendTest} style={PILL_BUTTON} />
-        {polling && (
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-            <ActivityIndicator color={palette.muted} />
-            <Text style={{ flex: 1, fontFamily: font.body, fontSize: 14, color: palette.muted }}>It usually takes a minute or two. It&apos;ll open here when it&apos;s ready.</Text>
+        {ended ? (
+          <View accessibilityRole="alert">
+            <AgentLine>{ENDED[ended]}</AgentLine>
           </View>
+        ) : (
+          <AgentLine>
+            {schedule?.paused
+              ? "Your letters are paused. Pick a schedule in Preferences and I'll start again."
+              : schedule?.preset
+                ? `I'm reading your sources now. Your first letter arrives ${presetLabel(schedule.preset)}${when ? `, starting ${when}` : ""}: a few pieces, and a line on why each one is worth it.`
+                : "I'm reading your sources now. Choose when your letter arrives in Preferences and the first one will follow."}
+          </AgentLine>
         )}
+        <OButton title={ended ? "Try again" : "Send me a test letter"} loading={test.isPending} onPress={sendTest} style={PILL_BUTTON} />
         {note && <AgentLine>{note}</AgentLine>}
         {test.isError && <InlineError message={test.error.message} onRetry={sendTest} />}
         <OButton title="Your sources" kind="secondary" onPress={() => router.push("/sources")} style={PILL_BUTTON} />

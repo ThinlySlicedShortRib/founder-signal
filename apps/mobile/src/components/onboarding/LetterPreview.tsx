@@ -8,9 +8,9 @@ const ICON: Record<StageIcon, BoardIconName> = {
   envelope: "envelope",
   note: "note",
   pencil: "pencil",
-  tray: "sort",
   shield: "shield",
   stamp: "stamp",
+  truck: "truck",
 };
 
 /** .prev: the letter being written as the user answers (design: "Letter card 1 · Tinted card, simple list"). */

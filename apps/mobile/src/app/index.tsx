@@ -1,25 +1,43 @@
-import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { EmptyToday } from "@/components/letter/EmptyToday";
 import { LetterPager } from "@/components/letter/LetterPager";
+import { PreparingLetter } from "@/components/letter/PreparingLetter";
 import { PageState } from "@/components/pager/PagerScreen";
-import { useTodayLetter } from "@/lib/letters";
+import type { ApiError } from "@/lib/api";
+import { inProgress, LETTER_KEYS, untrackLetter, useLetterProgress, useTodayLetter, useTrackedLetter } from "@/lib/letters";
 
-/** How long to wait for a test letter before giving up polling. */
-const POLL_FOR_MS = 3 * 60_000;
-
-/** Today: the latest letter as pages, or, before the first one, when it arrives. */
+/**
+ * Today: the latest letter as pages. While a letter is being put together now
+ * (the first one after onboarding, or a test letter), where it's got to, until
+ * it opens here; before the first one, when it arrives.
+ */
 export default function Today() {
-  const [polling, setPolling] = useState(false);
-  const today = useTodayLetter({ poll: polling });
+  const qc = useQueryClient();
+  const today = useTodayLetter();
+  const trackedId = useTrackedLetter();
+  const progress = useLetterProgress(trackedId);
+  const stage = progress.data?.stage;
 
+  // Sent: show it, then stop following it.
   useEffect(() => {
-    if (!polling) return;
-    const t = setTimeout(() => setPolling(false), POLL_FOR_MS);
-    return () => clearTimeout(t);
-  }, [polling]);
+    if (stage !== "sent") return;
+    void Promise.all([qc.invalidateQueries({ queryKey: LETTER_KEYS.today }), qc.invalidateQueries({ queryKey: LETTER_KEYS.list })]).then(untrackLetter);
+  }, [stage, qc]);
 
+  // A letter that's gone (an account reset) isn't followed any more.
+  useEffect(() => {
+    if (progress.isError && (progress.error as ApiError).status === 404) untrackLetter();
+  }, [progress.isError, progress.error]);
+
+  const following = !!trackedId && !progress.isError;
+  if (following && (progress.isPending || inProgress(stage) || stage === "sent")) {
+    return <PreparingLetter stage={stage ?? null} isTest={progress.data?.isTest ?? false} />;
+  }
   if (today.isPending) return <PageState current="today" kicker="Today" />;
   if (today.isError && !today.data) return <PageState current="today" kicker="Today" error={today.error.message} onRetry={() => void today.refetch()} />;
-  if (!today.data) return <EmptyToday polling={polling} onPoll={() => setPolling(true)} />;
+  // It ended without a letter: say so here (with a way to try again) until another one is asked for.
+  const ended = following && (stage === "empty" || stage === "failed") ? stage : null;
+  if (!today.data) return <EmptyToday ended={ended} />;
   return <LetterPager letter={today.data} today />;
 }

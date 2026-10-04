@@ -205,17 +205,3 @@ export function screenFacts(facts: ProfileFact[]): ParsedNote {
   }
   return { facts: kept.slice(0, MAX_FACTS), dropped };
 }
-
-/**
- * A line from the piece itself for a pick card's pull quote: the first whole
- * sentence of a readable length, or null. Never generated, only selected.
- */
-export function quoteFrom(text: string | null | undefined, { min = 40, max = 160 } = {}): string | null {
-  if (!text) return null;
-  const sentences = text.replace(/\s+/g, " ").match(/[^.!?]+[.!?]+["”’)]?/g) ?? [];
-  for (const raw of sentences) {
-    const s = raw.trim();
-    if (s.length >= min && s.length <= max && /^[\p{Lu}"“‘(]/u.test(s)) return s;
-  }
-  return null;
-}

@@ -209,92 +209,127 @@ describe("POST /me/onboarding/import", () => {
   });
 });
 
-describe("onboarding picks and reviews", () => {
-  const items: Record<string, string> = {};
+describe("reviews", () => {
+  let itemId: string;
 
   beforeAll(async () => {
-    const pubs = await ctx.db
-      .insert(schema.publisher)
-      .values(["a", "b", "c", "d", "e", "f"].map((k) => ({ key: `${k}.example.com`, name: `Publisher ${k.toUpperCase()}`, origin: "user_added" as const })))
+    const [pub] = await ctx.db.insert(schema.publisher).values({ key: "reviews.example.com", name: "Reviews Weekly", origin: "user_added" }).returning();
+    const [item] = await ctx.db
+      .insert(schema.contentItem)
+      .values({ canonicalUrl: "https://reviews.example.com/hiring", type: "article", publisherId: pub!.id, title: "Hiring your first engineer", status: "enriched", tags: ["hiring"] })
       .returning();
-    const rows: { title: string; tags: string[]; pub: number; quality?: string; excerpt?: string }[] = [
-      { title: "How we priced our first B2B contract", tags: ["pricing"], pub: 0, excerpt: "We asked for three times what felt comfortable. They said yes in a day." },
-      { title: "Another pricing teardown", tags: ["pricing tiers"], pub: 0 },
-      { title: "Hiring your first engineer", tags: ["hiring"], pub: 1 },
-      { title: "Ten SEO hacks", tags: ["pricing"], pub: 2, quality: "seo_filler" },
-      { title: "Notes on watercolour", tags: ["art"], pub: 3 },
-      { title: "Open source as a business", tags: ["open source"], pub: 4 },
-      { title: "Monetising a GitHub project", tags: ["open source"], pub: 5 },
-    ];
-    for (const r of rows) {
-      const [item] = await ctx.db
-        .insert(schema.contentItem)
-        .values({
-          canonicalUrl: `https://${pubs[r.pub]!.key}/${encodeURIComponent(r.title)}`,
-          type: "article",
-          publisherId: pubs[r.pub]!.id,
-          title: r.title,
-          status: "enriched",
-          tags: r.tags,
-          qualityLabel: r.quality ?? "substantive",
-          readTimeMinutes: 6,
-          publishedAt: new Date(),
-        })
-        .returning();
-      items[r.title] = item!.id;
-      if (r.excerpt) {
-        await ctx.db.insert(schema.contentVersion).values({ itemId: item!.id, contentHash: "h", sectionMap: [], rightsSnapshot: {}, excerpt: r.excerpt });
-      }
-    }
-    await call("PUT", "/me/preferences", { topics: ["pricing", "hiring", "open source"] });
-  });
-
-  it("picks five: topic matches across publishers, then a wildcard, skipping thin and SEO pieces", async () => {
-    const res = await call("GET", "/me/onboarding/picks");
-    expect(res.status).toBe(200);
-    const { picks } = (await res.json()) as { picks: { title: string; matchedTopic: string | null; quote: string | null; publisher: string }[] };
-    expect(picks).toHaveLength(5);
-    expect(picks.map((p) => p.title)).not.toContain("Ten SEO hacks");
-    // One per publisher while there are enough publishers.
-    expect(new Set(picks.map((p) => p.publisher)).size).toBe(5);
-    expect(picks.find((p) => p.title === "Notes on watercolour")!.matchedTopic).toBeNull();
-    // None of these came from a source this user added.
-    expect(picks.every((p) => (p as unknown as { fromFollowedSource: boolean }).fromFollowedSource === false)).toBe(true);
-    const priced = picks.find((p) => p.title === "How we priced our first B2B contract")!;
-    expect(priced).toMatchObject({ matchedTopic: "pricing", quote: "We asked for three times what felt comfortable." });
-    expect(picks.filter((p) => p.matchedTopic).map((p) => p.matchedTopic)).toEqual(expect.arrayContaining(["pricing", "hiring", "open source"]));
+    itemId = item!.id;
   });
 
   it("saves a review with reasons, and a second save overwrites it", async () => {
-    const id = items["Hiring your first engineer"]!;
-    let res = await call("PUT", `/items/${id}/review`, { vote: "interested", reasons: ["practical", "practical", "numbers"], freeText: "Real numbers", origin: "onboarding" });
+    let res = await call("PUT", `/items/${itemId}/review`, { vote: "interested", reasons: ["practical", "practical", "numbers"], freeText: "Real numbers" });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { review: unknown }).review).toMatchObject({ vote: "interested", reasons: ["practical", "numbers"], origin: "onboarding" });
+    expect(((await res.json()) as { review: unknown }).review).toMatchObject({ vote: "interested", reasons: ["practical", "numbers"], origin: "in_app" });
 
-    res = await call("PUT", `/items/${id}/review`, { vote: "not_interested" });
-    expect(((await res.json()) as { review: unknown }).review).toMatchObject({ vote: "not_interested", reasons: [], freeText: null, origin: "onboarding" });
-    const rows = await ctx.db.select().from(schema.review).where(eq(schema.review.itemId, id));
+    res = await call("PUT", `/items/${itemId}/review`, { vote: "not_interested" });
+    expect(((await res.json()) as { review: unknown }).review).toMatchObject({ vote: "not_interested", reasons: [], freeText: null, origin: "in_app" });
+    const rows = await ctx.db.select().from(schema.review).where(eq(schema.review.itemId, itemId));
     expect(rows).toHaveLength(1);
   });
 
-  it("leaves reviewed items out of the picks", async () => {
-    const { picks } = (await (await call("GET", "/me/onboarding/picks")).json()) as { picks: { title: string }[] };
-    expect(picks.map((p) => p.title)).not.toContain("Hiring your first engineer");
+  it("no longer takes reviews from onboarding (the calibration swipes are gone)", async () => {
+    expect((await call("PUT", `/items/${itemId}/review`, { vote: "interested", origin: "onboarding" })).status).toBe(400);
   });
 
   it("deletes a review, and 404s for an unknown item", async () => {
-    const id = items["Hiring your first engineer"]!;
-    expect((await call("DELETE", `/items/${id}/review`)).status).toBe(204);
+    expect((await call("DELETE", `/items/${itemId}/review`)).status).toBe(204);
     expect((await call("PUT", "/items/00000000-0000-4000-8000-000000000000/review", { vote: "interested" })).status).toBe(404);
-    expect((await call("PUT", `/items/${id}/review`, { vote: "maybe" })).status).toBe(400);
+    expect((await call("PUT", `/items/${itemId}/review`, { vote: "maybe" })).status).toBe(400);
+  });
+
+  it("has no calibration picks route any more", async () => {
+    expect((await call("GET", "/me/onboarding/picks")).status).toBe(404);
   });
 });
 
+// ── Finishing: the first letter ─────────────────────────────────────────────
+
+type Completed = { profile: { onboardedAt: string; schedule: { nextRunAt: string } | null }; firstLetter: { id: string; stage: string; isTest: boolean } };
+
+const lettersOf = (id: string) => ctx.db.select().from(schema.letter).where(eq(schema.letter.userId, id));
+const runsOf = (id: string) => ctx.db.select().from(schema.discoveryRun).where(eq(schema.discoveryRun.userId, id));
+
 describe("POST /me/onboarding/complete", () => {
-  it("marks onboarding done once", async () => {
-    const first = (await (await call("POST", "/me/onboarding/complete")).json()) as { profile: { onboardedAt: string } };
+  it("marks onboarding done once, and makes exactly one first letter (DISCOVERY=none: it starts at once)", async () => {
+    await call("PUT", "/me/schedule", { preset: "weekday_mornings", timeZone: "Europe/London" });
+    const [before] = await ctx.db.select().from(schema.schedule).where(eq(schema.schedule.userId, userId));
+
+    const first = (await (await call("POST", "/me/onboarding/complete")).json()) as Completed;
     expect(first.profile.onboardedAt).not.toBeNull();
-    const second = (await (await call("POST", "/me/onboarding/complete")).json()) as { profile: { onboardedAt: string } };
+    expect(first.firstLetter).toMatchObject({ stage: "writing", isTest: false });
+    const second = (await (await call("POST", "/me/onboarding/complete")).json()) as Completed;
     expect(second.profile.onboardedAt).toBe(first.profile.onboardedAt);
+    expect(second.firstLetter.id).toBe(first.firstLetter.id);
+
+    const letters = await lettersOf(userId);
+    expect(letters).toHaveLength(1);
+    expect(letters[0]).toMatchObject({ id: first.firstLetter.id, occurrenceId: "first", isTest: false, status: "scheduled", awaitingDiscovery: false });
+    // No queue locally: the dev runner's watchdog starts it on its next tick.
+    expect(letters[0]!.watchdogAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(await runsOf(userId)).toHaveLength(0);
+    // The regular schedule is untouched.
+    const [after] = await ctx.db.select().from(schema.schedule).where(eq(schema.schedule.userId, userId));
+    expect(after).toMatchObject({ nextRunAt: before!.nextRunAt, version: before!.version, skipNext: false });
+  });
+
+  it("with discovery on, holds the first letter for a discovery run of the same occurrence and queues the run", async () => {
+    const queued = createTestApp({ withQueue: true, discovery: true });
+    try {
+      const c = await signIn(queued, "first-letter@example.com");
+      const go = async () =>
+        (await (await queued.app.request(`${BASE_URL}/me/onboarding/complete`, { method: "POST", headers: { cookie: c } })).json()) as Completed;
+      const { firstLetter } = await go();
+      expect(firstLetter).toMatchObject({ stage: "searching", isTest: false });
+      await go();
+
+      const [u] = await queued.db.select().from(schema.user).where(eq(schema.user.email, "first-letter@example.com"));
+      const letters = await lettersOf(u!.id);
+      const runs = await runsOf(u!.id);
+      expect(letters).toHaveLength(1);
+      expect(runs).toHaveLength(1);
+      expect(letters[0]).toMatchObject({ occurrenceId: "first", isTest: false, status: "scheduled", awaitingDiscovery: true });
+      expect(runs[0]).toMatchObject({ occurrenceId: "first", status: "pending" });
+      // The run is queued once; the letter isn't, it waits. Its watchdog time is the backstop.
+      expect(queued.startedRuns).toEqual([runs[0]!.id]);
+      expect(queued.startedLetters).toEqual([]);
+      const wait = letters[0]!.watchdogAt!.getTime() - Date.now();
+      expect(wait).toBeGreaterThan(9 * 60_000);
+      expect(wait).toBeLessThanOrEqual(10 * 60_000);
+
+      // Progress follows the run, then the letter.
+      const progress = async () =>
+        ((await (await queued.app.request(`${BASE_URL}/letters/${firstLetter.id}/progress`, { headers: { cookie: c } })).json()) as { progress: { stage: string } }).progress.stage;
+      expect(await progress()).toBe("searching");
+      await queued.db.update(schema.discoveryRun).set({ status: "done", finishedAt: new Date() }).where(eq(schema.discoveryRun.id, runs[0]!.id));
+      expect(await progress()).toBe("reading");
+      await queued.db.update(schema.letter).set({ awaitingDiscovery: false, status: "ranking" }).where(eq(schema.letter.id, firstLetter.id));
+      expect(await progress()).toBe("writing");
+      await queued.db.update(schema.letter).set({ status: "skipped_no_candidates" }).where(eq(schema.letter.id, firstLetter.id));
+      expect(await progress()).toBe("empty");
+      // Someone else's letter is a 404.
+      expect((await call("GET", `/letters/${firstLetter.id}/progress`)).status).toBe(404);
+    } finally {
+      await queued.pool.end();
+    }
+  });
+
+  it("with DISCOVERY=none and a queue, queues the first letter straight away", async () => {
+    const queued = createTestApp({ withQueue: true, discovery: false });
+    try {
+      const c = await signIn(queued, "first-letter-none@example.com");
+      const res = await queued.app.request(`${BASE_URL}/me/onboarding/complete`, { method: "POST", headers: { cookie: c } });
+      const { firstLetter } = (await res.json()) as Completed;
+      expect(queued.startedLetters).toEqual([firstLetter.id]);
+      expect(queued.startedRuns).toEqual([]);
+      const [row] = await queued.db.select().from(schema.letter).where(eq(schema.letter.id, firstLetter.id));
+      expect(row).toMatchObject({ awaitingDiscovery: false, status: "scheduled" });
+    } finally {
+      await queued.pool.end();
+    }
   });
 });

@@ -22,20 +22,18 @@ import { and, desc, eq, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm"
 import { Hono } from "hono";
 import { z } from "zod";
 import { apiError } from "../lib/errors.ts";
-import type { LetterQueue } from "../lib/letter-queue.ts";
 import { buildLetterView, latestDelivered, postscriptFor } from "../lib/letter-views.ts";
+import { createOnDemandLetter, hasEnoughToPick, letterProgress, type OnDemandLetterDeps } from "../lib/on-demand-letter.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { type AuthedEnv, requireUser } from "../lib/session.ts";
 
 const { author, contentItem, contentVersion, interaction, letter, letterItem, profile, publisher, review, schedule, summary, topicWeight, transcript, userAuthor } =
   schema;
 
-export interface LetterRouteDeps {
+export interface LetterRouteDeps extends OnDemandLetterDeps {
   db: Db;
   /** Where extracted blocks and transcripts are kept (S3 on AWS, a directory locally). */
   store: ContentStore;
-  /** Starts a test letter's pipeline; null locally, where the dev runner's watchdog picks it up. */
-  letterQueue: LetterQueue | null;
   /** Section summaries and the P.S. recap; null writes them without a model. */
   reader: ReaderWriter | null;
   /** Following an author adds their feed or channel as a source. */
@@ -125,11 +123,18 @@ export function letterRoutes({ db, reader }: Pick<LetterRouteDeps, "db" | "reade
       return c.json({ letters, nextCursor: nextCursor as string | null });
     })
 
-    // Any of the user's letters, including one still being put together (the app polls a test letter here).
+    // Any of the user's letters, including one still being put together.
     .get("/:id", zValidator("param", idParam, notFound("Letter")), async (c) => {
       const row = await ownLetter(db, c.get("user").id, c.req.valid("param").id);
       if (!row) return apiError(c, 404, "NOT_FOUND", "Letter not found");
       return c.json({ letter: await buildLetterView(db, reader, row) });
+    })
+
+    // Where a letter being put together now has got to (Today polls the first letter and test letters here).
+    .get("/:id/progress", zValidator("param", idParam, notFound("Letter")), async (c) => {
+      const row = await ownLetter(db, c.get("user").id, c.req.valid("param").id);
+      if (!row) return apiError(c, 404, "NOT_FOUND", "Letter not found");
+      return c.json({ progress: await letterProgress(db, row) });
     })
 
     .put(
@@ -367,7 +372,8 @@ export function itemRoutes({ db, store, reader }: Pick<LetterRouteDeps, "db" | "
 // ── Reading: events, saved, activity, authors, test letter ─────────────────
 
 /** POST /events (§6.6), saved pieces, activity, following an author and the test letter. Mounted at the root, so sign-in is checked per route. */
-export function readingRoutes({ db, letterQueue, detect }: Pick<LetterRouteDeps, "db" | "letterQueue" | "detect">) {
+export function readingRoutes({ detect, ...letters }: Pick<LetterRouteDeps, keyof OnDemandLetterDeps | "detect">) {
+  const { db } = letters;
   const testLetterLimiter = createRateLimiter({ limit: 5, windowMs: 60 * 60_000 });
 
   return new Hono<AuthedEnv>()
@@ -534,30 +540,11 @@ export function readingRoutes({ db, letterQueue, detect }: Pick<LetterRouteDeps,
     .post("/me/schedule/test-letter", requireUser, async (c) => {
       const userId = c.get("user").id;
       if (!testLetterLimiter(userId)) return apiError(c, 429, "RATE_LIMITED", "Too many test letters. Try again in a while.");
-      const [s] = await db.select({ timeZone: schedule.timeZone }).from(schedule).where(eq(schedule.userId, userId));
-      const now = new Date();
-      // `test#<uuid>` never collides with a scheduled occurrence and doesn't touch next_run_at (§6.1).
-      const [row] = await db
-        .insert(letter)
-        .values({
-          userId,
-          occurrenceId: `test#${crypto.randomUUID()}`,
-          isTest: true,
-          scheduledFor: now,
-          localDate: localDateOf(now, s?.timeZone ?? "UTC"),
-          // With a queue, the watchdog is only a backstop; without one (locally) it starts the letter.
-          watchdogAt: letterQueue ? new Date(now.getTime() + 10 * 60_000) : now,
-        })
-        .returning({ id: letter.id });
-      if (letterQueue) {
-        try {
-          await letterQueue.start(row!.id);
-        } catch (err) {
-          // The watchdog will start it; make that soon.
-          await db.update(letter).set({ watchdogAt: now }).where(eq(letter.id, row!.id));
-          console.warn(JSON.stringify({ level: "warn", message: "couldn't queue the test letter", error: (err as Error).message }));
-        }
-      }
-      return c.json({ letterId: row!.id }, 202);
+      // `test#<uuid>` never collides with a scheduled occurrence and doesn't touch next_run_at (§6.1). With
+      // too little to pick from (a new user follows nothing yet), it searches the web first, like the first letter.
+      const discoverFirst = !(await hasEnoughToPick(db, userId));
+      const { letterId } = await createOnDemandLetter(letters, { userId, occurrenceId: `test#${crypto.randomUUID()}`, isTest: true, discoverFirst });
+      const [row] = await db.select().from(letter).where(eq(letter.id, letterId));
+      return c.json({ letterId, progress: await letterProgress(db, row!) }, 202);
     });
 }

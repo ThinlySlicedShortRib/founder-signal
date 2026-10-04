@@ -35,7 +35,7 @@ export function reviewRoutes({ db }: { db: Db }) {
         const [row] = await db
           .insert(review)
           .values({ userId, itemId: id, origin, ...values })
-          // The origin stays what it was first: an onboarding pick edited later is still from onboarding.
+          // The origin stays what it was first (an older onboarding pick edited later is still from onboarding).
           .onConflictDoUpdate({ target: [review.userId, review.itemId], set: values })
           .returning();
         return c.json({

@@ -17,3 +17,11 @@ the same photos are on Unsplash (credits in `apps/api/src/lib/letter-fixture.ts`
 Decisions: no tab bar (pill + menu sheet); moving between pieces is the pill's
 ↑/↓ and the "Up next" card (swipe up means "read"); verdict asked once, at the
 end of the piece, with "Skip this one" up front; full text by default.
+
+Not on the boards: while a letter is being made now (the first letter right
+after onboarding, or a test letter), Today shows it being put together in the
+empty Today's style ("Searching the web for you" → "Reading what I found" →
+"Writing your letter"), updating on its own, and opens the letter when it's
+sent; if it ends with nothing to send, Today says so and offers "Try again".
+Onboarding no longer has the platforms step or the five quick picks (see
+`docs/design/onboarding-mockups/README.md`).

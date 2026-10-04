@@ -1,21 +1,15 @@
 import { formFromFacts } from "@fs/core";
-import type {
-  Assistant,
-  DeliveryPreset,
-  LikeReason,
-  ProfileFact,
-  ReadingPlatform,
-  SensitiveCategory,
-  Topic,
-} from "@fs/schema";
+import type { Assistant, DeliveryPreset, ProfileFact, SensitiveCategory, Topic } from "@fs/schema";
 
 /**
  * Copy and derived values for onboarding (design: FillInSwipe, board 13 of
  * the onboarding canvas). Kept free of React so the wording lives in one place.
+ * The board's "I follow people on ___" blank and the five quick picks after
+ * it were removed at the user's request: finishing sends the first letter.
  */
 
-export type Step = "import" | "role" | "lately" | "topics" | "platforms" | "time";
-export const STEP_ORDER: readonly Step[] = ["import", "role", "lately", "topics", "platforms", "time"];
+export type Step = "import" | "role" | "lately" | "topics" | "time";
+export const STEP_ORDER: readonly Step[] = ["import", "role", "lately", "topics", "time"];
 
 export interface Answers {
   importDone: boolean;
@@ -26,9 +20,8 @@ export interface Answers {
   latelySkipped: boolean;
   /** Suggested topics and the user's own tags. */
   topics: string[];
-  /** Connectable platform IDs, or anywhere else in the user's words. */
+  /** Places the user reads, when an imported fact says so. Saved with the profile, never asked for. */
   platforms: string[];
-  platformsDone: boolean;
   preset: DeliveryPreset | null;
 }
 
@@ -42,8 +35,6 @@ export function isAnswered(a: Answers, step: Step): boolean {
       return !!a.lately || a.latelySkipped;
     case "topics":
       return a.topics.length > 0;
-    case "platforms":
-      return a.platformsDone;
     case "time":
       return !!a.preset;
   }
@@ -63,10 +54,6 @@ export const ASSISTANTS: { value: Assistant; label: string; url: string }[] = [
 ];
 export const assistantLabel = (a: Assistant) => ASSISTANTS.find((x) => x.value === a)!.label;
 
-export const PLATFORM_LABEL: Record<ReadingPlatform, string> = { youtube: "YouTube", x: "X", substack: "Substack" };
-/** A platform's name, or the user's own words for somewhere else. */
-export const platformLabel = (p: string) => PLATFORM_LABEL[p as ReadingPlatform] ?? p;
-
 export const PRESETS: { value: DeliveryPreset; label: string; when: string }[] = [
   { value: "weekday_mornings", label: "weekday mornings", when: "Mon–Fri 7:30" },
   { value: "lunch", label: "at lunch", when: "Daily 12:00" },
@@ -79,18 +66,6 @@ export const LATELY_EXAMPLES = [
   "How Costco makes its money on memberships, not groceries",
   "An open source project taking on a big incumbent",
   "Getting our first ten paying customers",
-];
-
-/** `phrase` finishes "especially when it's ___" on the last screen. */
-export const LIKE_REASONS: { value: LikeReason; label: string; phrase: string }[] = [
-  { value: "topic", label: "The topic", phrase: "right on topic" },
-  { value: "creator", label: "Who made it", phrase: "from someone worth hearing" },
-  { value: "practical", label: "Practical, I can use it", phrase: "practical" },
-  { value: "numbers", label: "Real numbers", phrase: "backed by real numbers" },
-  { value: "depth", label: "Depth", phrase: "in depth" },
-  { value: "concise", label: "Short and to the point", phrase: "short and to the point" },
-  { value: "fresh_take", label: "A fresh take", phrase: "a fresh take" },
-  { value: "video", label: "I like videos", phrase: "on video" },
 ];
 
 // ── The import prompt ───────────────────────────────────────────────────────
@@ -158,7 +133,7 @@ export function answersFromImport(facts: ProfileFact[], current: Answers): Parti
 
 // ── The letter preview ──────────────────────────────────────────────────────
 
-export type StageIcon = "envelope" | "note" | "pencil" | "tray" | "shield" | "stamp";
+export type StageIcon = "envelope" | "note" | "pencil" | "shield" | "stamp" | "truck";
 
 export interface Preview {
   icon: StageIcon;
@@ -250,27 +225,25 @@ export function buildPreview({ answers: a, step, importStage, assistant, hasPast
       status = "Drafting at the post office";
       ps = (heard[0] && LATELY_PS[heard[0]]) || (a.lately ? "P.S. Noted. I'll go looking for more like that." : "P.S. Mysterious. I'll learn from what you read.");
       break;
-    case "platforms":
-      icon = "tray";
-      status = a.platforms.length ? `Noting ${listText(a.platforms.map(platformLabel))}` : "Checking the mailroom for sources";
-      ps = importedPs ? `${importedPs} Now, where do you already read?` : "P.S. Now, where do you already read? I'll start from there.";
-      break;
     case "time":
       icon = "stamp";
       status = "Licking the stamp";
-      ps = a.imported && recurring ? `P.S. ${name} says you keep asking about ${lowerFirst(trimEnd(recurring))}. Noted.` : "P.S. Nearly there. When do you actually read?";
+      ps =
+        a.imported && recurring
+          ? `P.S. ${name} says you keep asking about ${lowerFirst(trimEnd(recurring))}. Noted.`
+          : importedPs
+            ? `${importedPs} Nearly there: when do you actually read?`
+            : "P.S. Nearly there. When do you actually read?";
       break;
     default:
-      icon = "envelope";
-      status = "Sealed at the counter";
-      ps = "P.S. Before it goes out, five quick picks so I get your taste right.";
+      icon = "truck";
+      status = "Ready to go out";
+      ps = "P.S. Say the word and I'll start looking. Your first letter takes a few minutes.";
   }
 
   const lead = a.lately ? [{ title: `On ${quoteOf(a.lately)}`, video: false }] : [];
-  const rest = a.topics.map((t, i) => ({
-    title: capitalize(t) + (a.platforms.length ? `, via ${platformLabel(a.platforms[i % a.platforms.length]!)}` : ", from a new source"),
-    video: i === 1,
-  }));
+  // The first letter comes from searching the web for these (the user follows nothing yet).
+  const rest = a.topics.map((t, i) => ({ title: `${capitalize(t)}, from a new source`, video: i === 1 }));
   const LENGTHS = ["6 min", "18 min", "9 min"];
   const items = [...lead, ...rest].slice(0, 3).map((it, i) => ({ ...it, length: LENGTHS[i]! }));
 
@@ -291,45 +264,6 @@ export function buildPreview({ answers: a, step, importStage, assistant, hasPast
     ghosts: 3 - items.length,
     ps,
   };
-}
-
-// ── The finished screen ─────────────────────────────────────────────────────
-
-export function doneCopy({ liked, total, likedTopics, reasons, preset, nextRunAt }: {
-  liked: number;
-  total: number;
-  likedTopics: string[];
-  reasons: LikeReason[];
-  preset: DeliveryPreset | null;
-  nextRunAt: string | null;
-}) {
-  const arrives = `Arrives ${preset ? presetLabel(preset) : "soon"}${nextRunAt ? `, starting ${formatRun(nextRunAt)}` : ""}.`;
-  const counts = new Map<LikeReason, number>();
-  for (const r of reasons) counts.set(r, (counts.get(r) ?? 0) + 1);
-  const top = [...counts.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([r]) => r);
-  const topLabels = top.map((r) => LIKE_REASONS.find((x) => x.value === r)!.label);
-  const topPhrases = top.map((r) => LIKE_REASONS.find((x) => x.value === r)!.phrase);
-
-  if (!liked) {
-    return {
-      title: "Your first letter is on its way.",
-      note: `${arrives} Every letter has the same two buttons on each piece, so I'll learn as you read.`,
-      reasons: topLabels,
-    };
-  }
-  const more = likedTopics.length ? `More ${listText(likedTopics)}` : "More like those";
-  return {
-    title: `You'd read ${liked} of ${total}. Your first letter is on its way.`,
-    note: `${more}${topPhrases.length ? `, especially when it's ${listText(topPhrases)}` : ""}. ${arrives} Shorter than your coffee, I promise.`,
-    reasons: topLabels,
-  };
-}
-
-function formatRun(iso: string): string {
-  const d = new Date(iso);
-  const day = d.toLocaleDateString(undefined, { weekday: "long" });
-  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return `${day} at ${time}`;
 }
 
 // ── Text helpers ────────────────────────────────────────────────────────────

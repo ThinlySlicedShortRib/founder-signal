@@ -319,34 +319,20 @@ export type LikeReason = (typeof likeReasons)[number];
 export const dislikeReasons = ["not_my_topic", "too_basic", "too_long", "already_knew", "not_credible", "too_promotional"] as const;
 export type DislikeReason = (typeof dislikeReasons)[number];
 
+/** Where a stored review came from. `onboarding` was the calibration swipes (since removed); older reviews keep it. */
 export const reviewOrigins = ["in_app", "onboarding", "imported"] as const;
 export type ReviewOrigin = (typeof reviewOrigins)[number];
+/** The origins a client can still send. */
+export const writableReviewOrigins = ["in_app", "imported"] as const;
 
 export const putReviewInputSchema = z.object({
   vote: z.enum(reviewVotes),
   reasons: z.array(z.enum([...likeReasons, ...dislikeReasons])).max(likeReasons.length + dislikeReasons.length).default([]),
   freeText: z.string().trim().max(1_000).nullable().default(null),
-  origin: z.enum(reviewOrigins).default("in_app"),
+  origin: z.enum(writableReviewOrigins).default("in_app"),
 });
 export type PutReviewInput = z.infer<typeof putReviewInputSchema>;
 
-/** One card in onboarding's five quick picks. */
-export const calibrationPickSchema = z.object({
-  id: z.uuid(),
-  type: z.enum(["article", "video"]),
-  title: z.string(),
-  publisher: z.string(),
-  creator: z.string().nullable(),
-  readTimeMinutes: z.number().int().nullable(),
-  /** A line from the piece itself, for the pull quote. */
-  quote: z.string().nullable(),
-  /** The user topic it matched, if any. */
-  matchedTopic: z.string().nullable(),
-  /** From a source the user added; otherwise, with no topic match, it's a wildcard. */
-  fromFollowedSource: z.boolean(),
-  tags: z.array(z.string()),
-});
-export type CalibrationPick = z.infer<typeof calibrationPickSchema>;
 
 // ── Letters (build plan §6.1–6.7, §7: /letters, /items/:id) ─────────────────
 // The app's reading experience (Layout 6 on the design canvas) is built on these.
@@ -466,6 +452,22 @@ export const letterViewSchema = z.object({
   isTest: z.boolean(),
 });
 export type LetterView = z.infer<typeof letterViewSchema>;
+
+/**
+ * Where a letter made on demand (the first letter, a test letter) has got to,
+ * for Today to show while the user waits: `searching` the web for them
+ * (§6.3a), `reading` what it found, `writing` the letter; then `sent`, or it
+ * ended `empty` (nothing to pick from) or `failed`.
+ */
+export const letterStages = ["searching", "reading", "writing", "sent", "empty", "failed"] as const;
+export type LetterStage = (typeof letterStages)[number];
+
+export const letterProgressSchema = z.object({
+  id: z.uuid(),
+  stage: z.enum(letterStages),
+  isTest: z.boolean(),
+});
+export type LetterProgress = z.infer<typeof letterProgressSchema>;
 
 export const letterSummarySchema = letterViewSchema.pick({ id: true, number: true, headline: true, localDate: true, totalMinutes: true, isTest: true }).extend({
   pieceCount: z.number().int(),

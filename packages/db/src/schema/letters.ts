@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { boolean, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.ts";
 import { contentItem, contentVersion, source } from "./ingestion.ts";
@@ -118,7 +119,7 @@ export const letter = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    /** `<local date>#<schedule version>`, or `test#<uuid>` for a test letter. */
+    /** `<local date>#<schedule version>`, `first` for the one made when onboarding ends, or `test#<uuid>` for a test letter. */
     occurrenceId: text("occurrence_id").notNull(),
     status: letterStatus("status").default("scheduled").notNull(),
     isTest: boolean("is_test").default(false).notNull(),
@@ -139,6 +140,13 @@ export const letter = pgTable(
     work: jsonb("work").$type<LetterWork>().default({}).notNull(),
     /** When the watchdog should next look at this letter if it hasn't moved (§6.1). */
     watchdogAt: timestamp("watchdog_at", { withTimezone: true }),
+    /**
+     * Held in `scheduled` until the discovery run with the same occurrence ID
+     * has finished and its pages are extracted (§6.3a: the first letter, and a
+     * test letter with little to pick from). `watchdog_at` is then the latest
+     * it may start.
+     */
+    awaitingDiscovery: boolean("awaiting_discovery").default(false).notNull(),
     failureReason: text("failure_reason"),
     /** "Tomorrow, more of": the options offered, and what the user picked (read by the next letter's rank step). */
     leanings: text("leanings").array().default([]).notNull(),
@@ -153,6 +161,7 @@ export const letter = pgTable(
     unique("letter_user_number").on(t.userId, t.number),
     index("letter_status_watchdog_idx").on(t.status, t.watchdogAt),
     index("letter_user_delivered_idx").on(t.userId, t.deliveredAt),
+    index("letter_awaiting_discovery_idx").on(t.userId).where(sql`${t.awaitingDiscovery}`),
   ],
 );
 

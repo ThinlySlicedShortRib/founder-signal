@@ -29,9 +29,25 @@ session; the artifact is the place to view and play them.
 4. **Five quick picks after onboarding:** swipe right or left; each right
    swipe asks "What did you like about it?" (multi-select plus free text).
    Card design: `SwipeQuoteType.dc.html` (pull quote on a soft tint).
+   *(Removed since, see below.)*
 
 Palette: white ground, light blue, light orange and a neutral grey; blue for
 actions and icons, orange only for the agent's voice. Type: Bricolage
 Grotesque (headings), Instrument Sans (body), JetBrains Mono (labels).
 
 The other artboards are the explored alternatives (rounds 1–7 on the canvas).
+
+## Changed since (2026-10-04, at the user's request)
+
+- **No "I follow people on ___" blank.** The sentence is now "I'm a ___.
+  Lately I've been into ___. Send me more on ___. Send it ___." Linking
+  third-party sources isn't asked during onboarding. An imported fact can
+  still fill the places someone reads (`profile.platforms`); that's saved
+  quietly, and the preview no longer mentions it.
+- **No quick picks.** After "When should it arrive?" there's one button,
+  **"Send my first letter"**: it finishes onboarding and makes the first
+  letter right away (it searches the web first, since a new user follows
+  nothing yet), then opens Today, which shows the letter being put together
+  ("Searching the web for you", "Reading what I found", "Writing your letter")
+  and opens it when it's ready. The preview's last state is "Ready to go out".
+  `FillInSwipe.dc.html` still shows the old ending; the app is the reference.

@@ -11,6 +11,7 @@ import {
   type ReaderWriter,
 } from "@fs/ai";
 import {
+  discoveryMode,
   type Env,
   letterWriterMode,
   resolveAnthropicApiKey,
@@ -26,7 +27,7 @@ import { createAuth, DEV_WEB_ORIGINS } from "./auth.ts";
 import { createOtpRecorder } from "./routes/dev.ts";
 import { cloudWatchClientLogSink, consoleClientLogSink } from "./lib/client-log-sink.ts";
 import { consoleEmailSender, sesEmailSender } from "./lib/email.ts";
-import { sqsLetterQueue } from "./lib/letter-queue.ts";
+import { sqsDiscoverQueue, sqsLetterQueue } from "./lib/letter-queue.ts";
 
 /** Wires real dependencies from the environment. Shared by the Lambda and local entry points. */
 export async function buildApp(env: Env) {
@@ -67,6 +68,9 @@ export async function buildApp(env: Env) {
     profileImporter: profileImporter(env),
     store: env.CONTENT_BUCKET ? s3ContentStore(env.CONTENT_BUCKET) : fsContentStore(resolveContentDir(env)),
     letterQueue: env.QUEUE_URL_LETTER_STEP ? sqsLetterQueue(env.QUEUE_URL_LETTER_STEP) : null,
+    discoverQueue: env.QUEUE_URL_DISCOVER ? sqsDiscoverQueue(env.QUEUE_URL_DISCOVER) : null,
+    // Same switch as the workers': with DISCOVERY=none, on-demand letters start straight away.
+    discovery: discoveryMode(env) !== "none",
     reader: readerWriter(env),
     corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS,
     devOtps,

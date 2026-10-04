@@ -18,6 +18,7 @@ import type { DiscoveryResult } from "@fs/db/schema";
 import { canonicalizeUrl, publisherKeyForUrl } from "@fs/ingest";
 import { and, eq, gt, isNotNull, lt, or, sql } from "drizzle-orm";
 import { loadUserContext } from "../letters/context.ts";
+import { failHeldRun, releaseHeldLetters, runHoldsLetter } from "../letters/held.ts";
 import { ASSEMBLY_LEAD_MINUTES } from "../letters/sweep.ts";
 import { type Discovery, logger, type PipelineDeps } from "../pipeline/deps.ts";
 import type { Message } from "../pipeline/messages.ts";
@@ -94,9 +95,17 @@ export async function discover(deps: PipelineDeps, { runId }: Message<"discover"
   try {
     const result = await runDiscovery(deps, deps.discovery, run);
     log("discovery_run", { runId, userId: run.userId, ...result });
+    // A letter waiting on this run may be able to start (if nothing it found still needs extracting).
+    await releaseHeldLetters(deps);
     return { status: "done" as const, ...result };
   } catch (err) {
-    // Let the queue retry it: back to pending, with the error kept.
+    // Someone is waiting on this one (letters/held.ts): no retries, their letter goes ahead with what there is.
+    if (await runHoldsLetter(deps, runId)) {
+      await failHeldRun(deps, runId, (err as Error).message);
+      await releaseHeldLetters(deps);
+      return { status: "failed" as const };
+    }
+    // Otherwise let the queue retry it: back to pending, with the error kept.
     await deps.db
       .update(discoveryRun)
       .set({ status: "pending", startedAt: null, error: (err as Error).message.slice(0, 500) })

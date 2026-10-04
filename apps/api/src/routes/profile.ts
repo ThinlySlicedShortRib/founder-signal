@@ -1,9 +1,8 @@
 import type { ProfileImporter, ProfileReading } from "@fs/ai";
-import { DELIVERY_PRESETS, isValidTimeZone, nextRunAt, parseProfileNote, quoteFrom, screenFacts, topicsFromText } from "@fs/core";
+import { DELIVERY_PRESETS, FIRST_LETTER_OCCURRENCE, isValidTimeZone, nextRunAt, parseProfileNote, screenFacts } from "@fs/core";
 import { type Db, schema } from "@fs/db";
 import {
   type Assistant,
-  type CalibrationPick,
   deliveryPresets,
   type DeliveryPreset,
   type ImportProfileResult,
@@ -16,15 +15,16 @@ import {
   updateScheduleInputSchema,
 } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
-import { and, asc, desc, eq, inArray, isNull, notExists, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, notInArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { apiError } from "../lib/errors.ts";
+import { createOnDemandLetter, letterProgress, type OnDemandLetterDeps } from "../lib/on-demand-letter.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { type AuthedEnv, requireUser } from "../lib/session.ts";
 
-const { contentItem, contentVersion, profile, profileImport, publisher, review, schedule, topicWeight, userSource } = schema;
+const { letter, profile, profileImport, schedule, topicWeight } = schema;
 
-export interface ProfileRouteDeps {
+export interface ProfileRouteDeps extends OnDemandLetterDeps {
   db: Db;
   /** Reads an imported profile with a model; null uses the plain parser only (local development). */
   profileImporter: ProfileImporter | null;
@@ -113,11 +113,9 @@ export function preferenceRoutes({ db }: Pick<ProfileRouteDeps, "db">) {
     );
 }
 
-const PICK_COUNT = 5;
-const PICK_POOL = 200;
-
-/** /me/onboarding: reading an imported profile, the five quick picks, finishing. */
-export function onboardingRoutes({ db, profileImporter }: ProfileRouteDeps) {
+/** /me/onboarding: reading an imported profile, and finishing (which makes the first letter). */
+export function onboardingRoutes({ profileImporter, ...letters }: ProfileRouteDeps) {
+  const { db } = letters;
   // Each import is a model call; this keeps a stuck client from running up a bill.
   const importLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60_000 });
 
@@ -164,18 +162,17 @@ export function onboardingRoutes({ db, profileImporter }: ProfileRouteDeps) {
       return c.json({ import: latest });
     })
 
-    .get("/picks", async (c) => {
-      const picks = await loadCalibrationPicks(db, c.get("user").id);
-      return c.json({ picks });
-    })
-
+    // Finishing makes the first letter now, whatever the schedule says (`first`: one per user, so
+    // finishing twice makes one). A new user follows nothing yet, so it searches the web first (§6.3a).
     .post("/complete", async (c) => {
       const userId = c.get("user").id;
       await db
         .insert(profile)
         .values({ userId, onboardedAt: new Date() })
         .onConflictDoUpdate({ target: profile.userId, set: { onboardedAt: sql`coalesce(${profile.onboardedAt}, now())` } });
-      return c.json({ profile: await loadProfileView(db, userId) });
+      const { letterId } = await createOnDemandLetter(letters, { userId, occurrenceId: FIRST_LETTER_OCCURRENCE, isTest: false, discoverFirst: true });
+      const [first] = await db.select().from(letter).where(eq(letter.id, letterId));
+      return c.json({ profile: await loadProfileView(db, userId), firstLetter: await letterProgress(db, first!) });
     });
 }
 
@@ -248,92 +245,4 @@ export async function loadProfileView(db: Db, userId: string): Promise<ProfileVi
       : null,
     onboardedAt: p?.onboardedAt?.toISOString() ?? null,
   };
-}
-
-/**
- * Five pieces for onboarding's quick picks, from what's already been
- * collected: up to four that match the user's topics (one per publisher and,
- * where possible, per topic), then a wildcard from outside them.
- */
-async function loadCalibrationPicks(db: Db, userId: string): Promise<CalibrationPick[]> {
-  const [userTopics, candidates] = await Promise.all([
-    db
-      .select({ topic: topicWeight.topic })
-      .from(topicWeight)
-      .where(eq(topicWeight.userId, userId))
-      .orderBy(desc(topicWeight.weight), asc(topicWeight.createdAt)),
-    db
-      .select({
-        id: contentItem.id,
-        type: contentItem.type,
-        title: contentItem.title,
-        creator: contentItem.creator,
-        readTimeMinutes: contentItem.readTimeMinutes,
-        tags: contentItem.tags,
-        publisherId: publisher.id,
-        publisherName: publisher.name,
-        followed: sql<boolean>`exists(
-          select 1 from ${userSource}
-          where ${userSource.sourceId} = ${contentItem.sourceId}
-            and ${userSource.userId} = ${userId} and not ${userSource.blocked})`,
-        // The latest version's excerpt, for the pull quote.
-        excerpt: sql<string | null>`(
-          select ${contentVersion.excerpt} from ${contentVersion}
-          where ${contentVersion.itemId} = ${contentItem.id}
-          order by ${contentVersion.fetchedAt} desc limit 1)`,
-      })
-      .from(contentItem)
-      .innerJoin(publisher, eq(publisher.id, contentItem.publisherId))
-      .where(
-        and(
-          inArray(contentItem.status, ["extracted", "enriched"]),
-          isNull(contentItem.duplicateOfId),
-          sql`${contentItem.title} is not null`,
-          sql`coalesce(${contentItem.qualityLabel}, 'substantive') not in ('thin', 'seo_filler')`,
-          sql`${publisher.status} <> 'blocked'`,
-          notExists(db.select({ one: sql`1` }).from(review).where(and(eq(review.itemId, contentItem.id), eq(review.userId, userId)))),
-        ),
-      )
-      .orderBy(sql`${contentItem.publishedAt} desc nulls last`)
-      .limit(PICK_POOL),
-  ]);
-
-  const wanted = userTopics.map((t) => t.topic);
-  const scored = candidates.map((item) => {
-    const about = topicsFromText(`${item.title} ${(item.tags ?? []).join(" ")}`);
-    return { item, matched: wanted.find((t) => about.includes(t as never)) ?? null, quote: quoteFrom(item.excerpt) };
-  });
-  // Cards with a quote first: the card is designed around it.
-  scored.sort((a, b) => Number(!!b.quote) - Number(!!a.quote));
-
-  const chosen: typeof scored = [];
-  const publishers = new Set<string>();
-  const topicsUsed = new Set<string>();
-  const take = (pick: (typeof scored)[number]) => {
-    chosen.push(pick);
-    publishers.add(pick.item.publisherId);
-    if (pick.matched) topicsUsed.add(pick.matched);
-  };
-  const fresh = (s: (typeof scored)[number]) => !chosen.includes(s) && !publishers.has(s.item.publisherId);
-
-  // Matches on new topics, then matches on any topic, then a wildcard, then anything left.
-  for (const s of scored) if (chosen.length < PICK_COUNT - 1 && s.matched && !topicsUsed.has(s.matched) && fresh(s)) take(s);
-  for (const s of scored) if (chosen.length < PICK_COUNT - 1 && s.matched && fresh(s)) take(s);
-  const wildcard = scored.find((s) => !s.matched && !s.item.followed && fresh(s)) ?? scored.find((s) => !s.matched && fresh(s));
-  if (wildcard) take(wildcard);
-  for (const s of scored) if (chosen.length < PICK_COUNT && fresh(s)) take(s);
-  for (const s of scored) if (chosen.length < PICK_COUNT && !chosen.includes(s)) take(s);
-
-  return chosen.map(({ item, matched, quote }) => ({
-    id: item.id,
-    type: item.type,
-    title: item.title!,
-    publisher: item.publisherName,
-    creator: item.creator,
-    readTimeMinutes: item.readTimeMinutes,
-    quote,
-    matchedTopic: matched,
-    fromFollowedSource: item.followed,
-    tags: item.tags ?? [],
-  }));
 }

@@ -31,8 +31,30 @@ export const RECENT_QUERY_DAYS = SEARCH_CACHE_TTL_DAYS;
 export const STALE_QUERY_DAYS = 21;
 /** Discovered pages stay letter candidates for this long after they're found (they're often evergreen, so not by publish date). */
 export const DISCOVERED_CANDIDATE_DAYS = 14;
+/** Other items older than this (by publish date) aren't letter candidates: they aren't news to anyone. */
+export const CANDIDATE_WINDOW_DAYS = 60;
 /** The web search tool takes a bounded `blocked_domains` list; the rest are filtered after the search. */
 export const MAX_BLOCKED_DOMAINS_PER_SEARCH = 60;
+
+// ── Letters that wait for discovery ─────────────────────────────────────────
+
+/**
+ * The first letter's occurrence ID (§6.1): one per user, ever, created when
+ * onboarding is finished. Its discovery run shares it.
+ */
+export const FIRST_LETTER_OCCURRENCE = "first";
+/**
+ * A letter made on demand (the first letter, or a test letter when there's
+ * little to pick from) waits for its own discovery run (§6.3a). The watchdog
+ * starts it anyway this long after it was created, so a stuck run can't hold
+ * it forever.
+ */
+export const HELD_LETTER_MAX_MINUTES = 10;
+/**
+ * Once the run has finished, the letter also waits for the pages it found to
+ * be extracted (or fail), but no longer than this.
+ */
+export const HELD_LETTER_EXTRACTION_WAIT_MINUTES = 3;
 
 /**
  * Never searched or linked, for anyone: login walls, social sites and known

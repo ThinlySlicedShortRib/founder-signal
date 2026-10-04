@@ -24,7 +24,7 @@ import { Sheet } from "@/components/pager/Sheet";
 import { timestamp } from "@/lib/format";
 import { DISLIKE_LABELS, LIKE_LABELS, setPieceState, track, usePieceState, useItem, useSectionSummary, useToggleSave } from "@/lib/letters";
 import { useReview } from "@/lib/profile";
-import { AuthorCardView, SheetButton } from "./Author";
+import { AuthorCardView, AuthorChip, SheetButton } from "./Author";
 import { BlockView, TEXT_SIZES, type TextSize } from "./BlockRenderer";
 import { PhotoBackdrop, TINTS } from "./Photo";
 
@@ -304,7 +304,7 @@ export function Reader({
               </Text>
             </Pressable>
           )}
-          {meta.author && <AuthorCardView author={meta.author} onMore={onAuthor} />}
+          {meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
           {meta.whyPicked && (
             <AgentLine>
               <Text style={{ fontFamily: font.bodySemi }}>Why I picked this. </Text>
@@ -361,6 +361,14 @@ export function Reader({
             </>
           ) : (
             <Unavailable reason={data?.unavailableReason ?? null} onOpen={originalUrl ? () => void Linking.openURL(originalUrl) : undefined} />
+          )}
+
+          {/* About the author, in full, once the piece is read. */}
+          {meta.author && (
+            <View style={{ gap: 10, marginTop: 6 }}>
+              <Mono>About the author</Mono>
+              <AuthorCardView author={meta.author} onMore={onAuthor} />
+            </View>
           )}
 
           {/* The end card (.endc) */}

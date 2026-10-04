@@ -17,7 +17,8 @@ import { font, palette } from "@/components/onboarding/kit";
 import { PagerIcon } from "@/components/pager/icons";
 import { usePillSpace } from "@/components/pager/Pill";
 import { Mono } from "@/components/pager/PagerScreen";
-import { Avatar, PhotoBackdrop } from "./Photo";
+import { AuthorChip } from "./Author";
+import { PhotoBackdrop } from "./Photo";
 import { ProgressBars } from "./ProgressBars";
 
 /** Past this, letting go opens the piece (PagerToday: THRESHOLD). */
@@ -149,39 +150,7 @@ export function PiecePage({
           <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 40, lineHeight: 42, letterSpacing: -1.4, color: "#FFFFFF" }}>
             {piece.title}
           </Text>
-          {piece.author && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`About the author, ${piece.author.name}`}
-              onPress={onAuthor}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 10,
-                alignSelf: "flex-start",
-                maxWidth: "100%",
-                backgroundColor: "rgba(255,255,255,0.14)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.2)",
-                borderRadius: 999,
-                paddingVertical: 5,
-                paddingLeft: 5,
-                paddingRight: 12,
-                opacity: pressed ? 0.8 : 1,
-              })}
-            >
-              <Avatar initials={piece.author.initials} keyStr={piece.author.key} />
-              <View style={{ flexShrink: 1, minWidth: 0 }}>
-                <Text style={{ fontFamily: font.bodySemi, fontSize: 14, lineHeight: 18, color: "#FFFFFF" }}>{piece.author.name}</Text>
-                {piece.author.headline && (
-                  <Text numberOfLines={1} style={{ fontFamily: font.body, fontSize: 12.5, lineHeight: 16, color: "rgba(255,255,255,0.78)" }}>
-                    {piece.author.headline}
-                  </Text>
-                )}
-              </View>
-              <PagerIcon name="chevron-right" size={16} color="rgba(255,255,255,0.8)" />
-            </Pressable>
-          )}
+          {piece.author && <AuthorChip author={piece.author} onPress={onAuthor} onPhoto />}
           {piece.whyPicked && (
             <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", borderRadius: 16, paddingVertical: 12, paddingHorizontal: 13 }}>
               <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: palette.orange, marginTop: 2 }} />

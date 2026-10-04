@@ -29,6 +29,48 @@ function Stats({ stats, tile }: { stats: Author["stats"]; tile: string }) {
   );
 }
 
+/**
+ * The compact author pill: avatar, name and headline, tap for the full dialog. `onPhoto` is the
+ * piece page's frosted version over the photo; otherwise it sits on the reader's white page.
+ */
+export function AuthorChip({ author, onPress, onPhoto }: { author: Author; onPress: () => void; onPhoto?: boolean }) {
+  const ink = onPhoto ? "#FFFFFF" : palette.ink;
+  const sub = onPhoto ? "rgba(255,255,255,0.78)" : palette.muted;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`About the author, ${author.name}`}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        alignSelf: "flex-start",
+        maxWidth: "100%",
+        backgroundColor: onPhoto ? "rgba(255,255,255,0.14)" : "#F6F7F9",
+        borderWidth: 1,
+        borderColor: onPhoto ? "rgba(255,255,255,0.2)" : palette.rule,
+        borderRadius: 999,
+        paddingVertical: 5,
+        paddingLeft: 5,
+        paddingRight: 12,
+        opacity: pressed ? 0.8 : 1,
+      })}
+    >
+      <Avatar initials={author.initials} keyStr={author.key} />
+      <View style={{ flexShrink: 1, minWidth: 0 }}>
+        <Text style={{ fontFamily: font.bodySemi, fontSize: 14, lineHeight: 18, color: ink }}>{author.name}</Text>
+        {author.headline && (
+          <Text numberOfLines={1} style={{ fontFamily: font.body, fontSize: 12.5, lineHeight: 16, color: sub }}>
+            {author.headline}
+          </Text>
+        )}
+      </View>
+      <PagerIcon name="chevron-right" size={16} color={onPhoto ? "rgba(255,255,255,0.8)" : palette.muted} />
+    </Pressable>
+  );
+}
+
 /** The reader's author card (.acard): avatar, name, role, one line, stats, "More about X ›". */
 export function AuthorCardView({ author, onMore }: { author: Author; onMore: () => void }) {
   return (

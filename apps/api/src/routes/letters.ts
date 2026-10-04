@@ -1,6 +1,6 @@
 import type { Db } from "@fs/db";
 import { schema } from "@fs/db";
-import { eventsInputSchema, followAuthorInputSchema, leaningsInputSchema, type LetterSummary } from "@fs/schema";
+import { type ActivityMonth, eventsInputSchema, followAuthorInputSchema, leaningsInputSchema, type LetterSummary, type SavedPiece } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -112,6 +112,22 @@ export function readingRoutes() {
         return c.json({ accepted: c.req.valid("json").events.length });
       },
     )
+    .get("/me/saved", requireUser, (c) => {
+      // TODO(M3): from `save`/`unsave` events, newest first.
+      const l = fixtureLetter(null);
+      const saved: SavedPiece[] = l.pieces.slice(0, 2).map((p, i) => ({ itemId: p.itemId, kind: p.kind, title: p.title, topic: p.topic, minutes: p.minutes, sourceName: p.sourceName, image: p.image, savedAt: new Date(Date.now() - i * 86_400_000).toISOString(), offline: true }));
+      return c.json({ saved });
+    })
+    .get("/me/activity", requireUser, zValidator("query", z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) })), (c) => {
+      // TODO(M3): count distinct items opened+completed or reviewed per local day (§6.6), bucketed into 4 levels.
+      const { month } = c.req.valid("query");
+      const [y, m] = month.split("-").map(Number) as [number, number];
+      const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      const LV = [0, 2, 1, 0, 0, 1, 3, 2, 0, 1, 0, 0, 0, 1, 2, 3, 0, 0, 0, 1, 2, 0, 1, 2, 0, 0, 0, 3, 2, 1, 0];
+      const days = Array.from({ length: n }, (_, i) => ({ day: `${month}-${String(i + 1).padStart(2, "0")}`, level: LV[i] ?? 0, read: LV[i] ?? 0, reviewed: Math.max(0, (LV[i] ?? 0) - 1) }));
+      const activity: ActivityMonth = { month, activeDays: days.filter((d) => d.level > 0).length, days };
+      return c.json({ activity });
+    })
     .put(
       "/me/authors/:key/follow",
       requireUser,

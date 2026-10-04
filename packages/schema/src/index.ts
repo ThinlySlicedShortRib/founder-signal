@@ -284,12 +284,16 @@ export type ReviewVote = (typeof reviewVotes)[number];
 export const likeReasons = ["topic", "creator", "practical", "numbers", "depth", "concise", "fresh_take", "video"] as const;
 export type LikeReason = (typeof likeReasons)[number];
 
+/** "What wasn't right?" */
+export const dislikeReasons = ["not_my_topic", "too_basic", "too_long", "already_knew", "not_credible", "too_promotional"] as const;
+export type DislikeReason = (typeof dislikeReasons)[number];
+
 export const reviewOrigins = ["in_app", "onboarding", "imported"] as const;
 export type ReviewOrigin = (typeof reviewOrigins)[number];
 
 export const putReviewInputSchema = z.object({
   vote: z.enum(reviewVotes),
-  reasons: z.array(z.enum(likeReasons)).max(likeReasons.length).default([]),
+  reasons: z.array(z.enum([...likeReasons, ...dislikeReasons])).max(likeReasons.length + dislikeReasons.length).default([]),
   freeText: z.string().trim().max(1_000).nullable().default(null),
   origin: z.enum(reviewOrigins).default("in_app"),
 });
@@ -489,3 +493,26 @@ export type Interaction = z.infer<typeof interactionSchema>;
 export const leaningsInputSchema = z.object({ chosen: z.array(z.string().trim().min(1).max(80)).max(10) });
 
 export const followAuthorInputSchema = z.object({ following: z.boolean() });
+
+/** Library: pieces the user saved, newest first. */
+export const savedPieceSchema = z.object({
+  itemId: z.uuid(),
+  kind: z.enum(["article", "video"]),
+  title: z.string(),
+  topic: z.string().nullable(),
+  minutes: z.number().int().nullable(),
+  sourceName: z.string(),
+  image: pieceImageSchema.nullable(),
+  savedAt: z.iso.datetime(),
+  /** Readable offline (rights allow it and the blocks are cached on the device). */
+  offline: z.boolean(),
+});
+export type SavedPiece = z.infer<typeof savedPieceSchema>;
+
+/** Activity (§6.6): one entry per day of the month, from the user's own local days. */
+export const activityMonthSchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  activeDays: z.number().int(),
+  days: z.array(z.object({ day: z.string(), level: z.number().int().min(0).max(3), read: z.number().int(), reviewed: z.number().int() })),
+});
+export type ActivityMonth = z.infer<typeof activityMonthSchema>;

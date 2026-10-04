@@ -3,6 +3,7 @@ import { type Db, schema } from "@fs/db";
 import type { PieceImage } from "@fs/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import type { ImageStore } from "./image-store.ts";
 
 const { stockPhoto } = schema;
 
@@ -98,14 +99,18 @@ export function unsplashStockPhotos({
   };
 }
 
-/** The article's own image when it has one, else stock for the topic, else none. */
+/**
+ * The article's own image when it has one (our copy when the store has one,
+ * else the publisher's URL), else stock for the topic, else none.
+ */
 export async function pieceImage(
-  stock: StockPhotos | null,
+  { stock, images }: { stock: StockPhotos | null; images: ImageStore | null },
   item: { id: string; leadImageUrl: string | null },
   topic: string,
 ): Promise<PieceImage | null> {
   if (item.leadImageUrl && z.url().safeParse(item.leadImageUrl).success) {
-    return { url: item.leadImageUrl, source: "article", credit: null, creditUrl: null };
+    const url = (await images?.copy(item.id, item.leadImageUrl)) ?? item.leadImageUrl;
+    return { url, source: "article", credit: null, creditUrl: null };
   }
   return stock ? stock.forTopic(topic, item.id) : null;
 }

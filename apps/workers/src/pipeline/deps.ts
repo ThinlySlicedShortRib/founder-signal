@@ -3,6 +3,7 @@ import type { Db } from "@fs/db";
 import type { Fetcher, TranscriptProvider, YouTubeClient } from "@fs/ingest";
 import type { ContentStore } from "../lib/content-store.ts";
 import type { Queues } from "../lib/queues.ts";
+import type { ImageStore } from "../letters/image-store.ts";
 import type { StockPhotos } from "../letters/images.ts";
 import type { Enricher } from "./enrich.ts";
 
@@ -22,6 +23,8 @@ export interface PipelineDeps {
   authorEnricher: AuthorEnricher | null;
   /** Null: pieces without a lead image get no picture. */
   stockPhotos: StockPhotos | null;
+  /** Copies article images to our bucket. Null: letters hotlink the publisher's image. */
+  images: ImageStore | null;
   /** Minimum gap between requests to one host; defaults to PER_HOST_INTERVAL_MS. */
   politenessMs?: number;
   now?: () => Date;

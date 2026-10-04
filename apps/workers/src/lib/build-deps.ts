@@ -28,6 +28,7 @@ import {
 } from "@fs/config";
 import { createDb } from "@fs/db";
 import { createSafeFetcher, supadataProvider, youTubeDataClient } from "@fs/ingest";
+import { copyingImageStore, s3ImageObjects } from "../letters/image-store.ts";
 import { unsplashStockPhotos } from "../letters/images.ts";
 import type { PipelineDeps } from "../pipeline/deps.ts";
 import { fsContentStore, s3ContentStore } from "./content-store.ts";
@@ -49,11 +50,12 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
       : null;
 
   const mode = letterWriterMode(env);
+  const fetch = createSafeFetcher();
   return {
     db,
     queues,
     store: env.CONTENT_BUCKET ? s3ContentStore(env.CONTENT_BUCKET) : fsContentStore(resolveContentDir(env)),
-    fetch: createSafeFetcher(),
+    fetch,
     youtube: youTubeKey ? youTubeDataClient({ apiKey: youTubeKey }) : null,
     transcripts: supadataKey ? supadataProvider({ apiKey: supadataKey }) : null,
     enricher,
@@ -62,6 +64,10 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
     authorEnricher:
       mode === "claude-cli" ? claudeCliAuthorEnricher({ command: env.CLAUDE_CLI_PATH }) : mode === "anthropic" ? lazyAuthorEnricher(env) : null,
     stockPhotos: unsplashKey ? unsplashStockPhotos({ accessKey: unsplashKey, db }) : null,
+    images:
+      env.IMAGES_BUCKET && env.IMAGES_BASE_URL
+        ? copyingImageStore({ objects: s3ImageObjects(env.IMAGES_BUCKET), baseUrl: env.IMAGES_BASE_URL, fetch })
+        : null,
     close: () => pool.end(),
   };
 }

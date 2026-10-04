@@ -76,6 +76,7 @@ function createWorld(over: Partial<PipelineDeps> = {}) {
     letterWriter: writer,
     authorEnricher: null,
     stockPhotos: null,
+    images: null,
     politenessMs: 0,
     log: () => {},
     ...over,
@@ -515,6 +516,21 @@ describe("lock", () => {
     expect(items.find((i) => i.itemId === lead.id)!.snapshot.image).toEqual({ url: "https://img-a.test/lead.jpg", source: "article", credit: null, creditUrl: null });
     expect(items.find((i) => i.itemId === plain.id)!.snapshot.image).toMatchObject({ source: "stock", credit: "Jane Doe on Unsplash" });
     expect(used).toEqual(["Hiring"]);
+  });
+
+  it("uses our copy of the lead image when the image store has one", async () => {
+    const images = { async copy(itemId: string, sourceUrl: string) { return sourceUrl.endsWith("/broken.jpg") ? null : `https://images.example.com/${itemId}.jpg`; } };
+    const w = createWorld({ images });
+    const userId = await newUser();
+    const copied = await seedArticle(w, userId, "img-c.test", { title: "Pricing with a copied picture", leadImageUrl: "https://img-c.test/lead.jpg" });
+    const broken = await seedArticle(w, userId, "img-d.test", { title: "Hiring with a broken picture", topic: "hiring", leadImageUrl: "https://img-d.test/broken.jpg" });
+    await insertTestLetter(userId);
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+    const [l] = await lettersOf(userId);
+    const items = await itemsOf(l!.id);
+    expect(items.find((i) => i.itemId === copied.id)!.snapshot.image?.url).toBe(`https://images.example.com/${copied.id}.jpg`);
+    expect(items.find((i) => i.itemId === broken.id)!.snapshot.image?.url).toBe("https://img-d.test/broken.jpg");
   });
 
   it("creates author cards and queues their enrichment once", async () => {

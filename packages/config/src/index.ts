@@ -45,6 +45,11 @@ const envSchema = z.object({
   CONTENT_BUCKET: z.string().optional(),
   CONTENT_DIR: z.string().default(".data/content"),
 
+  // Article images copied for letters: a bucket whose objects are served at IMAGES_BASE_URL/<key>.
+  // Optional: without them letters hotlink the publisher's image.
+  IMAGES_BUCKET: z.string().optional(),
+  IMAGES_BASE_URL: z.url().optional(),
+
   // SQS queue URLs on AWS. Unset locally, where the dev runner uses in-memory queues.
   QUEUE_URL_FETCH_SOURCE: z.string().optional(),
   QUEUE_URL_EXTRACT: z.string().optional(),

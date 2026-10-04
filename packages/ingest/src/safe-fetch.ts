@@ -75,13 +75,18 @@ export interface FetchResult {
   url: string;
   contentType: string;
   headers: Headers;
+  /** Decoded text; empty when the raw bytes were asked for. */
   body: string;
+  /** The raw response, with `as: "bytes"` (images). */
+  bytes?: Uint8Array;
 }
 
 export interface FetchOptions {
   accept?: string;
   etag?: string | null;
   lastModified?: string | null;
+  /** "bytes" returns the raw response in `bytes` instead of decoding it. */
+  as?: "text" | "bytes";
 }
 
 export type Fetcher = (url: string, options?: FetchOptions) => Promise<FetchResult>;
@@ -165,7 +170,7 @@ export function createSafeFetcher({
           url: url.toString(),
           contentType,
           headers: res.headers as unknown as Headers,
-          body: decode(body, contentType),
+          ...(options.as === "bytes" ? { body: "", bytes: body } : { body: decode(body, contentType) }),
         };
       }
       throw new FetchError("too_many_redirects", `More than ${maxRedirects} redirects from ${input}`);

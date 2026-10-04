@@ -123,6 +123,7 @@ function createWorld() {
     letterWriter: fallbackLetterWriter,
     authorEnricher: null,
     stockPhotos: null,
+    images: null,
     politenessMs: 0,
     log: () => {},
   };

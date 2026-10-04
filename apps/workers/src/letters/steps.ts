@@ -452,7 +452,7 @@ async function lock(
       tag: draft.tag,
       sourceName: r.publisherName,
       originalUrl: r.item.canonicalUrl,
-      image: await pieceImage(deps.stockPhotos, r.item, piece.topic),
+      image: await pieceImage({ stock: deps.stockPhotos, images: deps.images }, r.item, piece.topic),
       author: r.item.authorKey && r.item.authorName ? { key: r.item.authorKey, name: r.item.authorName } : null,
       evidenceIds: draft.evidenceIds,
       profileVersion: ctx.profileVersion,

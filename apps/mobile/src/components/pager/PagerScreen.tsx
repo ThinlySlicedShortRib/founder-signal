@@ -5,14 +5,15 @@ import { font, palette } from "@/components/onboarding/kit";
 import { type Destination, MenuSheet } from "./MenuSheet";
 import { MenuToggle, Pill, PillLabel } from "./Pill";
 
-/** Library, Activity and Preferences: the page, the pill (label + menu) and the menu sheet. */
+/** Library, Activity and Preferences (and Dev tools): the page, the pill (label + menu) and the menu sheet. */
 export function PagerScreen({
   current,
   kicker,
   title,
   children,
 }: {
-  current: Destination;
+  /** Null for a page that isn't one of the menu's destinations. */
+  current: Destination | null;
   /** The pill's small label, e.g. "Library". */
   kicker: string;
   /** The pill's value, e.g. "Saved". */

@@ -67,6 +67,20 @@ export function MenuSheet({ open, onClose, current }: { open: boolean; onClose: 
             </Pressable>
           );
         })}
+        {__DEV__ && (
+          <Pressable
+            accessibilityRole="menuitem"
+            accessibilityLabel="Dev tools, local API only"
+            onPress={() => {
+              onClose();
+              router.push("/dev");
+            }}
+            style={({ pressed }) => ({ minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={{ fontFamily: font.bodySemi, fontSize: 15, color: palette.ink }}>Dev tools</Text>
+            <Text style={{ fontFamily: font.mono, fontSize: 11, letterSpacing: 0.88, textTransform: "uppercase", color: palette.muted }}>Local only</Text>
+          </Pressable>
+        )}
       </View>
     </Sheet>
   );

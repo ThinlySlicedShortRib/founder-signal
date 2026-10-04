@@ -49,6 +49,14 @@ export function setPieceState(itemId: string, patch: PieceState) {
   changed();
 }
 
+/** Drops the local layer (Dev tools, after the server's reading state was wiped). */
+export function clearLocalReadingState() {
+  local.pieces.clear();
+  local.follows.clear();
+  local.leanings.clear();
+  changed();
+}
+
 /** Re-renders when any local reading state changes. */
 export function useLocalVersion(): number {
   return useSyncExternalStore(subscribe, () => local.version, () => local.version);

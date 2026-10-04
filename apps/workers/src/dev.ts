@@ -1,7 +1,9 @@
 // Local pipeline: `pnpm dev:workers`. Sweeps every minute and drains in-memory queues.
 // Letters are checked every few seconds, so a test letter from the app is ready within a minute.
+// The app's Dev tools screen asks for work through the database; that's picked up here too.
 import { readEnv } from "@fs/config";
 import { buildPipelineDeps } from "./lib/build-deps.ts";
+import { runDevRequests } from "./lib/dev-requests.ts";
 import { drain } from "./lib/local.ts";
 import { memoryQueues } from "./lib/queues.ts";
 import { sweepLetters } from "./letters/sweep.ts";
@@ -16,7 +18,11 @@ console.log(`Workers running locally; sweeping every ${SWEEP_INTERVAL_MS / 1000}
 
 let lastSweep = 0;
 for (;;) {
-  if (Date.now() - lastSweep >= SWEEP_INTERVAL_MS) {
+  const { sweepNow } = await runDevRequests(deps).catch((err: Error) => {
+    console.error(`✗ dev requests: ${err.message}`);
+    return { sweepNow: false };
+  });
+  if (sweepNow || Date.now() - lastSweep >= SWEEP_INTERVAL_MS) {
     lastSweep = Date.now();
     await sweep(deps);
   } else {

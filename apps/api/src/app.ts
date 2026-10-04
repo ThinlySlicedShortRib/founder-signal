@@ -8,7 +8,7 @@ import type { ClientLogSink } from "./lib/client-log-sink.ts";
 import { apiError } from "./lib/errors.ts";
 import { createRateLimiter } from "./lib/rate-limit.ts";
 import { type AppEnv, requireUser } from "./lib/session.ts";
-import { devRoutes, type OtpRecorder } from "./routes/dev.ts";
+import { devRoutes, devToolRoutes, type OtpRecorder } from "./routes/dev.ts";
 import { onboardingRoutes, preferenceRoutes, type ProfileRouteDeps } from "./routes/profile.ts";
 import { itemRoutes, type LetterRouteDeps, letterRoutes, readingRoutes } from "./routes/letters.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
@@ -22,7 +22,7 @@ export interface AppDeps extends SourceRouteDeps, ProfileRouteDeps, Omit<LetterR
   clientLogs: ClientLogSink;
   /** Browser origins allowed to call the API with cookies (the Expo web dev server). Native apps don't need CORS. */
   corsOrigins?: string[];
-  /** Set only for a local API: enables /dev/sign-in-code. */
+  /** Set only for a local API: enables /dev (the sign-in shortcut and the Dev tools screen's routes). */
   devOtps?: OtpRecorder;
 }
 
@@ -53,6 +53,8 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, store
   });
 
   const clientLogLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
+  // Local only, like /dev/sign-in-code. Elsewhere nothing is mounted; the empty router keeps the client's type.
+  const devTools = devOtps ? devToolRoutes({ db }) : (new Hono() as ReturnType<typeof devToolRoutes>);
 
   const routes = app
     .get("/health", (c) => c.json({ ok: true as const }))
@@ -92,7 +94,8 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, store
     .route("/items", reviewRoutes({ db }))
     .route("/items", itemRoutes({ db, store, reader }))
     .route("/letters", letterRoutes({ db, reader }))
-    .route("/", readingRoutes({ db, letterQueue, detect }));
+    .route("/", readingRoutes({ db, letterQueue, detect }))
+    .route("/dev", devTools);
 
   return routes;
 }

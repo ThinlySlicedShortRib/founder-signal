@@ -547,3 +547,125 @@ export const activityMonthSchema = z.object({
   days: z.array(z.object({ day: z.string(), level: z.number().int().min(0).max(3), read: z.number().int(), reviewed: z.number().int() })),
 });
 export type ActivityMonth = z.infer<typeof activityMonthSchema>;
+
+// ── Dev tools (local API only: /dev) ────────────────────────────────────────
+
+/** The full letter state machine, including `skipped`, which the app never shows but the dev screen does. */
+export const devLetterStatuses = [...letterStatuses, "skipped"] as const;
+export const discoveryRunStatuses = ["pending", "running", "done", "failed"] as const;
+export const discoveryQueryStatuses = ["pending", "searched", "cached", "skipped_stale", "skipped_recent", "skipped_cap", "duplicate", "failed"] as const;
+export const contentStatuses = ["pending", "extracted", "metadata_only", "enriched", "failed"] as const;
+
+/**
+ * Discovery runs the dev screen asks for have occurrence `dev#<id>`; the local
+ * worker runs them (they're never queued). A test letter made with
+ * `discoverFirst` is `test#<same id>` and waits, unstarted, until that run ends.
+ */
+export const DEV_RUN_PREFIX = "dev#";
+export const TEST_LETTER_PREFIX = "test#";
+
+export const devLetterInputSchema = z.object({
+  /** Run discovery first; the letter starts once the run has finished (or failed). */
+  discoverFirst: z.boolean().optional(),
+});
+export type DevLetterInput = z.infer<typeof devLetterInputSchema>;
+
+export const devForgetLettersInputSchema = z.object({
+  /** Also delete the user's reviews, so reviewed pieces become candidates again too. */
+  includeReviews: z.boolean().optional(),
+});
+export type DevForgetLettersInput = z.infer<typeof devForgetLettersInputSchema>;
+
+export const devLetterSchema = z.object({
+  id: z.uuid(),
+  number: z.number().int().nullable(),
+  status: z.enum(devLetterStatuses),
+  isTest: z.boolean(),
+  createdAt: z.iso.datetime(),
+  deliveredAt: z.iso.datetime().nullable(),
+  failureReason: z.string().nullable(),
+  pieceCount: z.number().int(),
+  /** How its copy was written ("anthropic", "claude-cli", "fallback"), once generated. */
+  generation: z.object({ method: z.string(), model: z.string().nullable() }).nullable(),
+  /** Created with `discoverFirst`: held until its discovery run finishes. */
+  waitingOnDiscovery: z.boolean(),
+});
+export type DevLetter = z.infer<typeof devLetterSchema>;
+
+export const devFoundPageSchema = z.object({
+  itemId: z.uuid(),
+  /** The page's title once extracted, otherwise its URL. */
+  title: z.string(),
+  url: z.string(),
+  publisher: z.string(),
+  status: z.enum(contentStatuses),
+  statusReason: z.string().nullable(),
+});
+export type DevFoundPage = z.infer<typeof devFoundPageSchema>;
+
+export const devDiscoveryRunSchema = z.object({
+  id: z.uuid(),
+  occurrenceId: z.string(),
+  status: z.enum(discoveryRunStatuses),
+  queryMethod: z.string().nullable(),
+  queriesGenerated: z.number().int(),
+  searchesRun: z.number().int(),
+  cacheHits: z.number().int(),
+  itemsLinked: z.number().int(),
+  itemsQueued: z.number().int(),
+  error: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  startedAt: z.iso.datetime().nullable(),
+  finishedAt: z.iso.datetime().nullable(),
+  queries: z.array(
+    z.object({
+      id: z.uuid(),
+      text: z.string(),
+      origin: z.string(),
+      status: z.enum(discoveryQueryStatuses),
+      resultCount: z.number().int().nullable(),
+      acceptedCount: z.number().int().nullable(),
+      found: z.array(devFoundPageSchema),
+    }),
+  ),
+});
+export type DevDiscoveryRun = z.infer<typeof devDiscoveryRunSchema>;
+
+/** GET /dev/state: one snapshot of the signed-in user's data and what the pipeline did with it. */
+export const devStateSchema = z.object({
+  user: z.object({ id: z.string(), email: z.string() }),
+  profile: z
+    .object({
+      role: z.string().nullable(),
+      lately: z.string().nullable(),
+      onboardedAt: z.iso.datetime().nullable(),
+      version: z.number().int(),
+      topics: z.array(z.object({ topic: z.string(), origin: z.enum(["explicit", "learned"]), weight: z.number() })),
+    })
+    .nullable(),
+  latestImport: z
+    .object({
+      assistant: z.string(),
+      createdAt: z.iso.datetime(),
+      method: z.string(),
+      model: z.string().nullable(),
+      /** The first ~200 characters of the pasted note. */
+      excerpt: z.string(),
+    })
+    .nullable(),
+  schedule: scheduleViewSchema.omit({ preset: true }).extend({ preset: z.string().nullable(), skipNext: z.boolean() }).nullable(),
+  counts: z.object({
+    followedSources: z.number().int(),
+    /** Items from followed sources, by status. */
+    sourceItems: z.partialRecord(z.enum(contentStatuses), z.number().int()),
+    discoveredItems: z.number().int(),
+    reviews: z.number().int(),
+    interactions: z.number().int(),
+    letters: z.number().int(),
+  }),
+  letters: z.array(devLetterSchema),
+  discoveryRuns: z.array(devDiscoveryRunSchema),
+  /** The latest thing a worker did for this user (a letter step, a discovery run, a source fetch). */
+  lastWorkerActivityAt: z.iso.datetime().nullable(),
+});
+export type DevState = z.infer<typeof devStateSchema>;

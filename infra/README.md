@@ -1,6 +1,8 @@
 # Founder Signal infrastructure (Terraform)
 
-One AWS account per environment (`dev`, `prod`), region `us-east-1`. Each environment is `envs/<env>` → `modules/stack`, which wires the modules below.
+One AWS project for now, `dev`, in region `ap-southeast-2` (Sydney). It's an account on the new AWS experience, which is single-region: every regional resource lives in `ap-southeast-2`, and only global services (CloudFront, its WAF and its ACM certificates) may use `us-east-1`. Nothing here is cross-region, so the API's custom-domain certificate is issued in `ap-southeast-2` too. `envs/prod` is parked: CI still validates it, but nothing applies it until a prod project exists.
+
+Each environment is `envs/<env>` → `modules/stack`, which wires the modules below.
 
 | Module | What it creates | GCP equivalent |
 |---|---|---|
@@ -27,11 +29,11 @@ One AWS account per environment (`dev`, `prod`), region `us-east-1`. Each enviro
 - `BETTER_AUTH_URL` is the custom domain if set, otherwise the execute-api URL. There's no dependency cycle, because the API resource is created before the function and the integration after it.
 - The database requires TLS (`rds.force_ssl=1`). Connect with SSL on, using the RDS CA bundle or `rejectUnauthorized: false` inside the VPC.
 
-## First-time setup (per account)
+## First-time setup
 
 ```bash
-# 0. Credentials for the target account (IAM Identity Center profile recommended)
-export AWS_PROFILE=founder-signal-dev
+# 0. Credentials for the dev project (`aws login --profile founder-signal-dev`)
+export AWS_PROFILE=founder-signal-dev AWS_REGION=ap-southeast-2
 
 # 1. Bootstrap (local state, run once)
 cd infra/bootstrap

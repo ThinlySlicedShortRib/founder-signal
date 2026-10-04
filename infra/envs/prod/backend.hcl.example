@@ -1,4 +1,4 @@
 # Copy to backend.hcl (ignored by git) and fill in the state bucket from infra/bootstrap outputs.
 bucket = "founder-signal-prod-tfstate-<account-id>"
 key    = "founder-signal/prod.tfstate"
-region = "us-east-1"
+region = "ap-southeast-2"

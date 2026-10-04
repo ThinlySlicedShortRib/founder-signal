@@ -3,7 +3,7 @@
 **Status:** Draft · 30 September 2026
 **Companion to:** `Founder_Signal_React_Native_App_Spec.md` (section references below, written §n, point to that spec)
 **Scope:** First release as defined in spec §14. No web app; only a minimal web fallback page for email links.
-**Purpose:** Personal use, but deliberately built production-grade (separate dev/prod accounts, prod-style networking and database, TestFlight/App Store flows) as a hands-on way to learn Expo and AWS. Personal use only relaxes content licensing (§6.3) and keeps transcript costs within a free tier.
+**Purpose:** Personal use, but deliberately built production-grade (one dev project for now with prod split out later, prod-style networking and database, TestFlight/App Store flows) as a hands-on way to learn Expo and AWS. Personal use only relaxes content licensing (§6.3) and keeps transcript costs within a free tier.
 
 ---
 
@@ -86,9 +86,9 @@ founder-signal/
 
 ## 4. Infrastructure (Terraform)
 
-- **Accounts:** separate AWS accounts for `dev` and `prod` (the equivalent of separate GCP projects) under one AWS Organization. Use IAM Identity Center for human access.
+- **Accounts:** one AWS project, `dev` (the equivalent of a GCP project), on the new AWS experience. `prod` gets its own project later; `infra/envs/prod` is kept and validated but not applied. Locally the CLI uses the `founder-signal-dev` profile.
 - **State:** S3 backend per account with `use_lockfile = true` (Terraform ≥ 1.10), so no DynamoDB lock table is needed.
-- **Region: `us-east-1`.** It has SES, SNS mobile push, the Bedrock embedding models and every other service we use. Claude is called through Anthropic's API, which doesn't depend on the AWS region.
+- **Region: `ap-southeast-2` (Sydney).** It has SES, SNS mobile push and the Bedrock embedding models (Titan Text Embeddings v2 and Cohere Embed v4, checked on 4 October 2026). The new AWS experience is single-region, so everything regional lives here; only global services such as CloudFront may use `us-east-1`. Claude is called through Anthropic's API, which doesn't depend on the AWS region.
 - **Lambda code deploys:** CI bundles each handler with esbuild and uploads the zips to an artifacts bucket keyed by git SHA. Terraform points `aws_lambda_function.s3_key` at that SHA. Infra and code are deployed in the same pipeline, and a rollback means applying the previous SHA.
 - **Migrations:** Drizzle migrations run from a one-off `migrate` Lambda invoked by CI before the new API version goes live. Migrations must be backwards-compatible (expand, then contract).
 
@@ -295,7 +295,7 @@ Estimates assume 2 engineers (1 mobile-leaning, 1 backend-leaning). Solo, and le
 
 | # | Milestone | Weeks | Deliverables | Exit check |
 |---|---|---|---|---|
-| **M0** | Foundations | 1–2 | AWS Org and accounts, Terraform bootstrap, network, RDS, API Lambda, CI/CD, monorepo, Expo shell with tabs, Better Auth sign-in end to end, `/client-logs` → CloudWatch. **Long-lead items started:** SES production access, Apple Developer and APNs key, Firebase project, links domain, Anthropic API organization and spend limits, Bedrock embedding model access, Supadata account. | Sign in on a device against `dev`; `terraform plan` clean in CI |
+| **M0** | Foundations | 1–2 | AWS dev project (ap-southeast-2), Terraform bootstrap, network, RDS, API Lambda, CI/CD, monorepo, Expo shell with tabs, Better Auth sign-in end to end, `/client-logs` → CloudWatch. **Long-lead items started:** SES production access, Apple Developer and APNs key, Firebase project, links domain, Anthropic API organization and spend limits, Bedrock embedding model access, Supadata account. | Sign in on a device against `dev`; `terraform plan` clean in CI |
 | **M1** ✅ | Ingestion | 3–5 | Source add API, RSS/URL/YouTube adapters, canonicalization and dedupe, extraction to blocks, rights rules (personal-use defaults), Supadata transcript provider, enrich (tags, embeddings), publisher table and feed autodetection | Adding 3 real sources yields items with correct rights flags; a paywalled URL produces a metadata-only item |
 | **M2** | Profile and onboarding | 4–6 | Onboarding flow, preferences/schedule API, goals and topics, `next_run_at` computation | A new user finishes onboarding in under 3 minutes |
 | **M3** | Letter engine and discovery | 6–9 | Sweep, occurrence idempotency, collect/rank/generate/verify/lock, pick signals, test letter, eval set v1, **web-search discovery and publisher promotion (§6.3a)** | **Acceptance #1** (test letter with no operator work); duplicate-sweep chaos test yields exactly 1 letter |
@@ -334,7 +334,7 @@ Prod adds Multi-AZ RDS (about 2× the DB cost) and swaps fck-nat for the managed
 
 | Topic | Decision |
 |---|---|
-| Region / Claude provider | `us-east-1` for AWS; Claude through the Anthropic API directly; Bedrock only for embeddings |
+| Region / Claude provider | `ap-southeast-2` for AWS, one dev project for now; Claude through the Anthropic API directly; Bedrock only for embeddings |
 | Mobile crash reporting | CloudWatch through `/client-logs` (JS errors only; see §8) |
 | Content licensing | **Personal use:** full text retained and available offline by default. The rights gate stays in the code for later |
 | Transcripts | Supadata (free tier), with TranscriptAPI.com or Apify as backup (§6.3) |
@@ -354,4 +354,4 @@ Prod adds Multi-AZ RDS (about 2× the DB cost) and swaps fck-nat for the managed
 | 4 | **Risk:** transcript services rely on unofficial YouTube access and can break. Mitigation: swappable provider, backup ready, videos degrade to "saved, no skim" | Ongoing |
 | 5 | **Risk:** open discovery surfaces low-quality or SEO content. Mitigation: quality label at enrichment, verification pass rate per publisher, blocked domains, user mute/block | M3 |
 | 6 | **Risk:** generation quality on cheaper models. Mitigation: the eval set from M3 compares Sonnet/Haiku output against Opus 5.5 on the same articles; any task that falls short moves up a tier | M3 |
-| 7 | **Risk:** SES production access delay. Mitigation: request it in M0 | M0 |
+| 7 | **Risk:** SES production access delay. Production access is per region and the dev project is still in the sandbox in `ap-southeast-2`. Mitigation: request it in M0 | M0 |

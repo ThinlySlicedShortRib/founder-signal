@@ -1,4 +1,4 @@
-import { localDateOf } from "@fs/core";
+import { FIRST_LETTER_OCCURRENCE, localDateOf } from "@fs/core";
 import { type Db, schema } from "@fs/db";
 import {
   DEV_ACCOUNT_DOMAIN,
@@ -120,7 +120,14 @@ export function devToolRoutes({ db }: { db: Db }) {
     // The app shows onboarding while `onboardedAt` is null; everything else stays, so its answers are filled in.
     .post("/onboarding/restart", async (c) => {
       const userId = c.get("user").id;
-      await db.update(profile).set({ onboardedAt: null }).where(eq(profile.userId, userId));
+      await db.transaction(async (tx) => {
+        await tx.update(profile).set({ onboardedAt: null }).where(eq(profile.userId, userId));
+        // Finishing again sends a fresh first letter: there's only ever one per user, so the old one goes.
+        const first = and(eq(letter.userId, userId), eq(letter.occurrenceId, FIRST_LETTER_OCCURRENCE));
+        await tx.delete(interaction).where(inArray(interaction.letterId, tx.select({ id: letter.id }).from(letter).where(first)));
+        await tx.delete(letter).where(first);
+        await tx.delete(discoveryRun).where(and(eq(discoveryRun.userId, userId), eq(discoveryRun.occurrenceId, FIRST_LETTER_OCCURRENCE)));
+      });
       return c.json({ profile: await loadProfileView(db, userId) });
     })
 

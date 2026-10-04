@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { schema } from "@fs/db";
 import { devStateSchema, profileViewSchema } from "@fs/schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BASE_URL, createTestApp, signIn } from "./helpers.ts";
 
@@ -221,6 +221,20 @@ describe("dev tools: state and actions", () => {
     expect(profileViewSchema.parse(view)).toMatchObject({ onboardedAt: null, role: "founder", lately: "clinic pricing", topics: ["pricing"] });
     const [theirProfile] = await ctx.db.select().from(profile).where(eq(profile.userId, otherId));
     expect(theirProfile!.onboardedAt).not.toBeNull();
+  });
+
+  it("lets finishing onboarding again send a fresh first letter", async () => {
+    const firstOf = async () =>
+      (await ctx.db.select({ id: letter.id }).from(letter).where(and(eq(letter.userId, userId), eq(letter.occurrenceId, "first"))))[0]?.id;
+    expect((await call(ctx, "POST", "/me/onboarding/complete", cookie)).status).toBe(200);
+    const before = await firstOf();
+    expect(before).toBeDefined();
+    expect((await call(ctx, "POST", "/dev/onboarding/restart", cookie)).status).toBe(200);
+    expect(await firstOf()).toBeUndefined();
+    expect((await call(ctx, "POST", "/me/onboarding/complete", cookie)).status).toBe(200);
+    const after = await firstOf();
+    expect(after).toBeDefined();
+    expect(after).not.toBe(before);
   });
 
   it("starts a discovery run for the dev runner", async () => {

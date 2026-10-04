@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Founder Signal: reading in place (pager)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{position:relative;width:390px;height:844px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#FBFBFA;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.hd{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;letter-spacing:-0.03em;margin:0;color:#121316}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.rb{width:44px;height:44px;border-radius:50%;border:1.5px solid #E2E4E8;background:#FFFFFF;display:flex;align-items:center;justify-content:center;color:#121316;cursor:pointer;text-decoration:none;flex-shrink:0;padding:0;box-sizing:border-box}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border-radius:999px;border:0;font:inherit;font-weight:600;font-size:16px;cursor:pointer;box-sizing:border-box;text-decoration:none;flex-shrink:0;padding:0 22px}
+.pri{background:#2B4BFF;color:#FFFFFF}
+.sec{background:#FFFFFF;color:#121316;border:1.5px solid #E2E4E8}
+.dark{background:#121316;color:#FFFFFF}
+.lnk{background:none;border:0;font:inherit;color:#2B4BFF;font-size:15px;font-weight:600;cursor:pointer;min-height:44px;padding:0;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.agent{display:flex;gap:10px;align-items:flex-start;background:#FFF4EE;color:#3A2418;border-radius:16px;padding:13px 14px;font-size:15px;line-height:1.45}
+.dot{width:16px;height:16px;border-radius:50%;background:#FF5A1F;flex-shrink:0;margin-top:2px}
+.t0{background:#DCE3FF}.t1{background:#FFE3D6}.t2{background:#ECEEF2}.tps{background:#FFF4EE}.tw{background:#FFFFFF}
+.seg2{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #121316;border-radius:999px;padding:3px;gap:3px}
+.sg{min-height:40px;border:0;border-radius:999px;background:transparent;font:inherit;font-size:15px;font-weight:600;color:#121316;cursor:pointer}
+.sg.on{background:#121316;color:#FFFFFF}
+.qb{flex:1;min-height:48px;border-radius:999px;border:1.5px solid #121316;background:transparent;font:inherit;font-size:15px;font-weight:600;color:#121316;cursor:pointer}
+.qb.on{background:#121316;color:#FFFFFF}
+.noted{font-size:14px;color:#3A3D44;display:flex;align-items:center;gap:6px}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;border-radius:999px;padding:4px 10px;background:#FFFFFF;color:#1E2F99;align-self:flex-start}
+.c{border-radius:10px;display:flex;align-items:flex-start;padding:6px 7px;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em;box-sizing:border-box}
+.c.l0{background:#FFFFFF;border:1.5px solid #EEF0F4;color:#5B5F68}
+.c.l1{background:#DCE3FF;color:#121316}
+.c.l2{background:#8FA1FF;color:#121316}
+.c.l3{background:#2B4BFF;color:#FFFFFF}
+.c.s2{grid-column-start:2}
+.legend{display:flex;align-items:center;gap:6px;font-size:13px;color:#5B5F68}
+.legend i{width:14px;height:14px;border-radius:4px;display:block}
+.scrim{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(18,19,22,.4);z-index:40;display:flex;flex-direction:column;justify-content:flex-end}
+.fb{background:#FFFFFF;border-radius:24px 24px 0 0;padding:20px 20px 28px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box}
+.opt{display:flex;align-items:center;justify-content:space-between;min-height:56px;border-radius:16px;border:1.5px solid #E2E4E8;background:#FFFFFF;font:inherit;font-size:16px;font-weight:600;color:#121316;padding:0 16px;cursor:pointer;text-align:left}
+.opt.on{background:#DCE3FF;border-color:#2B4BFF;color:#1E2F99}
+.opt .box{width:22px;height:22px;border-radius:7px;border:1.5px solid #8A8F99;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#FFFFFF;color:#FFFFFF}
+.opt.on .box{background:#2B4BFF;border-color:#2B4BFF}
+.txt{font-size:18px;line-height:1.6;margin:0}
+.sh{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em;margin:8px 0 0}
+.digest{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #EEF0F4;border-bottom:1px solid #EEF0F4;min-height:48px}
+.dbadge{font-size:13px;font-weight:600;border-radius:8px;padding:4px 9px;background:#ECEEF2;color:#3A3D44}
+.why{display:flex;flex-direction:column;gap:8px;background:#FFF4EE;color:#3A2418;border-radius:18px;padding:16px;font-size:16px;line-height:1.5}
+.ic{width:48px;height:48px;border-radius:50%;border:1.5px solid #E2E4E8;background:#FFFFFF;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#121316;padding:0;flex-shrink:0}
+.ic.on{background:#DCE3FF;border-color:#DCE3FF;color:#2B4BFF}
+.vb{flex:1;min-height:48px;border-radius:999px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;border:1.5px solid #121316;background:#FFFFFF;color:#121316;padding:0 8px}
+.vb.pri{background:#2B4BFF;border-color:#2B4BFF;color:#FFFFFF}
+.vdone{flex-grow:1;display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px}
+
+.pill{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;background:#121316;color:#FFFFFF;border-radius:999px;padding:5px;box-shadow:0 12px 30px rgba(18,19,22,.22);z-index:20}
+.pb{width:44px;height:44px;border-radius:50%;border:0;background:transparent;color:#FFFFFF;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.pb.blue{background:#2B4BFF}
+.pb.dim{color:#5B5F68}
+.pl{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:92px;padding:0 6px;line-height:1.15}
+.pl .m{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#9EA3AD}
+.pl b{font-size:15px;font-weight:600}
+.msheet{background:#FFFFFF;border-radius:28px 28px 0 0;padding:10px 20px 110px;display:flex;flex-direction:column}
+.grab{width:40px;height:5px;border-radius:3px;background:#E2E4E8;margin:0 auto 6px}
+.mlink{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;text-decoration:none;color:#121316;padding:14px 0;border-bottom:1px solid #EEF0F4}
+.mlink .big{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:44px;line-height:.95;letter-spacing:-0.035em}
+.mlink[aria-current="page"] .big{color:#2B4BFF}
+.mlink .mono{padding-bottom:6px;text-align:right}
+.pg{flex-grow:1;min-height:0;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:space-between;padding:22px 20px 0;min-height:56px;box-sizing:border-box;flex-shrink:0}
+.prog{display:flex;gap:4px}
+.prog i{display:block;width:18px;height:4px;border-radius:2px;background:rgba(18,19,22,.15)}
+.prog i.on{background:#121316}
+.body{flex-grow:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:18px;padding:12px 20px 110px}
+.huge{font-size:52px;line-height:.98}
+.ptitle{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:42px;line-height:1.02;letter-spacing:-0.035em;color:#121316;text-decoration:none;margin:0}
+.blurb{font-size:19px;line-height:1.45;margin:0}
+.toc{display:flex;flex-direction:column;border-top:1px solid rgba(18,19,22,.12)}
+.toc button{display:flex;align-items:center;gap:12px;min-height:56px;border:0;border-bottom:1px solid rgba(18,19,22,.12);background:none;font:inherit;text-align:left;cursor:pointer;color:#121316;padding:6px 0}
+.toc .sw{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px}
+.toc b{font-weight:600;font-size:15px;line-height:1.3;flex-grow:1}
+.toc .len{font-size:13px;color:#5B5F68}
+.pstext{font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:30px;line-height:1.18;letter-spacing:-0.02em;color:#3A2418;margin:0}
+.card{background:#FFFFFF;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:6px}
+.tile{display:flex;flex-direction:column;justify-content:space-between;gap:16px;min-height:140px;border-radius:24px;padding:18px;text-decoration:none;color:#121316;box-sizing:border-box}
+.tile b{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:26px;line-height:1.05;letter-spacing:-0.025em}
+.tile .meta{font-size:14px;color:#3A3D44}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.go{width:36px;height:36px;border-radius:50%;background:#FFFFFF;display:flex;align-items:center;justify-content:center;color:#2B4BFF;flex-shrink:0}
+.prow{display:flex;align-items:center;justify-content:space-between;min-height:64px;border-bottom:1px solid #EEF0F4;text-decoration:none;color:#121316}
+.prow b{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em}
+.prow span{font-size:14px;color:#5B5F68}
+
+.photo{position:relative;flex-grow:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;touch-action:none;user-select:none}
+.grad{position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(18,19,22,.28) 0%,rgba(18,19,22,.38) 28%,rgba(18,19,22,.78) 58%,rgba(18,19,22,.96) 100%)}
+.blurz{position:absolute;left:0;right:0;bottom:0;height:64%;-webkit-backdrop-filter:blur(22px) saturate(1.05);backdrop-filter:blur(22px) saturate(1.05);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 30%,#000 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 30%,#000 100%);pointer-events:none}
+.blurz.head{height:78%}
+.pullsheet{position:absolute;left:0;right:0;bottom:0;z-index:4;background:#FFFFFF;border-radius:26px 26px 0 0;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 -10px 30px rgba(18,19,22,.18);pointer-events:none}
+.pullsheet .gb{width:40px;height:5px;border-radius:3px;background:#E2E4E8;margin-top:9px;flex-shrink:0}
+.pullhint{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:#121316;flex-shrink:0}
+.pullhint.ready{color:#2B4BFF}
+.pullprev{width:100%;box-sizing:border-box;padding:4px 20px 0;display:flex;flex-direction:column;gap:12px}
+.achip{display:flex;align-items:center;gap:10px;align-self:flex-start;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px 5px 5px;font:inherit;color:#FFFFFF;cursor:pointer;text-align:left;max-width:100%}
+.achip b{font-size:14px;font-weight:600;display:block}
+.achip span.s{font-size:12.5px;color:rgba(255,255,255,.78);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.av2{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:14px;letter-spacing:-0.01em;flex-shrink:0;color:#121316}
+.av2.lg{width:64px;height:64px;font-size:24px}
+.acard{display:flex;flex-direction:column;gap:12px;background:#F6F7F9;border:1px solid #EEF0F4;border-radius:20px;padding:14px;text-align:left;font:inherit;color:#121316;cursor:pointer;width:100%;box-sizing:border-box}
+.acard .who{display:flex;align-items:center;gap:12px}
+.acard .who b{display:block;font-size:16px}
+.acard .who span.r{display:block;font-size:13.5px;color:#5B5F68}
+.acard p{margin:0;font-size:15px;line-height:1.5;color:#3A3D44}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.stat{background:#FFFFFF;border:1px solid #EEF0F4;border-radius:14px;padding:10px 10px 9px;display:flex;flex-direction:column;gap:2px}
+.stat b{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.025em;line-height:1}
+.stat span{font-size:12px;line-height:1.3;color:#5B5F68}
+.more{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;color:#2B4BFF}
+.adlg{background:#FFFFFF;border-radius:26px 26px 0 0;padding:10px 20px 28px;display:flex;flex-direction:column;gap:14px;max-height:88%;overflow-y:auto;box-sizing:border-box}
+.adlg .grab{margin:0 auto}
+.known{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.known li{display:flex;gap:10px;font-size:15px;line-height:1.45}
+.known li:before{content:"";width:6px;height:6px;border-radius:50%;background:#2B4BFF;flex-shrink:0;margin-top:8px}
+.lib{display:flex;align-items:center;gap:12px;border:1px solid #EEF0F4;border-radius:16px;padding:12px;text-decoration:none;color:#121316}
+.lib b{font-size:15px;font-weight:600;display:block}
+.lib span{font-size:13px;color:#5B5F68}
+.prov{font-size:12.5px;line-height:1.45;color:#8A8E97}
+.imgtag{position:absolute;top:66px;right:16px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.85);background:rgba(18,19,22,.35);border-radius:999px;padding:4px 9px;z-index:2}
+.ptop{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:22px 20px 0;min-height:56px;box-sizing:border-box}
+.ptop .mono{color:rgba(255,255,255,.92)}
+.prog.w i{background:rgba(255,255,255,.35)}
+.prog.w i.on{background:#FFFFFF}
+.pbody{position:relative;z-index:2;margin-top:auto;display:flex;flex-direction:column;gap:14px;padding:0 20px 104px;color:#FFFFFF}
+.pbody .mono{color:rgba(255,255,255,.85)}
+.wtitle{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:40px;line-height:1.02;letter-spacing:-0.035em;margin:0;color:#FFFFFF}
+.glass{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px 13px;font-size:15px;line-height:1.45;color:#FFFFFF}
+.wblurb{font-size:18px;line-height:1.45;margin:0;color:rgba(255,255,255,.92)}
+.readrow{display:flex;align-items:center;gap:12px}
+.wbtn{display:inline-flex;align-items:center;gap:8px;min-height:52px;border-radius:999px;background:#FFFFFF;color:#121316;border:0;font:inherit;font-weight:600;font-size:16px;padding:0 20px;cursor:pointer}
+.swipe{display:flex;align-items:center;gap:6px;font-size:14px;color:rgba(255,255,255,.85);background:none;border:0;font-family:inherit;cursor:pointer;padding:0;min-height:44px}
+.skip{background:none;border:0;font:inherit;font-size:14px;color:rgba(255,255,255,.75);text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:44px;padding:0;margin-left:auto}
+/* Stock photos (Unsplash License). In the app: the article's own preview image, else a stock photo for its topic. */
+.img0{background:#25272B url(/_blob/2b6e161b8cf771c1f572fb53af24cc10) center/cover no-repeat}
+.img1{background:#25272B url(/_blob/9c35c1aec54762d081425da110bbb661) center/cover no-repeat}
+.img2{background:#25272B url(/_blob/129d4370ea3033fdd8f8ef9e8e9eee6f) 35% center/cover no-repeat}
+.img3{background:#25272B url(/_blob/7132014611c5b4718cef1378262b8131) center 30%/cover no-repeat}
+.play{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;z-index:2;border:0;cursor:pointer}
+.rhead{position:relative;height:200px;flex-shrink:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;transition:height .12s linear}
+.rhead .in{position:relative;z-index:2;padding:0 20px 16px;display:flex;flex-direction:column;gap:8px}
+.rhead .mono{color:rgba(255,255,255,.85)}
+.rh1{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:26px;line-height:1.08;letter-spacing:-0.025em;margin:0;color:#FFFFFF}
+/* The reader's photo header: darker still, since the title sits on most of it. */
+.rhead .grad{background:linear-gradient(180deg,rgba(18,19,22,.45) 0%,rgba(18,19,22,.62) 45%,rgba(18,19,22,.92) 100%)}
+/* Shrunk to a bar: plain white, so it reads as part of the article below. */
+.rhead.compact{background:#FFFFFF!important;border-bottom:1px solid #EEF0F4}
+.rhead.compact .grad,.rhead.compact .blurz{display:none}
+.rhead.compact .rh1{color:#121316}
+.rhead.compact .down{background:#EEF0F4;color:#121316}
+.rhead.compact .in{padding:0 16px 14px 66px;gap:0}
+.rhead.compact .mono{display:none}
+.rhead.compact .rh1{font-size:17px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rhead.compact .down{top:auto;bottom:6px;width:40px;height:40px}
+.down{position:absolute;top:18px;left:14px;z-index:3;width:44px;height:44px;border-radius:50%;border:0;background:rgba(18,19,22,.4);color:#FFFFFF;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.player{position:relative;height:220px;flex-shrink:0;background:#121316;display:flex;align-items:flex-end;overflow:hidden}
+.rbody{flex-grow:1;min-height:0;overflow-y:auto;background:#FFFFFF;padding:18px 20px 120px;display:flex;flex-direction:column;gap:18px;scroll-behavior:smooth}
+.src{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #EEF0F4;padding-bottom:12px;font-size:14px;color:#5B5F68}
+.t18{font-size:18px;line-height:1.62;margin:0}
+.t21{font-size:21px;line-height:1.6;margin:0}
+.rsh{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em;margin:10px 0 0;scroll-margin-top:12px}
+.sum{display:flex;flex-direction:column;gap:6px;background:#EEF2FF;border-radius:16px;padding:14px;font-size:15.5px;line-height:1.5;color:#1E2F99}
+.chap{display:flex;gap:12px;align-items:flex-start;background:none;border:0;border-bottom:1px solid #EEF0F4;padding:12px 0;text-align:left;font:inherit;cursor:pointer;color:#121316}
+.chap .ts{font-family:'JetBrains Mono',monospace;font-size:12px;color:#2B4BFF;padding-top:3px;flex-shrink:0;width:42px}
+.chap b{display:block;font-weight:600;font-size:16px;margin-bottom:4px}
+.chap span.l{font-size:15.5px;line-height:1.5;color:#3A3D44}
+.endc{display:flex;flex-direction:column;gap:12px;border-radius:24px;padding:20px;scroll-margin-top:12px}
+.endc b{font-family:'Bricolage Grotesque',sans-serif;font-size:28px;letter-spacing:-0.025em;line-height:1.05}
+.nextp{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;border-radius:18px;background:#121316;color:#FFFFFF;border:0;font:inherit;text-align:left;padding:0 18px;cursor:pointer}
+.nextp .mono{color:#9EA3AD}
+.pill .grow{display:flex;align-items:center;gap:8px;padding:0 10px 0 6px;min-width:120px}
+.pill .grow b{font-size:14.5px;font-weight:600;white-space:nowrap}
+.pv{min-height:44px;border-radius:999px;border:0;font:inherit;font-size:15px;font-weight:600;cursor:pointer;padding:0 16px;background:transparent;color:#FFFFFF}
+.pv.yes{background:#2B4BFF}
+.tray{position:absolute;left:50%;bottom:88px;transform:translateX(-50%);width:290px;background:#121316;color:#FFFFFF;border-radius:22px;padding:6px;z-index:21;display:flex;flex-direction:column;box-shadow:0 12px 30px rgba(18,19,22,.25)}
+.ti{display:flex;align-items:center;gap:12px;min-height:48px;border:0;background:transparent;color:#FFFFFF;font:inherit;font-size:15.5px;text-align:left;padding:0 12px;border-radius:14px;cursor:pointer;text-decoration:none}
+.ti .mono{margin-left:auto;color:#9EA3AD}
+.tsep{height:1px;background:rgba(255,255,255,.1);margin:4px 8px}
+
+</style>
+</helmet>
+<div class="ph">
+<div class="pg">
+<sc-if value="{{isCover}}" hint-placeholder-val="{{ false }}">
+<div class="top"><span class="mono">Founder Signal · No. 4</span><div class="prog" aria-hidden="true"><sc-for list="{{prog}}" as="g" hint-placeholder-count="5"><i class="{{g.cls}}"></i></sc-for></div></div>
+<div class="body">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; color: #5B5F68">Monday, October 5</span><span style="font-size: 16px; font-weight: 600">Good morning</span></div>
+<span class="mono" style="color: #2B4BFF">Letter No. 4 · arrived Mon 7:30</span>
+<h1 class="hd huge">Pricing and hiring, for a founder</h1>
+<div class="agent"><span class="dot" aria-hidden="true"></span><span>Three things I picked for you. 33 minutes in all.</span></div>
+<div class="toc"><sc-for list="{{toc}}" as="t" hint-placeholder-count="3"><button onClick="{{t.go}}"><span class="{{t.sw}}">{{t.n}}</span><b>{{t.title}}</b><span class="len">{{t.len}}</span></button></sc-for></div>
+</div>
+</sc-if>
+
+<sc-if value="{{isPhoto}}" hint-placeholder-val="{{ true }}"><div class="{{p.photoCls}}" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{release}}" onPointerCancel="{{cancel}}" onWheel="{{wheel}}">
+<div class="blurz" aria-hidden="true"></div><div class="grad" aria-hidden="true"></div>
+<div class="ptop"><span class="mono">No. 4 · Piece {{p.n}} of 3</span><div class="prog w" aria-hidden="true"><sc-for list="{{prog}}" as="g" hint-placeholder-count="5"><i class="{{g.cls}}"></i></sc-for></div></div>
+<sc-if value="{{p.isVid}}" hint-placeholder-val="{{ false }}"><button class="play" aria-label="Play the video" onClick="{{read}}"><svg width="30" height="30" viewBox="0 0 24 24" fill="#121316" stroke="#121316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button></sc-if>
+<div class="pbody" style="transform: translateY(-{{lift}}px); opacity: {{fade}}; transition: {{liftTr}}">
+<span class="mono">{{p.kind}} · {{p.len}} · {{p.topic}}</span>
+<h1 class="wtitle">{{p.title}}</h1>
+<button class="achip" aria-label="{{a.aria}}" onClick="{{openAuthor}}"><span class="{{a.avCls}}" style="background: {{a.tint}}" aria-hidden="true">{{a.initials}}</span><span style="min-width: 0"><b>{{a.name}}</b><span class="s">{{a.headline}}</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+<sc-if value="{{p.hasWhy}}" hint-placeholder-val="{{ true }}"><div class="glass"><span class="dot" aria-hidden="true"></span><span>{{p.why}}</span></div></sc-if>
+<sc-if value="{{p.hasTag}}" hint-placeholder-val="{{ false }}"><span class="badge">{{p.tag}}</span></sc-if>
+<p class="wblurb">{{p.blurb}}</p>
+<div class="readrow"><button class="wbtn" onClick="{{read}}">{{p.readLabel}} <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button><button class="skip" onClick="{{skip}}">Skip this one</button></div>
+</div>
+<div class="pullsheet" style="height: {{sheetH}}; transition: {{sheetTr}}" aria-hidden="true">
+<span class="gb"></span>
+<span class="{{hintCls}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg> {{pullHint}}</span>
+<div class="pullprev"><span class="mono">{{p.kind}} · {{p.len}}</span><b class="hd" style="font-size: 22px; line-height: 1.1">{{p.title}}</b><span style="font-size: 16px; line-height: 1.55; color: #3A3D44">{{p.blurb}}</span></div>
+</div>
+</div></sc-if>
+
+<sc-if value="{{isReading}}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{p.isArt}}" hint-placeholder-val="{{ true }}"><div class="{{headCls}}" style="height: {{headH}}px"><div class="blurz head" aria-hidden="true"></div><div class="grad" aria-hidden="true"></div><button class="down" aria-label="Back to the piece page" onClick="{{unread}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><div class="in"><span class="mono">Piece {{p.n}} of 3 · {{p.topic}}</span><h1 class="rh1">{{p.title}}</h1></div></div></sc-if>
+<sc-if value="{{p.isVid}}" hint-placeholder-val="{{ false }}"><div class="player"><div class="{{p.photoBg}}" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: .55"></div><button class="down" aria-label="Back to the piece page" onClick="{{unread}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><button class="play" style="top: 50%" aria-label="Play"><svg width="30" height="30" viewBox="0 0 24 24" fill="#121316" stroke="#121316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><div style="position: relative; z-index: 2; width: 100%; padding: 0 14px 10px; display: flex; flex-direction: column; gap: 6px"><span class="mono" style="color: #FFFFFF">4:12 / 18:03 · Where to look</span><span style="display: block; height: 3px; border-radius: 2px; background: rgba(255,255,255,.3)"><span style="display: block; width: 23%; height: 3px; border-radius: 2px; background: #2B4BFF"></span></span></div></div></sc-if>
+<div class="rbody" onScroll="{{scrolled}}">
+<button class="acard" aria-label="{{a.aria}}" onClick="{{openAuthor}}"><span class="who"><span class="{{a.avCls}}" style="background: {{a.tint}}" aria-hidden="true">{{a.initials}}</span><span><b>{{a.name}}</b><span class="r">{{a.role}}</span></span></span><p>{{a.short}}</p><span class="stats"><sc-for list="{{a.stats}}" as="st" hint-placeholder-count="3"><span class="stat"><b>{{st.n}}</b><span>{{st.l}}</span></span></sc-for></span><span class="more">More about {{a.first}} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2B4BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span></button>
+<sc-if value="{{p.is1}}" hint-placeholder-val="{{ true }}"><div class="src"><span>Membership Economics · 6 min · full text</span><a class="lnk" style="font-size: 14px" href="#">Original <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2B4BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/></svg></a></div>
+<div class="agent"><span class="dot" aria-hidden="true"></span><span>Why I picked this: you said you've been wondering how Costco makes money, and usage-based pricing is on your mind.</span></div>
+<p class="{{txt}}">A membership store makes most of its profit from the fee, not from what's on the shelves. Prices stay close to cost, so members keep coming back, and coming back is what renews the fee.</p>
+<p class="{{txt}}">That flips the usual question. Instead of asking how much margin each sale can carry, it asks what makes someone renew. Mostly, it's trust that the price is fair.</p>
+<h2 class="rsh" id="p1-s2">What it means for a SaaS founder</h2>
+<sc-if value="{{summarized}}" hint-placeholder-val="{{ false }}"><div class="sum"><span class="mono" style="color: #2B4BFF">Summary of this section</span><span><b>Claim:</b> the fee is the relationship. <b>Evidence:</b> renewals carry the profit. <b>For you:</b> keep usage pricing predictable and make renewal the obvious choice.</span></div></sc-if>
+<p class="{{txt}}">If you charge a fee with usage on top, the fee is the relationship. Keep usage pricing boring and predictable, and spend your effort making the renewal feel obvious.</p>
+<p class="{{txt}}">The best renewal pitch is a year of not being surprised. Every surprise on an invoice is a reason to reconsider the whole relationship.</p><div class="endc t0" id="p1-end">
+<span class="mono" style="color: #3A3D44">Finished · {{p.len}}</span>
+<b>{{endLine}}</b>
+<span style="font-size: 15px; color: #3A3D44">Use the pill: was it worth your time?</span>
+<button class="nextp" onClick="{{nextPiece}}"><span style="display: flex; flex-direction: column; gap: 2px"><span class="mono">{{nextKicker}}</span><span style="font-weight: 600; font-size: 16px">{{nextTitle}}</span></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
+</div></sc-if>
+<sc-if value="{{p.is2}}" hint-placeholder-val="{{ false }}"><div class="src"><span>A founder's blog · via X · 9 min · full text</span><a class="lnk" style="font-size: 14px" href="#">Original <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2B4BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/></svg></a></div>
+<p class="{{txt}}">Our first B2B contract was priced in a spreadsheet with three columns: what it cost us, what the customer said they'd save, and what we were scared to ask for.</p>
+<p class="{{txt}}">We picked the middle number. In hindsight it should have been the scary one: the customer signed in a day, which told us everything about where we'd landed.</p>
+<h2 class="rsh" id="p2-s2">What we'd change</h2>
+<sc-if value="{{summarized}}" hint-placeholder-val="{{ false }}"><div class="sum"><span class="mono" style="color: #2B4BFF">Summary of this section</span><span><b>Claim:</b> they underpriced. <b>Evidence:</b> a one-day signature. <b>For you:</b> anchor on the value the customer names, not your costs.</span></div></sc-if>
+<p class="{{txt}}">Price from the savings the customer names, not from your costs. Put the number in writing early, and treat a fast yes as information rather than a win.</p><div class="endc t1" id="p2-end">
+<span class="mono" style="color: #3A3D44">Finished · {{p.len}}</span>
+<b>{{endLine}}</b>
+<span style="font-size: 15px; color: #3A3D44">Use the pill: was it worth your time?</span>
+<button class="nextp" onClick="{{nextPiece}}"><span style="display: flex; flex-direction: column; gap: 2px"><span class="mono">{{nextKicker}}</span><span style="font-weight: 600; font-size: 16px">{{nextTitle}}</span></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
+</div></sc-if>
+<sc-if value="{{p.is3}}" hint-placeholder-val="{{ false }}"><div class="src"><span>[YouTube channel] · 18 min · transcript, native captions</span><a class="lnk" style="font-size: 14px" href="#">YouTube <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2B4BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/></svg></a></div>
+<span class="mono">Chapters · tap a line to jump the video there</span>
+<button class="chap"><span class="ts">0:00</span><span><b>Why skip the recruiter</b><span class="l">"Your first engineer sets the bar for every hire after. You want to meet them yourself."</span></span></button>
+<button class="chap"><span class="ts">4:12</span><span><b>Where to look</b><span class="l">Open source contributors, people who've emailed you about the product, and former colleagues of your best advisors.</span></span></button>
+<h2 class="rsh" id="p3-s2" style="font-size: 18px">5 more chapters</h2>
+<button class="chap"><span class="ts">9:30</span><span><b>What to ask</b><span class="l">"Ask them to walk you through the last thing they shipped that they were proud of."</span></span></button>
+<button class="chap"><span class="ts">14:05</span><span><b>Closing in two weeks</b><span class="l">Move fast, make the offer in person, and say why you want them specifically.</span></span></button><div class="endc t2" id="p3-end">
+<span class="mono" style="color: #3A3D44">Finished · {{p.len}}</span>
+<b>{{endLine}}</b>
+<span style="font-size: 15px; color: #3A3D44">Use the pill: was it worth your time?</span>
+<button class="nextp" onClick="{{nextPiece}}"><span style="display: flex; flex-direction: column; gap: 2px"><span class="mono">{{nextKicker}}</span><span style="font-weight: 600; font-size: 16px">{{nextTitle}}</span></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
+</div></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{isPs}}" hint-placeholder-val="{{ false }}"><div class="photo img3">
+<div class="blurz" aria-hidden="true"></div><div class="grad" aria-hidden="true"></div>
+<div class="ptop"><span class="mono">No. 4 · Postscript</span><div class="prog w" aria-hidden="true"><sc-for list="{{prog}}" as="g" hint-placeholder-count="5"><i class="{{g.cls}}"></i></sc-for></div></div>
+<div class="pbody">
+<span class="mono">From the post office</span>
+<p class="wtitle" style="font-weight: 500; font-size: 30px; line-height: 1.18">P.S. Two on pricing today, since you keep coming back to it. Tell me if that's too many.</p>
+<div class="glass" style="flex-direction: column; gap: 4px"><span class="mono">Today</span><b style="font-size: 20px">{{tally}}</b><span style="font-size: 14px; color: rgba(255,255,255,.85)">Tomorrow's letter arrives Tue 7:30.</span></div>
+<a class="wbtn" style="align-self: flex-start; text-decoration: none" href="PagerLibrary.dc.html">Past letters <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+</div>
+</div></sc-if>
+</div>
+
+<sc-if value="{{pillNav}}" hint-placeholder-val="{{ true }}"><div class="pill" role="group" aria-label="Navigation"><button class="{{upCls}}" aria-label="Previous page" onClick="{{up}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button><span class="pl"><span class="m">Today</span><b>{{counter}}</b></span><button class="{{downCls}}" aria-label="Next page" onClick="{{next}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button><button class="pb blue" aria-label="{{menuLabel}}" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}"><sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></sc-if><sc-if value="{{menuShut}}" hint-placeholder-val="{{ true }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg></sc-if></button></div></sc-if>
+<sc-if value="{{pillRead}}" hint-placeholder-val="{{ false }}"><div class="pill" role="group" aria-label="Reading"><button class="pb" aria-label="{{saveLabel}}" aria-pressed="{{saved}}" onClick="{{toggleSave}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{saveFill}}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button><span class="grow" role="status"><svg width="26" height="26" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="#2B4BFF" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="{{ring}} 100" transform="rotate(-90 18 18)"/></svg><b>{{left}}</b></span><a class="pb" href="{{sectionHref}}" aria-label="{{sectionLabel}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></a><button class="pb blue" aria-label="More" aria-expanded="{{trayOpen}}" onClick="{{toggleTray}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></div></sc-if>
+<sc-if value="{{pillEnd}}" hint-placeholder-val="{{ false }}"><div class="pill" role="group" aria-label="Was it worth it?"><button class="pv" onClick="{{rNo}}">Not for me</button><button class="pv yes" onClick="{{rYes}}">Worth it</button><button class="pb" aria-label="More" aria-expanded="{{trayOpen}}" onClick="{{toggleTray}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></div></sc-if>
+<sc-if value="{{pillNext}}" hint-placeholder-val="{{ false }}"><div class="pill" role="group" aria-label="Next"><span class="grow" role="status"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8FA1FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><b>{{verdictLine}}</b></span><button class="pv yes" onClick="{{nextPiece}}">{{nextShort}} ↓</button></div></sc-if>
+
+<sc-if value="{{trayOpen}}" hint-placeholder-val="{{ false }}"><div class="tray" role="menu" aria-label="More">
+<button class="ti" role="menuitem" onClick="{{share}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/></svg>Share<span class="mono">{{shareNote}}</span></button>
+<button class="ti" role="menuitem" onClick="{{summarize}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>{{summaryLabel}}</button>
+<a class="ti" role="menuitem" href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/></svg>Open original</a>
+<button class="ti" role="menuitem" onClick="{{textSize}}"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; width: 20px; text-align: center">Aa</span>Text size<span class="mono">{{sizeLabel}}</span></button>
+<span class="tsep" aria-hidden="true"></span>
+<button class="ti" role="menuitem" onClick="{{skip}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Skip this one</button>
+<button class="ti" role="menuitem" onClick="{{unread}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>Back to the piece page</button>
+<button class="ti" role="menuitem" onClick="{{openMenu}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg>Menu</button>
+</div></sc-if>
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}"><div class="scrim" style="z-index: 15"><div class="msheet" role="dialog" aria-label="Menu"><span class="grab" aria-hidden="true"></span><nav aria-label="Main"><a class="mlink" href="PagerToday.dc.html" aria-current="page"><span class="big">Today</span><span class="mono">No. 4 · 3 pieces</span></a><a class="mlink" href="PagerLibrary.dc.html"><span class="big">Library</span><span class="mono">4 saved · 4 letters</span></a><a class="mlink" href="PagerActivity.dc.html"><span class="big">Activity</span><span class="mono">16 days in Sept</span></a><a class="mlink" href="PagerPreferences.dc.html"><span class="big">Preferences</span><span class="mono">Brief, sources, schedule</span></a></nav></div></div></sc-if>
+<sc-if value="{{authorOpen}}" hint-placeholder-val="{{ false }}"><div class="scrim" style="z-index: 45" onClick="{{closeAuthorBg}}"><div class="adlg" role="dialog" aria-label="{{a.name}}">
+<span class="grab" aria-hidden="true"></span>
+<div style="display: flex; align-items: center; gap: 14px"><span class="{{a.avLg}}" style="background: {{a.tint}}" aria-hidden="true">{{a.initials}}</span><span style="flex-grow: 1"><span class="hd" style="font-size: 26px; display: block">{{a.name}}</span><span style="font-size: 14px; color: #5B5F68">{{a.role}}</span></span><button class="rb" aria-label="Close" onClick="{{closeAuthor}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+<p style="margin: 0; font-size: 16px; line-height: 1.55">{{a.bio}}</p>
+<div class="stats"><sc-for list="{{a.stats}}" as="st" hint-placeholder-count="3"><span class="stat" style="background: #F6F7F9"><b>{{st.n}}</b><span>{{st.l}}</span></span></sc-for></div>
+<span class="mono">Known for</span>
+<ul class="known"><sc-for list="{{a.known}}" as="k" hint-placeholder-count="3"><li>{{k.t}}</li></sc-for></ul>
+<span class="mono">In your reading</span>
+<sc-for list="{{a.yours}}" as="y" hint-placeholder-count="2"><a class="lib" href="PagerReader.dc.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2B4BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span><b>{{y.t}}</b><span>{{y.m}}</span></span></a></sc-for>
+<div style="display: flex; gap: 8px"><button class="{{followCls}}" style="flex: 1" aria-pressed="{{followed}}" onClick="{{toggleFollow}}">{{followLabel}}</button><a class="btn sec" style="flex: 1" href="#">Their site <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/></svg></a></div>
+<span class="prov">{{a.prov}}</span>
+</div></div></sc-if>
+<sc-if value="{{sheet}}" hint-placeholder-val="{{ false }}"><div class="scrim"><div class="fb" role="dialog" aria-label="{{ask}}">
+<span class="mono">Pick any</span>
+<h2 class="hd" style="font-size: 30px; line-height: 1.05">{{ask}}</h2>
+<sc-for list="{{reasons}}" as="r" hint-placeholder-count="4"><button class="{{r.cls}}" aria-pressed="{{r.on}}" onClick="{{r.pick}}">{{r.label}}<span class="box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span></button></sc-for>
+<button class="btn pri" onClick="{{finish}}">Done</button>
+</div></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+
+var PIECES = [
+  { title: "The fee is the product: how membership pricing works", kind: "Article", len: "6 min", topic: "Pricing", why: "Because you said \"how Costco makes money\".", tag: "", blurb: "Why the shop runs near cost and the renewal pays the bills." },
+  { title: "How we priced our first B2B contract", kind: "Article", len: "9 min", topic: "Pricing", why: "", tag: "Via X", blurb: "One founder's spreadsheet, the number they picked, and what they'd change." },
+  { title: "Hiring your first engineer without a recruiter", kind: "Video", len: "18 min", topic: "Hiring", why: "", tag: "New source", blurb: "Where to look, what to ask, and how to close in two weeks." }
+];
+var SAVED = [
+  { title: "The fee is the product: how membership pricing works", topic: "Pricing", meta: "6 min · saved today", video: false },
+  { title: "Hiring your first engineer without a recruiter", topic: "Hiring", meta: "18 min video · saved Fri", video: true },
+  { title: "Usage-based pricing, two years in", topic: "Pricing", meta: "11 min · saved Thu", video: false },
+  { title: "Cold emails that got a reply", topic: "Sales", meta: "7 min · saved Sep 30", video: false }
+];
+var LETTERS = [
+  { no: "No. 4", title: "Pricing and hiring, for a founder", meta: "Mon, Oct 5 · 3 pieces" },
+  { no: "No. 3", title: "First customers and cold outreach", meta: "Fri, Oct 2 · 3 pieces" },
+  { no: "No. 2", title: "Open source as a business", meta: "Thu, Oct 1 · 2 pieces" },
+  { no: "No. 1", title: "Your first letter", meta: "Wed, Sep 30 · 3 pieces" }
+];
+var LV = [0,2,1,0,0,1,3,2,0,1,0,0,0,1,2,3,0,0,0,1,2,0,1,2,0,0,0,3,2,1];
+var WORDS = ["nothing", "a little", "some", "a lot"];
+var DOW = ["Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"];
+var ROWS = [
+  { day: "Mon, Oct 5", what: "1 read · 1 reviewed" },
+  { day: "Fri, Oct 2", what: "2 read" },
+  { day: "Thu, Oct 1", what: "1 reviewed" },
+  { day: "Wed, Sep 30", what: "3 read · 2 reviewed" },
+  { day: "Tue, Sep 29", what: "2 read" },
+  { day: "Mon, Sep 28", what: "1 read · 2 reviewed" }
+];
+var LEARNED = [
+  { title: "More on pricing", text: "You saved 3 pricing pieces and said \"useful for my work\" twice." },
+  { title: "Less on fundraising", text: "You marked two fundraising pieces \"not my topic\"." }
+];
+var READING = [
+  { label: "Sources", detail: "4 sources · 1 needs a look" },
+  { label: "Goals and topics", detail: "6 topics" },
+  { label: "Schedule", detail: "Mon–Fri 7:30" }
+];
+var TINT = ["t0", "t1", "t2", "t0"];
+var YES = ["Clear explanation", "Useful for my work", "New to me", "Well written"];
+var NO = ["Not my topic", "Too basic", "Too long", "Already knew it"];
+function cellDays() { return LV.map(function (l, i) { return { n: i + 1, cls: "c l" + l + (i === 0 ? " s2" : ""), label: DOW[i % 7] + ", Sep " + (i + 1) + ": " + WORDS[l] }; }); }
+function weeks() {
+  // September 2026 starts on a Tuesday: week rows of 7, padded at the start.
+  var cells = [null].concat(LV.map(function (l, i) { return { n: i + 1, l: l }; }));
+  var out = [];
+  for (var w = 0; w < 5; w++) {
+    var days = cells.slice(w * 7, w * 7 + 7);
+    var active = days.filter(function (d) { return d && d.l > 0; }).length;
+    var first = days.filter(Boolean)[0], last = days.filter(Boolean).slice(-1)[0];
+    out.push({ label: "Sep " + first.n + "–" + last.n, active: active, summary: active === 0 ? "A quiet week" : active + (active === 1 ? " day" : " days") + " with reading",
+      days: days.map(function (d) { return d ? { n: d.n, cls: "c l" + d.l, label: "Sep " + d.n + ": " + WORDS[d.l] } : { n: "", cls: "c l0", label: "" }; }) });
+  }
+  return out;
+}
+function verdictVals(self, s, key) {
+  var v = s.verdict[key];
+  var set = function (val) { return function () { var m = Object.assign({}, s.verdict); m[key] = m[key] === val ? null : val; self.setState({ verdict: m }); }; };
+  return { yesOn: v === "yes", noOn: v === "no", yesCls: v === "yes" ? "qb on" : "qb", noCls: v === "no" ? "qb on" : "qb", yes: set("yes"), no: set("no"),
+    hasNote: !!v, note: v === "yes" ? "Thanks. I'll find more like this." : "Got it. Less like this from now on." };
+}
+function readerVals(self, s) {
+  var list = s.rv === "no" ? NO : YES;
+  return {
+    saved: s.saved, saveCls: s.saved ? "ic on" : "ic", saveFill: s.saved ? "currentColor" : "none",
+    saveLabel: s.saved ? "Saved to Library" : "Save to Library",
+    toggleSave: function () { self.setState({ saved: !s.saved }); },
+    rOpen: !s.rv, rDone: !!s.rv && !s.sheet, sheet: s.sheet,
+    rYes: function () { self.setState({ rv: "yes", sheet: true, picked: {} }); },
+    rNo: function () { self.setState({ rv: "no", sheet: true, picked: {} }); },
+    ask: s.rv === "no" ? "What wasn't right?" : "What did you like about it?",
+    thanks: s.rv === "no" ? "Got it. Less like this from now on." : "Thanks. I'll find more like this.",
+    reasons: list.map(function (l) { var on = !!s.picked[l]; return { label: l, on: on, cls: on ? "opt on" : "opt", pick: function () { var p = Object.assign({}, s.picked); p[l] = !on; self.setState({ picked: p }); } }; }),
+    finish: function () { self.setState({ sheet: false }); }
+  };
+}
+function learnedVals(self, s) {
+  return LEARNED.map(function (x, i) { var u = !!s.undone[i]; return { title: x.title, text: u ? "Undone. I'll stop weighting this." : x.text, btn: u ? "Redo" : "Undo", aria: (u ? "Redo: " : "Undo: ") + x.title,
+    toggle: function () { var m = Object.assign({}, s.undone); m[i] = !u; self.setState({ undone: m }); } }; });
+}
+function segVals(self, s, key, opts) {
+  return opts.map(function (t) { var on = s[key] === t[0]; return { label: t[1], on: on, cls: on ? "sg on" : "sg", pick: function () { var p = {}; p[key] = t[0]; self.setState(p); } }; });
+}
+
+
+var IMG = [
+  { cls: "img0", label: "Photo · Oxana Melis / Unsplash", read: "Read · 6 min" },
+  { cls: "img1", label: "Stock · Matthew Fournier / Unsplash", read: "Read · 9 min" },
+  { cls: "img2", label: "Video still · Vitaly Gariev / Unsplash", read: "Watch · 18 min" }
+];
+var MINS = [6, 9, 18];
+var AUTHORS = [
+  { name: "Dana Whitfield", first: "Dana", initials: "DW", tint: "#DCE3FF", role: "Writes Membership Economics",
+    headline: "Ran pricing at a warehouse club for 8 years",
+    short: "Spent eight years on pricing at a warehouse club, now writes about businesses that live on renewals.",
+    bio: "Dana ran pricing at a warehouse club for eight years before starting two membership businesses of her own. She now writes a weekly newsletter on subscription and membership pricing, with a habit of publishing the spreadsheets behind each piece.",
+    stats: [["8 yrs", "pricing at a warehouse club"], ["2", "companies founded"], ["40k", "newsletter readers"]],
+    known: ["Taking membership models apart, fee by fee", "Publishing the spreadsheets behind each piece", "Arguing that renewals, not margins, are the product"],
+    yours: [["The fee is the product", "Today · 6 min · worth it"], ["Why annual plans renew", "Saved Sep 28 · 8 min"]],
+    prov: "From her site and LinkedIn, checked Oct 3. Example author for this mock." },
+  { name: "Priya Raman", first: "Priya", initials: "PR", tint: "#FFE3D6", role: "Founder, clinic scheduling software",
+    headline: "3 companies founded · $5M ARR at the last one",
+    short: "A three-time founder who writes up every pricing decision in public, numbers included.",
+    bio: "Priya has founded three B2B software companies; the last reached $5M in annual recurring revenue before it was acquired. She writes up every pricing and sales decision in public, including the ones that went wrong.",
+    stats: [["3", "companies founded"], ["$5M", "ARR at her last company"], ["1", "acquisition"]],
+    known: ["Pricing write-ups with the real numbers", "Selling to clinics and other small practices", "Being honest about underpricing"],
+    yours: [["How we priced our first B2B contract", "Today · 9 min · worth it"]],
+    prov: "From her blog and Crunchbase, checked Oct 3. Example author for this mock." },
+  { name: "Marcus Hale", first: "Marcus", initials: "MH", tint: "#ECEEF2", role: "Engineering lead turned founder",
+    headline: "First engineer at 2 startups · 40+ engineers hired",
+    short: "Was first engineer at two startups and has hired more than forty engineers without a recruiter.",
+    bio: "Marcus was the first engineer at two startups, then led engineering as both grew past fifty people. He's hired more than forty engineers himself, and makes videos about hiring for founders without a recruiting team.",
+    stats: [["2", "startups as first engineer"], ["40+", "engineers hired"], ["120k", "subscribers"]],
+    known: ["Hiring without recruiters", "Practical interview loops for small teams", "Long, detailed videos"],
+    yours: [["Hiring your first engineer without a recruiter", "Today · 18 min video"]],
+    prov: "From his channel and LinkedIn, checked Oct 3. Example author for this mock." }
+];
+function authorVals(i) {
+  var a = AUTHORS[i] || AUTHORS[0];
+  return { name: a.name, first: a.first, initials: a.initials, role: a.role, headline: a.headline, short: a.short, bio: a.bio, prov: a.prov,
+    avCls: "av2", avLg: "av2 lg", tint: a.tint, aria: "About the author, " + a.name,
+    stats: a.stats.map(function (x) { return { n: x[0], l: x[1] }; }), known: a.known.map(function (t) { return { t: t }; }),
+    yours: a.yours.map(function (y) { return { t: y[0], m: y[1] }; }) };
+}
+var SECTIONS = [["#p1-s2", "#p1-end"], ["#p2-s2", "#p2-end"], ["#p3-s2", "#p3-end"]];
+function todayVals(self, s) {
+  var pg = s.page, i = pg - 1, piece = pg >= 1 && pg <= 3;
+  var mode = piece ? s.mode : "page";
+  var goPage = function (n) { self.setState({ page: n, mode: "page", progress: 0, scrollY: 0, tray: false, summarized: false, pull: 0, pulling: false, entering: false, dragY: null }); };
+  // Opening a piece for reading always plays the same rise: the sheet fills the screen, then the reader takes over.
+  var read = function () {
+    if (s.entering) return;
+    self.setState({ entering: true, pulling: false, tray: false });
+    setTimeout(function () { self.setState({ mode: "read", progress: 0, scrollY: 0, entering: false, pull: 0, dragY: null }); }, 320);
+  };
+  var THRESHOLD = 140;
+  var resist = function (d) { return d <= THRESHOLD ? d : THRESHOLD + (d - THRESHOLD) * 0.35; };
+  var settle = function () { if (s.pull >= THRESHOLD) read(); else self.setState({ pull: 0, pulling: false, dragY: null }); };
+  var v = piece ? s.verdict[i] : null;
+  var atEnd = mode === "read" && s.progress > 0.92;
+  var p = {};
+  if (piece) {
+    var src = PIECES[i];
+    p = Object.assign({}, src, { n: pg, hasWhy: !!src.why, hasTag: !!src.tag, isVid: src.kind === "Video", isArt: src.kind !== "Video",
+      photoCls: "photo " + IMG[i].cls, headCls: "rhead " + IMG[i].cls, photoBg: IMG[i].cls, imgLabel: IMG[i].label, readLabel: IMG[i].read,
+      is1: i === 0, is2: i === 1, is3: i === 2 });
+  }
+  var nextIsPs = pg === 3;
+  var left = piece ? Math.max(0, Math.round(MINS[i] * (1 - s.progress))) : 0;
+  var list = s.rv === "no" ? NO : YES;
+  var counts = [0, 1, 2].map(function (k) { return s.verdict[k]; });
+  var worth = counts.filter(function (x) { return x === "yes"; }).length, read3 = counts.filter(Boolean).length;
+  return {
+    a: authorVals(Math.max(0, i)),
+    authorOpen: s.authorOpen, openAuthor: function () { self.setState({ authorOpen: true, tray: false }); },
+    closeAuthor: function () { self.setState({ authorOpen: false }); },
+    closeAuthorBg: function (e) { if (e && e.target === e.currentTarget) self.setState({ authorOpen: false }); },
+    followed: !!(s.follows || {})[i], followCls: (s.follows || {})[i] ? "btn sec" : "btn pri",
+    followLabel: (s.follows || {})[i] ? "Following ✓" : "Follow " + (AUTHORS[i] || AUTHORS[0]).first,
+    toggleFollow: function () { var m = Object.assign({}, s.follows || {}); m[i] = !m[i]; self.setState({ follows: m }); },
+    isCover: pg === 0, isPs: pg === 4, isPhoto: piece && mode === "page", isReading: piece && mode === "read", p: p,
+    prog: [0, 1, 2, 3, 4].map(function (n) { return { cls: n <= pg ? "on" : "" }; }),
+    toc: PIECES.map(function (x, n) { return { n: "0" + (n + 1), title: x.title, len: x.len, sw: "sw " + TINT[n], go: function () { goPage(n + 1); } }; }),
+    counter: (pg + 1) + " / 5", upCls: pg === 0 ? "pb dim" : "pb", downCls: pg === 4 ? "pb dim" : "pb",
+    up: function () { goPage(Math.max(0, pg - 1)); }, next: function () { goPage(Math.min(4, pg + 1)); },
+    // Pull up on a piece page and the reading sheet rises with your finger. Past the threshold,
+    // letting go opens the piece; short of it, the sheet springs back.
+    down: function (e) {
+      self.setState({ dragY: e.clientY, pulling: true });
+      // Capture only for drags that start on the photo itself, so taps on Read or the author still land.
+      var onControl = e.target && e.target.closest && e.target.closest("button, a");
+      if (!onControl) { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} }
+    },
+    move: function (e) { if (s.dragY === null || s.entering) return; self.setState({ pull: resist(Math.max(0, s.dragY - e.clientY)) }); },
+    release: function () { if (s.dragY === null) return; settle(); },
+    cancel: function () { self.setState({ pull: 0, pulling: false, dragY: null }); },
+    // A trackpad or mouse wheel pulls the same sheet; a pause springs it back unless it passed the threshold.
+    wheel: function (e) {
+      if (s.entering || e.deltaY <= 0) return;
+      var next = resist(Math.min(260, (s.wheelPull || 0) + e.deltaY));
+      self.setState({ pull: next, wheelPull: (s.wheelPull || 0) + e.deltaY, pulling: true });
+      if (next >= THRESHOLD) { self.setState({ wheelPull: 0 }); read(); return; }
+      var stamp = Date.now(); self.wheelAt = stamp;
+      setTimeout(function () { if (self.wheelAt === stamp && !self.state.entering) self.setState({ pull: 0, wheelPull: 0, pulling: false }); }, 260);
+    },
+    sheetH: s.entering ? "100%" : s.pull + "px",
+    sheetTr: s.pulling ? "none" : "height .32s cubic-bezier(.2,.8,.2,1)",
+    lift: Math.round(s.pull * 0.45), fade: s.entering ? 0 : (1 - Math.min(s.pull, THRESHOLD) / THRESHOLD * 0.5).toFixed(2),
+    liftTr: s.pulling ? "none" : "transform .32s cubic-bezier(.2,.8,.2,1), opacity .32s ease",
+    pullHint: s.pull >= THRESHOLD ? "Release to read" : "Keep pulling to read", hintCls: s.pull >= THRESHOLD ? "pullhint ready" : "pullhint",
+    read: read, unread: function () { self.setState({ mode: "page", tray: false }); },
+    scrolled: function (e) { var t = e.target, max = t.scrollHeight - t.clientHeight; self.setState({ progress: max > 0 ? t.scrollTop / max : 1, scrollY: t.scrollTop }); },
+    // The title bar shrinks with the first 128px of scrolling: 200px photo header down to a 72px bar.
+    headH: Math.max(72, 200 - (s.scrollY || 0)),
+    headCls: piece ? "rhead " + IMG[i].cls + (200 - (s.scrollY || 0) <= 96 ? " compact" : "") : "rhead",
+    skip: function () { var m = Object.assign({}, s.verdict); m[i] = "skip"; self.setState({ verdict: m }); goPage(pg + 1); },
+    pillNav: mode === "page", pillRead: mode === "read" && !atEnd, pillEnd: atEnd && !v && !s.sheet, pillNext: atEnd && !!v && v !== "skip" && !s.sheet,
+    saved: !!s.saved[i], saveFill: s.saved[i] ? "currentColor" : "none", saveLabel: s.saved[i] ? "Saved to Library" : "Save to Library",
+    toggleSave: function () { var m = Object.assign({}, s.saved); m[i] = !m[i]; self.setState({ saved: m }); },
+    ring: Math.round(s.progress * 100), left: left === 0 ? "Almost done" : left + " min left",
+    sectionHref: piece ? SECTIONS[i][s.progress < 0.4 ? 0 : 1] : "#", sectionLabel: s.progress < 0.4 ? "Next section" : "Jump to the end",
+    trayOpen: s.tray, toggleTray: function () { self.setState({ tray: !s.tray }); },
+    share: function () { self.setState({ shared: true, tray: false }); }, shareNote: s.shared ? "Link copied" : "",
+    summaryLabel: s.summarized ? "Hide the summary" : "Summarize this section",
+    summarize: function () { self.setState({ summarized: !s.summarized, tray: false }); }, summarized: s.summarized,
+    txt: s.big ? "t21" : "t18", sizeLabel: s.big ? "Large" : "Standard", textSize: function () { self.setState({ big: !s.big }); },
+    endLine: p.isVid ? "That's the video." : "That's the piece.",
+    nextKicker: nextIsPs ? "Up next · last page" : "Up next · Piece " + (pg + 1) + " of 3", nextTitle: nextIsPs ? "P.S. and tomorrow's letter" : (PIECES[pg] || {}).title,
+    nextShort: nextIsPs ? "P.S." : "Piece " + (pg + 1),
+    nextPiece: function () { goPage(pg + 1); },
+    rYes: function () { var m = Object.assign({}, s.verdict); m[i] = "yes"; self.setState({ verdict: m, rv: "yes", sheet: true, picked: {} }); },
+    rNo: function () { var m = Object.assign({}, s.verdict); m[i] = "no"; self.setState({ verdict: m, rv: "no", sheet: true, picked: {} }); },
+    verdictLine: v === "yes" ? "Worth it. Noted." : "Less like this.",
+    sheet: s.sheet, ask: s.rv === "no" ? "What wasn't right?" : "What did you like about it?",
+    reasons: list.map(function (l) { var on = !!s.picked[l]; return { label: l, on: on, cls: on ? "opt on" : "opt", pick: function () { var q = Object.assign({}, s.picked); q[l] = !on; self.setState({ picked: q }); } }; }),
+    finish: function () { self.setState({ sheet: false }); },
+    tally: read3 ? worth + " of 3 worth it" + (read3 < 3 ? ", " + (3 - read3) + " still to read" : "") : "Nothing read yet",
+    menuOpen: s.menuOpen, menuShut: !s.menuOpen, menuLabel: s.menuOpen ? "Close menu" : "Open menu",
+    toggleMenu: function () { self.setState({ menuOpen: !s.menuOpen }); },
+    openMenu: function () { self.setState({ menuOpen: true, tray: false }); }
+  };
+}
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { page: 1, mode: 'read', progress: 0.18, tray: false, verdict: {}, saved: {}, rv: null, sheet: false, picked: {}, summarized: false, big: false, shared: false, menuOpen: false, dragY: null, scrollY: 0, pull: 0, pulling: false, entering: false, wheelPull: 0, authorOpen: false, follows: {} }; }
+  renderVals() {
+    var s = this.state, self = this;
+    return todayVals(self, s);
+  }
+}
+</script>
+</body>
+</html>

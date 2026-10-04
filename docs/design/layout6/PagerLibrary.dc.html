@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Founder Signal: library (pager)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Instrument+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ph{position:relative;width:390px;height:844px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#FBFBFA;color:#121316;font-family:'Instrument Sans',system-ui,sans-serif}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5B5F68}
+.hd{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;letter-spacing:-0.03em;margin:0;color:#121316}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.rb{width:44px;height:44px;border-radius:50%;border:1.5px solid #E2E4E8;background:#FFFFFF;display:flex;align-items:center;justify-content:center;color:#121316;cursor:pointer;text-decoration:none;flex-shrink:0;padding:0;box-sizing:border-box}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border-radius:999px;border:0;font:inherit;font-weight:600;font-size:16px;cursor:pointer;box-sizing:border-box;text-decoration:none;flex-shrink:0;padding:0 22px}
+.pri{background:#2B4BFF;color:#FFFFFF}
+.sec{background:#FFFFFF;color:#121316;border:1.5px solid #E2E4E8}
+.dark{background:#121316;color:#FFFFFF}
+.lnk{background:none;border:0;font:inherit;color:#2B4BFF;font-size:15px;font-weight:600;cursor:pointer;min-height:44px;padding:0;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.agent{display:flex;gap:10px;align-items:flex-start;background:#FFF4EE;color:#3A2418;border-radius:16px;padding:13px 14px;font-size:15px;line-height:1.45}
+.dot{width:16px;height:16px;border-radius:50%;background:#FF5A1F;flex-shrink:0;margin-top:2px}
+.t0{background:#DCE3FF}.t1{background:#FFE3D6}.t2{background:#ECEEF2}.tps{background:#FFF4EE}.tw{background:#FFFFFF}
+.seg2{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #121316;border-radius:999px;padding:3px;gap:3px}
+.sg{min-height:40px;border:0;border-radius:999px;background:transparent;font:inherit;font-size:15px;font-weight:600;color:#121316;cursor:pointer}
+.sg.on{background:#121316;color:#FFFFFF}
+.qb{flex:1;min-height:48px;border-radius:999px;border:1.5px solid #121316;background:transparent;font:inherit;font-size:15px;font-weight:600;color:#121316;cursor:pointer}
+.qb.on{background:#121316;color:#FFFFFF}
+.noted{font-size:14px;color:#3A3D44;display:flex;align-items:center;gap:6px}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;border-radius:999px;padding:4px 10px;background:#FFFFFF;color:#1E2F99;align-self:flex-start}
+.c{border-radius:10px;display:flex;align-items:flex-start;padding:6px 7px;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em;box-sizing:border-box}
+.c.l0{background:#FFFFFF;border:1.5px solid #EEF0F4;color:#5B5F68}
+.c.l1{background:#DCE3FF;color:#121316}
+.c.l2{background:#8FA1FF;color:#121316}
+.c.l3{background:#2B4BFF;color:#FFFFFF}
+.c.s2{grid-column-start:2}
+.legend{display:flex;align-items:center;gap:6px;font-size:13px;color:#5B5F68}
+.legend i{width:14px;height:14px;border-radius:4px;display:block}
+.scrim{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(18,19,22,.4);z-index:40;display:flex;flex-direction:column;justify-content:flex-end}
+.fb{background:#FFFFFF;border-radius:24px 24px 0 0;padding:20px 20px 28px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box}
+.opt{display:flex;align-items:center;justify-content:space-between;min-height:56px;border-radius:16px;border:1.5px solid #E2E4E8;background:#FFFFFF;font:inherit;font-size:16px;font-weight:600;color:#121316;padding:0 16px;cursor:pointer;text-align:left}
+.opt.on{background:#DCE3FF;border-color:#2B4BFF;color:#1E2F99}
+.opt .box{width:22px;height:22px;border-radius:7px;border:1.5px solid #8A8F99;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#FFFFFF;color:#FFFFFF}
+.opt.on .box{background:#2B4BFF;border-color:#2B4BFF}
+.txt{font-size:18px;line-height:1.6;margin:0}
+.sh{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em;margin:8px 0 0}
+.digest{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #EEF0F4;border-bottom:1px solid #EEF0F4;min-height:48px}
+.dbadge{font-size:13px;font-weight:600;border-radius:8px;padding:4px 9px;background:#ECEEF2;color:#3A3D44}
+.why{display:flex;flex-direction:column;gap:8px;background:#FFF4EE;color:#3A2418;border-radius:18px;padding:16px;font-size:16px;line-height:1.5}
+.ic{width:48px;height:48px;border-radius:50%;border:1.5px solid #E2E4E8;background:#FFFFFF;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#121316;padding:0;flex-shrink:0}
+.ic.on{background:#DCE3FF;border-color:#DCE3FF;color:#2B4BFF}
+.vb{flex:1;min-height:48px;border-radius:999px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;border:1.5px solid #121316;background:#FFFFFF;color:#121316;padding:0 8px}
+.vb.pri{background:#2B4BFF;border-color:#2B4BFF;color:#FFFFFF}
+.vdone{flex-grow:1;display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px}
+
+.pill{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;background:#121316;color:#FFFFFF;border-radius:999px;padding:5px;box-shadow:0 12px 30px rgba(18,19,22,.22);z-index:20}
+.pb{width:44px;height:44px;border-radius:50%;border:0;background:transparent;color:#FFFFFF;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.pb.blue{background:#2B4BFF}
+.pb.dim{color:#5B5F68}
+.pl{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:92px;padding:0 6px;line-height:1.15}
+.pl .m{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#9EA3AD}
+.pl b{font-size:15px;font-weight:600}
+.msheet{background:#FFFFFF;border-radius:28px 28px 0 0;padding:10px 20px 110px;display:flex;flex-direction:column}
+.grab{width:40px;height:5px;border-radius:3px;background:#E2E4E8;margin:0 auto 6px}
+.mlink{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;text-decoration:none;color:#121316;padding:14px 0;border-bottom:1px solid #EEF0F4}
+.mlink .big{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:44px;line-height:.95;letter-spacing:-0.035em}
+.mlink[aria-current="page"] .big{color:#2B4BFF}
+.mlink .mono{padding-bottom:6px;text-align:right}
+.pg{flex-grow:1;min-height:0;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:space-between;padding:22px 20px 0;min-height:56px;box-sizing:border-box;flex-shrink:0}
+.prog{display:flex;gap:4px}
+.prog i{display:block;width:18px;height:4px;border-radius:2px;background:rgba(18,19,22,.15)}
+.prog i.on{background:#121316}
+.body{flex-grow:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:18px;padding:12px 20px 110px}
+.huge{font-size:52px;line-height:.98}
+.ptitle{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:42px;line-height:1.02;letter-spacing:-0.035em;color:#121316;text-decoration:none;margin:0}
+.blurb{font-size:19px;line-height:1.45;margin:0}
+.toc{display:flex;flex-direction:column;border-top:1px solid rgba(18,19,22,.12)}
+.toc button{display:flex;align-items:center;gap:12px;min-height:56px;border:0;border-bottom:1px solid rgba(18,19,22,.12);background:none;font:inherit;text-align:left;cursor:pointer;color:#121316;padding:6px 0}
+.toc .sw{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px}
+.toc b{font-weight:600;font-size:15px;line-height:1.3;flex-grow:1}
+.toc .len{font-size:13px;color:#5B5F68}
+.pstext{font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:30px;line-height:1.18;letter-spacing:-0.02em;color:#3A2418;margin:0}
+.card{background:#FFFFFF;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:6px}
+.tile{display:flex;flex-direction:column;justify-content:space-between;gap:16px;min-height:140px;border-radius:24px;padding:18px;text-decoration:none;color:#121316;box-sizing:border-box}
+.tile b{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:26px;line-height:1.05;letter-spacing:-0.025em}
+.tile .meta{font-size:14px;color:#3A3D44}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.go{width:36px;height:36px;border-radius:50%;background:#FFFFFF;display:flex;align-items:center;justify-content:center;color:#2B4BFF;flex-shrink:0}
+.prow{display:flex;align-items:center;justify-content:space-between;min-height:64px;border-bottom:1px solid #EEF0F4;text-decoration:none;color:#121316}
+.prow b{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em}
+.prow span{font-size:14px;color:#5B5F68}
+
+</style>
+</helmet>
+<div class="ph">
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 22px 16px 110px">
+<span class="mono" style="padding: 0 4px">Library</span>
+<h1 class="hd" style="font-size: 56px; line-height: 1; padding: 0 4px">{{heading}}</h1>
+<div class="seg2" role="group" aria-label="Show"><sc-for list="{{segs}}" as="g" hint-placeholder-count="2"><button class="{{g.cls}}" aria-pressed="{{g.on}}" onClick="{{g.pick}}">{{g.label}}</button></sc-for></div>
+<sc-if value="{{isSaved}}" hint-placeholder-val="{{ true }}"><sc-for list="{{saved}}" as="x" hint-placeholder-count="4"><a class="{{x.cls}}" href="PagerReader.dc.html"><span class="row"><span class="mono" style="color: #3A3D44">{{x.topic}}</span><span class="go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></span><b>{{x.title}}</b><span class="meta">{{x.meta}}</span></a></sc-for></sc-if>
+<sc-if value="{{isLetters}}" hint-placeholder-val="{{ false }}"><sc-for list="{{letters}}" as="x" hint-placeholder-count="4"><a class="{{x.cls}}" href="PagerToday.dc.html"><span class="row"><span class="hd" style="font-size: 56px; line-height: .85">{{x.no}}</span><span class="go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></span><span style="display: flex; flex-direction: column; gap: 6px"><b>{{x.title}}</b><span class="meta">{{x.meta}}</span></span></a></sc-for></sc-if>
+<p style="font-size: 14px; color: #5B5F68; text-align: center; margin: 4px 0 0">Saved pieces are kept for reading offline.</p>
+</div>
+<div class="pill" role="group" aria-label="Navigation"><span class="pl"><span class="m">Library</span><b>{{heading}}</b></span><button class="pb blue" aria-label="{{menuLabel}}" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}"><sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></sc-if><sc-if value="{{menuShut}}" hint-placeholder-val="{{ true }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg></sc-if></button></div>
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}"><div class="scrim" style="z-index: 15"><div class="msheet" role="dialog" aria-label="Menu"><span class="grab" aria-hidden="true"></span><nav aria-label="Main"><a class="mlink" href="PagerToday.dc.html"><span class="big">Today</span><span class="mono">No. 4 · 3 pieces</span></a><a class="mlink" href="PagerLibrary.dc.html" aria-current="page"><span class="big">Library</span><span class="mono">4 saved · 4 letters</span></a><a class="mlink" href="PagerActivity.dc.html"><span class="big">Activity</span><span class="mono">16 days in Sept</span></a><a class="mlink" href="PagerPreferences.dc.html"><span class="big">Preferences</span><span class="mono">Brief, sources, schedule</span></a></nav></div></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+
+var PIECES = [
+  { title: "The fee is the product: how membership pricing works", kind: "Article", len: "6 min", topic: "Pricing", why: "Because you said \"how Costco makes money\".", tag: "", blurb: "Why the shop runs near cost and the renewal pays the bills." },
+  { title: "How we priced our first B2B contract", kind: "Article", len: "9 min", topic: "Pricing", why: "", tag: "Via X", blurb: "One founder's spreadsheet, the number they picked, and what they'd change." },
+  { title: "Hiring your first engineer without a recruiter", kind: "Video", len: "18 min", topic: "Hiring", why: "", tag: "New source", blurb: "Where to look, what to ask, and how to close in two weeks." }
+];
+var SAVED = [
+  { title: "The fee is the product: how membership pricing works", topic: "Pricing", meta: "6 min · saved today", video: false },
+  { title: "Hiring your first engineer without a recruiter", topic: "Hiring", meta: "18 min video · saved Fri", video: true },
+  { title: "Usage-based pricing, two years in", topic: "Pricing", meta: "11 min · saved Thu", video: false },
+  { title: "Cold emails that got a reply", topic: "Sales", meta: "7 min · saved Sep 30", video: false }
+];
+var LETTERS = [
+  { no: "No. 4", title: "Pricing and hiring, for a founder", meta: "Mon, Oct 5 · 3 pieces" },
+  { no: "No. 3", title: "First customers and cold outreach", meta: "Fri, Oct 2 · 3 pieces" },
+  { no: "No. 2", title: "Open source as a business", meta: "Thu, Oct 1 · 2 pieces" },
+  { no: "No. 1", title: "Your first letter", meta: "Wed, Sep 30 · 3 pieces" }
+];
+var LV = [0,2,1,0,0,1,3,2,0,1,0,0,0,1,2,3,0,0,0,1,2,0,1,2,0,0,0,3,2,1];
+var WORDS = ["nothing", "a little", "some", "a lot"];
+var DOW = ["Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"];
+var ROWS = [
+  { day: "Mon, Oct 5", what: "1 read · 1 reviewed" },
+  { day: "Fri, Oct 2", what: "2 read" },
+  { day: "Thu, Oct 1", what: "1 reviewed" },
+  { day: "Wed, Sep 30", what: "3 read · 2 reviewed" },
+  { day: "Tue, Sep 29", what: "2 read" },
+  { day: "Mon, Sep 28", what: "1 read · 2 reviewed" }
+];
+var LEARNED = [
+  { title: "More on pricing", text: "You saved 3 pricing pieces and said \"useful for my work\" twice." },
+  { title: "Less on fundraising", text: "You marked two fundraising pieces \"not my topic\"." }
+];
+var READING = [
+  { label: "Sources", detail: "4 sources · 1 needs a look" },
+  { label: "Goals and topics", detail: "6 topics" },
+  { label: "Schedule", detail: "Mon–Fri 7:30" }
+];
+var TINT = ["t0", "t1", "t2", "t0"];
+var YES = ["Clear explanation", "Useful for my work", "New to me", "Well written"];
+var NO = ["Not my topic", "Too basic", "Too long", "Already knew it"];
+function cellDays() { return LV.map(function (l, i) { return { n: i + 1, cls: "c l" + l + (i === 0 ? " s2" : ""), label: DOW[i % 7] + ", Sep " + (i + 1) + ": " + WORDS[l] }; }); }
+function weeks() {
+  // September 2026 starts on a Tuesday: week rows of 7, padded at the start.
+  var cells = [null].concat(LV.map(function (l, i) { return { n: i + 1, l: l }; }));
+  var out = [];
+  for (var w = 0; w < 5; w++) {
+    var days = cells.slice(w * 7, w * 7 + 7);
+    var active = days.filter(function (d) { return d && d.l > 0; }).length;
+    var first = days.filter(Boolean)[0], last = days.filter(Boolean).slice(-1)[0];
+    out.push({ label: "Sep " + first.n + "–" + last.n, active: active, summary: active === 0 ? "A quiet week" : active + (active === 1 ? " day" : " days") + " with reading",
+      days: days.map(function (d) { return d ? { n: d.n, cls: "c l" + d.l, label: "Sep " + d.n + ": " + WORDS[d.l] } : { n: "", cls: "c l0", label: "" }; }) });
+  }
+  return out;
+}
+function verdictVals(self, s, key) {
+  var v = s.verdict[key];
+  var set = function (val) { return function () { var m = Object.assign({}, s.verdict); m[key] = m[key] === val ? null : val; self.setState({ verdict: m }); }; };
+  return { yesOn: v === "yes", noOn: v === "no", yesCls: v === "yes" ? "qb on" : "qb", noCls: v === "no" ? "qb on" : "qb", yes: set("yes"), no: set("no"),
+    hasNote: !!v, note: v === "yes" ? "Thanks. I'll find more like this." : "Got it. Less like this from now on." };
+}
+function readerVals(self, s) {
+  var list = s.rv === "no" ? NO : YES;
+  return {
+    saved: s.saved, saveCls: s.saved ? "ic on" : "ic", saveFill: s.saved ? "currentColor" : "none",
+    saveLabel: s.saved ? "Saved to Library" : "Save to Library",
+    toggleSave: function () { self.setState({ saved: !s.saved }); },
+    rOpen: !s.rv, rDone: !!s.rv && !s.sheet, sheet: s.sheet,
+    rYes: function () { self.setState({ rv: "yes", sheet: true, picked: {} }); },
+    rNo: function () { self.setState({ rv: "no", sheet: true, picked: {} }); },
+    ask: s.rv === "no" ? "What wasn't right?" : "What did you like about it?",
+    thanks: s.rv === "no" ? "Got it. Less like this from now on." : "Thanks. I'll find more like this.",
+    reasons: list.map(function (l) { var on = !!s.picked[l]; return { label: l, on: on, cls: on ? "opt on" : "opt", pick: function () { var p = Object.assign({}, s.picked); p[l] = !on; self.setState({ picked: p }); } }; }),
+    finish: function () { self.setState({ sheet: false }); }
+  };
+}
+function learnedVals(self, s) {
+  return LEARNED.map(function (x, i) { var u = !!s.undone[i]; return { title: x.title, text: u ? "Undone. I'll stop weighting this." : x.text, btn: u ? "Redo" : "Undo", aria: (u ? "Redo: " : "Undo: ") + x.title,
+    toggle: function () { var m = Object.assign({}, s.undone); m[i] = !u; self.setState({ undone: m }); } }; });
+}
+function segVals(self, s, key, opts) {
+  return opts.map(function (t) { var on = s[key] === t[0]; return { label: t[1], on: on, cls: on ? "sg on" : "sg", pick: function () { var p = {}; p[key] = t[0]; self.setState(p); } }; });
+}
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'saved', menuOpen: false }; }
+  renderVals() {
+    var s = this.state, self = this;
+    return {
+      heading: s.tab === "saved" ? "Saved" : "Letters",
+      isSaved: s.tab === "saved", isLetters: s.tab === "letters",
+      segs: segVals(self, s, "tab", [["saved", "Saved"], ["letters", "Letters"]]),
+      saved: SAVED.map(function (x, i) { return Object.assign({}, x, { cls: "tile " + TINT[i] }); }),
+      letters: LETTERS.map(function (x, i) { return Object.assign({}, x, { cls: "tile " + TINT[i] }); }),
+      menuOpen: s.menuOpen, menuShut: !s.menuOpen, menuLabel: s.menuOpen ? "Close menu" : "Open menu",
+      toggleMenu: function () { self.setState({ menuOpen: !s.menuOpen }); },
+    };
+  }
+}
+</script>
+</body>
+</html>

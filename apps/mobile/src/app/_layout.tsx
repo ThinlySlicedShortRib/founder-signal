@@ -4,14 +4,14 @@ import { type ErrorBoundaryProps, Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ONBOARDING_FONTS } from "@/components/onboarding/kit";
+import { font, ONBOARDING_FONTS, palette } from "@/components/onboarding/kit";
 import { Body, Button, Screen, Title } from "@/components/ui";
 import { authClient } from "@/lib/auth";
 import { installGlobalErrorHandlers, reportError, setErrorContext } from "@/lib/error-reporting";
 import { useProfile } from "@/lib/profile";
 import { queryClient } from "@/lib/query";
-import { serif, useColors } from "@/lib/theme";
 
 installGlobalErrorHandlers();
 
@@ -29,16 +29,20 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <AppStack />
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <AppStack />
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
+/** Layout 6 has no tab bar: Today, Library, Activity and Preferences are reached from the pill's menu. */
+const PAGER = { headerShown: false, animation: "fade" as const };
+
 function AppStack() {
-  const c = useColors();
   const { data: session, isPending } = authClient.useSession();
   const pathname = usePathname();
   useEffect(() => setErrorContext(pathname), [pathname]);
@@ -49,8 +53,8 @@ function AppStack() {
 
   if (isPending || (signedIn && profile.isPending) || (!fontsLoaded && !fontError)) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: c.background }}>
-        <ActivityIndicator color={c.textMuted} accessibilityLabel="Loading" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: palette.ground }}>
+        <ActivityIndicator color={palette.muted} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -60,18 +64,24 @@ function AppStack() {
   const onboarded = !!profile.data?.onboardedAt || (profile.isError && !profile.data);
   return (
     <>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: c.background },
-          headerTintColor: c.accent,
-          headerTitleStyle: { fontFamily: serif, color: c.text },
+          headerStyle: { backgroundColor: palette.ground },
+          headerTintColor: palette.ink,
+          headerTitleStyle: { fontFamily: font.display, fontSize: 18, color: palette.ink },
+          headerBackButtonDisplayMode: "minimal",
           headerShadowVisible: false,
-          contentStyle: { backgroundColor: c.background },
+          contentStyle: { backgroundColor: palette.ground },
         }}
       >
         <Stack.Protected guard={signedIn && onboarded}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="index" options={PAGER} />
+          <Stack.Screen name="library" options={PAGER} />
+          <Stack.Screen name="activity" options={PAGER} />
+          <Stack.Screen name="preferences" options={PAGER} />
+          <Stack.Screen name="letters/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="items/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="sources/index" options={{ title: "Sources" }} />
           <Stack.Screen name="sources/add" options={{ title: "Add a source", presentation: "modal" }} />
           <Stack.Screen name="sources/[id]" options={{ title: "Source" }} />

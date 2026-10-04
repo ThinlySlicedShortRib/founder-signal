@@ -1,19 +1,18 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, Linking, Switch, View } from "react-native";
-import { Badge, Body, Button, Card, ChoiceList, Divider, EmptyState, ErrorBanner, Heading, Row, Screen, Small, Title } from "@/components/ui";
+import { Badge, Body, Button, Card, ChoiceList, Divider, EmptyState, ErrorBanner, Heading, Row, Screen, Small, space, TAP, Title } from "@/components/ui";
+import { font, palette } from "@/components/onboarding/kit";
 import { confirm } from "@/lib/confirm";
 import { fetchHealth, MODE_OPTIONS, rightsLabel, TYPE_ICON, TYPE_LABEL, timeAgo, useRemoveSource, useSource, useUpdateSource } from "@/lib/sources";
-import { space, TAP, useColors } from "@/lib/theme";
 
 export default function SourceDetail() {
-  const c = useColors();
   const { id, added } = useLocalSearchParams<{ id: string; added?: string }>();
   const { data: source, isPending, refetch, isRefetching } = useSource(id);
   const update = useUpdateSource(id);
   const remove = useRemoveSource();
 
-  if (isPending) return <ActivityIndicator color={c.textMuted} style={{ marginTop: space.xxl }} />;
+  if (isPending) return <ActivityIndicator color={palette.muted} style={{ marginTop: space.xxl }} />;
   if (!source) {
     return (
       <Screen>
@@ -42,8 +41,8 @@ export default function SourceDetail() {
       <Stack.Screen options={{ title: "Source" }} />
       <Screen refreshing={isRefetching} onRefresh={() => void refetch()}>
         {added && (
-          <Card style={{ backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: "row", gap: space.sm, alignItems: "center" }}>
-            <Ionicons name="checkmark-circle" size={22} color={c.accent} />
+          <Card style={{ backgroundColor: palette.blueCard, borderColor: palette.blueCard, flexDirection: "row", gap: space.sm, alignItems: "center" }}>
+            <Ionicons name="checkmark-circle" size={22} color={palette.blue} />
             <Body style={{ flex: 1 }}>Added. We’ll start collecting from it within a few minutes.</Body>
           </Card>
         )}
@@ -51,7 +50,7 @@ export default function SourceDetail() {
 
         <View style={{ gap: space.sm }}>
           <View style={{ flexDirection: "row", gap: space.sm, alignItems: "center" }}>
-            <Ionicons name={TYPE_ICON[source.type]} size={20} color={c.accent} />
+            <Ionicons name={TYPE_ICON[source.type]} size={20} color={palette.blue} />
             <Small>
               {[TYPE_LABEL[source.type], source.publisher.name !== source.title ? source.publisher.name : null, source.creator && source.creator !== source.publisher.name ? source.creator : null]
                 .filter(Boolean)
@@ -73,14 +72,14 @@ export default function SourceDetail() {
         <Card>
           <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, minHeight: TAP }}>
             <View style={{ flex: 1, gap: 2 }}>
-              <Body style={{ fontWeight: "600" }}>Pause this source</Body>
+              <Body style={{ fontFamily: font.bodySemi }}>Pause this source</Body>
               <Small>Stop using it in letters without removing it.</Small>
             </View>
             <Switch
               accessibilityLabel="Pause this source"
               value={source.blocked}
               onValueChange={(blocked) => update.mutate({ blocked })}
-              trackColor={{ true: c.accent, false: c.border }}
+              trackColor={{ true: palette.blue, false: palette.lineSoft }}
             />
           </View>
         </Card>

@@ -1,4 +1,5 @@
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 
 /**
@@ -48,11 +49,22 @@ const envSchema = z.object({
   QUEUE_URL_FETCH_SOURCE: z.string().optional(),
   QUEUE_URL_EXTRACT: z.string().optional(),
   QUEUE_URL_ENRICH: z.string().optional(),
+  QUEUE_URL_LETTER_STEP: z.string().optional(),
+  QUEUE_URL_AUTHOR: z.string().optional(),
 
   // Onboarding's "import from your AI". Locally it defaults to the Claude Code CLI on your machine
   // (your Claude login, no API key); "anthropic" uses ANTHROPIC_API_KEY. On AWS it's always "anthropic".
   PROFILE_IMPORTER: z.enum(["claude-cli", "anthropic"]).optional(),
   CLAUDE_CLI_PATH: z.string().default("claude"),
+
+  // The letter engine's Claude calls (letter copy, author cards, section summaries, the P.S. recap).
+  // Locally it defaults to the Claude Code CLI ("claude-cli"); on AWS it's "anthropic". "none" writes
+  // copy from the pieces' own words with no model (also the fallback whenever a model call fails).
+  LETTER_WRITER: z.enum(["claude-cli", "anthropic", "none"]).optional(),
+
+  // Stock photos for pieces without a lead image (Unsplash). Optional: without it those pieces get no picture.
+  UNSPLASH_ACCESS_KEY: z.string().optional(),
+  UNSPLASH_ACCESS_KEY_SECRET_ARN: z.string().optional(),
 
   // Enrichment: "anthropic" (Message Batches + Bedrock embeddings) or "none" to skip it locally.
   ENRICHMENT: z.enum(["anthropic", "none"]).default("none"),
@@ -144,6 +156,24 @@ export function resolveYouTubeApiKey(env: Env): Promise<string | null> {
 
 export function resolveSupadataApiKey(env: Env): Promise<string | null> {
   return optionalFromEnvOrSecret(env.SUPADATA_API_KEY, env.SUPADATA_API_KEY_SECRET_ARN);
+}
+
+export function resolveUnsplashAccessKey(env: Env): Promise<string | null> {
+  return optionalFromEnvOrSecret(env.UNSPLASH_ACCESS_KEY, env.UNSPLASH_ACCESS_KEY_SECRET_ARN);
+}
+
+/** Which backend writes letter copy: the CLI locally, the API on AWS, unless LETTER_WRITER says otherwise. */
+export function letterWriterMode(env: Env): "claude-cli" | "anthropic" | "none" {
+  return env.LETTER_WRITER ?? (env.APP_ENV === "local" ? "claude-cli" : "anthropic");
+}
+
+/**
+ * The local content store's directory. A relative CONTENT_DIR is resolved
+ * against apps/workers, where the dev runner has always kept it, so the API
+ * (run from apps/api) reads the same files.
+ */
+export function resolveContentDir(env: Env): string {
+  return isAbsolute(env.CONTENT_DIR) ? env.CONTENT_DIR : join(import.meta.dirname, "..", "..", "..", "apps", "workers", env.CONTENT_DIR);
 }
 
 export function resolveAnthropicApiKey(env: Env): Promise<string> {

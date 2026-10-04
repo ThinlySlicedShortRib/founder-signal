@@ -1,13 +1,32 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { anthropicProfileImporter, claudeCliProfileImporter, PROFILE_IMPORT_MODEL, PROFILE_IMPORT_PROMPT_VERSION, type ProfileImporter } from "@fs/ai";
-import { type Env, resolveAnthropicApiKey, resolveBetterAuthSecret, resolveDatabaseConfig, resolveYouTubeApiKey } from "@fs/config";
+import {
+  anthropicProfileImporter,
+  anthropicReaderWriter,
+  claudeCliProfileImporter,
+  claudeCliReaderWriter,
+  PROFILE_IMPORT_MODEL,
+  PROFILE_IMPORT_PROMPT_VERSION,
+  type ProfileImporter,
+  READER_MODEL,
+  type ReaderWriter,
+} from "@fs/ai";
+import {
+  type Env,
+  letterWriterMode,
+  resolveAnthropicApiKey,
+  resolveBetterAuthSecret,
+  resolveContentDir,
+  resolveDatabaseConfig,
+  resolveYouTubeApiKey,
+} from "@fs/config";
 import { createDb } from "@fs/db";
-import { createSafeFetcher, youTubeDataClient } from "@fs/ingest";
+import { createSafeFetcher, fsContentStore, s3ContentStore, youTubeDataClient } from "@fs/ingest";
 import { createApp } from "./app.ts";
 import { createAuth, DEV_WEB_ORIGINS } from "./auth.ts";
 import { createOtpRecorder } from "./routes/dev.ts";
 import { cloudWatchClientLogSink, consoleClientLogSink } from "./lib/client-log-sink.ts";
 import { consoleEmailSender, sesEmailSender } from "./lib/email.ts";
+import { sqsLetterQueue } from "./lib/letter-queue.ts";
 
 /** Wires real dependencies from the environment. Shared by the Lambda and local entry points. */
 export async function buildApp(env: Env) {
@@ -40,7 +59,42 @@ export async function buildApp(env: Env) {
     youtube: youTubeKey ? youTubeDataClient({ apiKey: youTubeKey }) : null,
   };
 
-  return createApp({ auth, clientLogs, db, detect, profileImporter: profileImporter(env), corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS, devOtps });
+  return createApp({
+    auth,
+    clientLogs,
+    db,
+    detect,
+    profileImporter: profileImporter(env),
+    store: env.CONTENT_BUCKET ? s3ContentStore(env.CONTENT_BUCKET) : fsContentStore(resolveContentDir(env)),
+    letterQueue: env.QUEUE_URL_LETTER_STEP ? sqsLetterQueue(env.QUEUE_URL_LETTER_STEP) : null,
+    reader: readerWriter(env),
+    corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS,
+    devOtps,
+  });
+}
+
+/**
+ * Section summaries and the P.S. recap (Haiku 4.5). Same switch as the
+ * letter writer: the Claude Code CLI locally, the API on AWS, none with
+ * LETTER_WRITER=none (then they're written from the text itself).
+ */
+function readerWriter(env: Env): ReaderWriter | null {
+  const mode = letterWriterMode(env);
+  if (mode === "claude-cli") return claudeCliReaderWriter({ command: env.CLAUDE_CLI_PATH });
+  if (mode === "none" || (!env.ANTHROPIC_API_KEY && !env.ANTHROPIC_API_KEY_SECRET_ARN)) return null;
+  let inner: Promise<ReaderWriter> | undefined;
+  const get = () => {
+    inner ??= resolveAnthropicApiKey(env).then((apiKey) => anthropicReaderWriter(new Anthropic({ apiKey })));
+    inner.catch(() => (inner = undefined));
+    return inner;
+  };
+  return {
+    method: "anthropic",
+    model: READER_MODEL,
+    summarizeSection: async (input) => (await get()).summarizeSection(input),
+    forYou: async (input) => (await get()).forYou(input),
+    recap: async (input) => (await get()).recap(input),
+  };
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   isUsableTranscript,
   NEAR_DUPLICATE_DISTANCE,
   parseFeed,
+  parseIsoDuration,
   parseYouTubeUrl,
   publisherKeyForUrl,
   simhash64,
@@ -385,5 +386,32 @@ describe("supadataProvider", () => {
     await provider.get("v");
     await provider.get("v", { allowGenerated: true });
     expect(urls.map((u) => new URL(u).searchParams.get("mode"))).toEqual(["native", "auto"]);
+  });
+});
+
+describe("lead images and video details", () => {
+  it("reads og:image, resolved against the page", () => {
+    const html = `<html><head><title>T</title><meta property="og:image" content="/img/lead.jpg"></head><body><article>${prose(6)}</article></body></html>`;
+    expect(extractArticle(html, "https://site.test/post").metadata.leadImageUrl).toBe("https://site.test/img/lead.jpg");
+  });
+
+  it("falls back to twitter:image, then the article's first image", () => {
+    const tw = `<html><head><meta name="twitter:image" content="https://cdn.test/t.png"></head><body><article>${prose(6)}</article></body></html>`;
+    expect(extractArticle(tw, "https://site.test/a").metadata.leadImageUrl).toBe("https://cdn.test/t.png");
+    const inline = `<html><body><article><p>${"word ".repeat(80)}</p><figure><img src="/pic.jpg" alt="x"></figure>${prose(6)}</article></body></html>`;
+    expect(extractArticle(inline, "https://site.test/b").metadata.leadImageUrl).toBe("https://site.test/pic.jpg");
+  });
+
+  it("ignores non-http images", () => {
+    const html = `<html><head><meta property="og:image" content="data:image/png;base64,AAAA"></head><body><article>${prose(6)}</article></body></html>`;
+    expect(extractArticle(html, "https://site.test/c").metadata.leadImageUrl).toBeNull();
+  });
+
+  it("parses YouTube durations", () => {
+    expect(parseIsoDuration("PT18M3S")).toBe(1083);
+    expect(parseIsoDuration("PT1H")).toBe(3600);
+    expect(parseIsoDuration("P1DT2M")).toBe(86_520);
+    expect(parseIsoDuration("PT")).toBeNull();
+    expect(parseIsoDuration(undefined)).toBeNull();
   });
 });

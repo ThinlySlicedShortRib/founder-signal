@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { countWords, decideItemAccess, type ItemAccess, readTimeMinutes, resolveRights } from "@fs/core";
+import { authorKeyFor, cleanAuthorName, countWords, decideItemAccess, type ItemAccess, readTimeMinutes, resolveRights } from "@fs/core";
 import { loadRightsRules, schema } from "@fs/db";
 import {
   canonicalizeUrl,
@@ -54,7 +54,7 @@ export async function extract(deps: PipelineDeps, { itemId }: Message<"extract">
     sourceKey: row.sourceKey,
   });
 
-  const result = row.item.type === "video" ? await extractVideo(deps, row.item, rights) : await extractPage(deps, row.item, rights, row);
+  const result = row.item.type === "video" ? await extractVideo(deps, row.item, rights, row) : await extractPage(deps, row.item, rights, row);
   log("extract", { itemId, type: row.item.type, status: result.status, reason: result.reason ?? null });
   return result;
 }
@@ -122,11 +122,16 @@ async function extractPage(
     await db.update(publisher).set({ name: meta.siteName }).where(and(eq(publisher.id, item.publisherId), eq(publisher.name, publisher.key)));
   }
 
+  // The page's byline wins over the feed entry's author; neither is kept if it's really the site's name.
+  const authorName = cleanAuthorName(meta.byline, meta.siteName ?? ctx.publisherName) ?? cleanAuthorName(item.creator, meta.siteName ?? ctx.publisherName);
   const details = {
     title: item.title ?? meta.title,
     creator: item.creator ?? meta.byline,
     publishedAt: item.publishedAt ?? meta.publishedAt,
     language: meta.language,
+    authorName,
+    authorKey: authorName ? authorKeyFor({ name: authorName, publisherKey: ctx.publisherKey }) : null,
+    leadImageUrl: meta.leadImageUrl,
   };
 
   if (article.unavailableReason) return markUnavailable(deps, item, rights, article.unavailableReason, details);
@@ -179,14 +184,21 @@ async function extractPage(
   return { status: "extracted" as const, reason: null };
 }
 
-async function extractVideo(deps: PipelineDeps, item: Item, rights: Rights) {
+async function extractVideo(deps: PipelineDeps, item: Item, rights: Rights, ctx: { publisherKey: string }) {
   const videoId = item.externalId!;
   const video = deps.youtube ? await deps.youtube.getVideo(videoId) : null;
+  // The channel is the author.
+  const authorName = video?.channelTitle || item.creator || null;
   const details = {
     title: item.title ?? video?.title ?? null,
     creator: item.creator ?? video?.channelTitle ?? null,
     publishedAt: item.publishedAt ?? video?.publishedAt ?? null,
     language: null,
+    authorName,
+    authorKey: video?.channelId ? `youtube:${video.channelId}` : authorName ? authorKeyFor({ name: authorName, publisherKey: ctx.publisherKey }) : null,
+    // YouTube serves this size for every public video.
+    leadImageUrl: video?.thumbnailUrl ?? `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`,
+    durationSeconds: video?.durationSeconds ?? null,
   };
 
   // Native captions only by default (build plan §6.3); generated transcripts are for explicit saves.
@@ -226,7 +238,16 @@ async function extractVideo(deps: PipelineDeps, item: Item, rights: Rights) {
     }
     await tx
       .update(contentItem)
-      .set({ ...details, language: t.language, status: "extracted", statusReason: null, wordCount, readTimeMinutes: readTimeMinutes(wordCount) })
+      .set({
+        ...details,
+        // Without the YouTube API, the transcript's end is the best duration we have.
+        durationSeconds: details.durationSeconds ?? Math.round(Math.max(...t.segments.map((x) => x.offsetMs + x.durationMs)) / 1000),
+        language: t.language,
+        status: "extracted",
+        statusReason: null,
+        wordCount,
+        readTimeMinutes: readTimeMinutes(wordCount),
+      })
       .where(eq(contentItem.id, item.id));
     await tx.update(publisher).set({ extractionsOk: sql`${publisher.extractionsOk} + 1` }).where(eq(publisher.id, item.publisherId));
   });
@@ -239,7 +260,7 @@ async function markUnavailable(
   item: Item,
   rights: Rights,
   reason: UnavailableReason,
-  details: { title: string | null; creator: string | null; publishedAt: Date | null; language: string | null } | null,
+  details: Partial<Pick<Item, "title" | "creator" | "publishedAt" | "language" | "authorName" | "authorKey" | "leadImageUrl" | "durationSeconds">> | null,
 ) {
   const access = decideItemAccess(rights, { unavailableReason: reason });
   await deps.db.transaction(async (tx) => {

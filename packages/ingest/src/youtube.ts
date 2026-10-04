@@ -20,6 +20,10 @@ export interface YouTubeVideo {
   title: string;
   description: string;
   publishedAt: Date | null;
+  /** The largest thumbnail YouTube lists. */
+  thumbnailUrl?: string | null;
+  /** Only from `getVideo` (the playlist listing doesn't include it). */
+  durationSeconds?: number | null;
 }
 
 export interface YouTubeClient {
@@ -41,7 +45,12 @@ const channelsSchema = z.object({
     .optional(),
 });
 
+const thumbnailSchema = z.object({ url: z.string() }).optional();
 const snippetSchema = z.object({
+  thumbnails: z
+    .object({ maxres: thumbnailSchema, standard: thumbnailSchema, high: thumbnailSchema, medium: thumbnailSchema, default: thumbnailSchema })
+    .partial()
+    .optional(),
   title: z.string(),
   description: z.string().default(""),
   channelId: z.string(),
@@ -58,7 +67,17 @@ const playlistItemsSchema = z.object({
   ),
 });
 
-const videosSchema = z.object({ items: z.array(z.object({ id: z.string(), snippet: snippetSchema })).optional() });
+const videosSchema = z.object({
+  items: z.array(z.object({ id: z.string(), snippet: snippetSchema, contentDetails: z.object({ duration: z.string() }).partial().optional() })).optional(),
+});
+
+/** ISO 8601 durations as YouTube writes them: "PT1H2M3S", "PT18M3S", "P1DT2H". */
+export function parseIsoDuration(value: string | undefined | null): number | null {
+  const m = value?.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+  if (!m || value === "P" || value === "PT") return null;
+  const [, d, h, min, sec] = m.map((x) => Number(x ?? 0));
+  return d! * 86_400 + h! * 3_600 + min! * 60 + sec!;
+}
 
 export function youTubeDataClient({
   apiKey,
@@ -77,9 +96,12 @@ export function youTubeDataClient({
     return (await res.json()) as unknown;
   }
 
-  const toVideo = (videoId: string, s: z.infer<typeof snippetSchema>, publishedAt?: string): YouTubeVideo => {
+  const toVideo = (videoId: string, s: z.infer<typeof snippetSchema>, publishedAt?: string, duration?: string): YouTubeVideo => {
     const date = publishedAt ?? s.publishedAt;
+    const t = s.thumbnails;
     return {
+      thumbnailUrl: (t?.maxres ?? t?.standard ?? t?.high ?? t?.medium ?? t?.default)?.url ?? null,
+      durationSeconds: parseIsoDuration(duration),
       videoId,
       channelId: s.channelId,
       channelTitle: s.channelTitle,
@@ -116,9 +138,9 @@ export function youTubeDataClient({
     },
 
     async getVideo(videoId) {
-      const body = videosSchema.parse(await get("videos", { part: "snippet", id: videoId }) ?? {});
+      const body = videosSchema.parse(await get("videos", { part: "snippet,contentDetails", id: videoId }) ?? {});
       const item = body.items?.[0];
-      return item ? toVideo(item.id, item.snippet) : null;
+      return item ? toVideo(item.id, item.snippet, undefined, item.contentDetails?.duration) : null;
     },
   };
 }

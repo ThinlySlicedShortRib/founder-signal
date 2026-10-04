@@ -1,3 +1,5 @@
+import { enrichAuthor } from "../letters/authors.ts";
+import { letterStep } from "../letters/steps.ts";
 import type { PipelineDeps } from "./deps.ts";
 import { enrich } from "./enrich.ts";
 import { extract } from "./extract.ts";
@@ -13,5 +15,9 @@ export async function dispatch(deps: PipelineDeps, queue: QueueName, body: unkno
       return extract(deps, messageSchemas.extract.parse(body));
     case "enrich":
       return enrich(deps, messageSchemas.enrich.parse(body));
+    case "letter-step":
+      return letterStep(deps, messageSchemas["letter-step"].parse(body));
+    case "author":
+      return enrichAuthor(deps, messageSchemas.author.parse(body));
   }
 }

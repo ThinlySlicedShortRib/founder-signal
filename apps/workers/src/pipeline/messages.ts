@@ -1,8 +1,11 @@
 import { z } from "zod";
 
 /** Queue names match the SQS queues in infra (build plan §4, `queues`). */
-export const queueNames = ["fetch-source", "extract", "enrich"] as const;
+export const queueNames = ["fetch-source", "extract", "enrich", "letter-step", "author"] as const;
 export type QueueName = (typeof queueNames)[number];
+
+/** Statuses a letter-step message can expect (§6.2): the step it runs is the one after it. */
+export const letterStepStatuses = ["scheduled", "collecting", "ranking", "generating"] as const;
 
 export const messageSchemas = {
   "fetch-source": z.object({ sourceId: z.uuid() }),
@@ -11,6 +14,8 @@ export const messageSchemas = {
     z.object({ kind: z.literal("submit") }),
     z.object({ kind: z.literal("poll"), batchId: z.uuid() }),
   ]),
+  "letter-step": z.object({ letterId: z.uuid(), expectedStatus: z.enum(letterStepStatuses) }),
+  author: z.object({ authorKey: z.string().min(1).max(300) }),
 } satisfies Record<QueueName, z.ZodType>;
 
 export type Message<Q extends QueueName> = z.infer<(typeof messageSchemas)[Q]>;

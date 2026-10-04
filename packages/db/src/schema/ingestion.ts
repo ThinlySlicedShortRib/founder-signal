@@ -151,6 +151,14 @@ export const contentItem = pgTable(
       .references(() => publisher.id),
     title: text("title"),
     creator: text("creator"),
+    /** The byline from the page or feed entry, or the channel for a video. */
+    authorName: text("author_name"),
+    /** `author.key` for `author_name` (see @fs/core `authorKeyFor`). */
+    authorKey: text("author_key"),
+    /** og:image / twitter:image / the first article image; the thumbnail for a video. */
+    leadImageUrl: text("lead_image_url"),
+    /** Videos only. */
+    durationSeconds: integer("duration_seconds"),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     /** YouTube video ID for videos. */
     externalId: text("external_id"),
@@ -177,6 +185,7 @@ export const contentItem = pgTable(
     index("content_item_status_idx").on(t.status),
     index("content_item_publisher_idx").on(t.publisherId),
     index("content_item_source_idx").on(t.sourceId),
+    index("content_item_author_key_idx").on(t.authorKey),
     check("content_item_video_has_id", sql`${t.type} <> 'video' OR ${t.externalId} IS NOT NULL`),
   ],
 );

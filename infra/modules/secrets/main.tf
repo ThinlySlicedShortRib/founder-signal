@@ -37,3 +37,10 @@ resource "aws_secretsmanager_secret" "supadata" {
   description             = "Supadata transcript API key (set manually)"
   recovery_window_in_days = var.recovery_window_days
 }
+
+# Stock photos for pieces without a lead image. Until set, those pieces have no picture.
+resource "aws_secretsmanager_secret" "unsplash" {
+  name                    = "founder-signal/${var.env}/unsplash-access-key"
+  description             = "Unsplash API access key (set manually)"
+  recovery_window_in_days = var.recovery_window_days
+}

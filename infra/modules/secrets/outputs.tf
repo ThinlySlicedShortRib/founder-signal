@@ -13,3 +13,7 @@ output "youtube_api_key_secret_arn" {
 output "supadata_api_key_secret_arn" {
   value = aws_secretsmanager_secret.supadata.arn
 }
+
+output "unsplash_access_key_secret_arn" {
+  value = aws_secretsmanager_secret.unsplash.arn
+}

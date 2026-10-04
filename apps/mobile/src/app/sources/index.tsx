@@ -2,12 +2,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { SourceView } from "@fs/schema";
 import { router, Stack } from "expo-router";
 import { ActivityIndicator, Pressable, View } from "react-native";
-import { Badge, Body, Button, Card, EmptyState, ErrorBanner, Screen, Small } from "@/components/ui";
+import { Badge, Body, Button, Card, EmptyState, ErrorBanner, Screen, Small, space, TAP } from "@/components/ui";
+import { font, palette } from "@/components/onboarding/kit";
 import { fetchHealth, rightsLabel, TYPE_ICON, TYPE_LABEL, useSources } from "@/lib/sources";
-import { space, TAP, useColors } from "@/lib/theme";
 
 export default function Sources() {
-  const c = useColors();
   const sources = useSources();
   const list = sources.data ?? [];
 
@@ -22,7 +21,7 @@ export default function Sources() {
               onPress={() => router.push("/sources/add")}
               style={{ minWidth: TAP, minHeight: TAP, alignItems: "center", justifyContent: "center" }}
             >
-              <Ionicons name="add" size={28} color={c.accent} />
+              <Ionicons name="add" size={28} color={palette.blue} />
             </Pressable>
           ),
         }}
@@ -30,7 +29,7 @@ export default function Sources() {
       <Screen refreshing={sources.isRefetching} onRefresh={() => void sources.refetch()}>
         {sources.error && <ErrorBanner message={sources.error.message} onRetry={() => void sources.refetch()} />}
         {sources.isPending ? (
-          <ActivityIndicator color={c.textMuted} style={{ marginTop: space.xxl }} accessibilityLabel="Loading sources" />
+          <ActivityIndicator color={palette.muted} style={{ marginTop: space.xxl }} accessibilityLabel="Loading sources" />
         ) : list.length === 0 ? (
           <EmptyState
             icon="library-outline"
@@ -53,7 +52,6 @@ export default function Sources() {
 }
 
 function SourceCard({ source }: { source: SourceView }) {
-  const c = useColors();
   const health = fetchHealth(source);
   return (
     <Pressable
@@ -63,11 +61,11 @@ function SourceCard({ source }: { source: SourceView }) {
       style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
     >
       <Card style={{ flexDirection: "row", gap: space.md, opacity: source.blocked ? 0.6 : 1 }}>
-        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: c.surfaceMuted, alignItems: "center", justifyContent: "center" }}>
-          <Ionicons name={TYPE_ICON[source.type]} size={22} color={c.accent} />
+        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: palette.grey, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name={TYPE_ICON[source.type]} size={22} color={palette.blue} />
         </View>
         <View style={{ flex: 1, gap: space.xs }}>
-          <Body style={{ fontWeight: "600" }} numberOfLines={2}>
+          <Body style={{ fontFamily: font.bodySemi }} numberOfLines={2}>
             {source.title}
           </Body>
           <Small numberOfLines={1}>
@@ -80,7 +78,7 @@ function SourceCard({ source }: { source: SourceView }) {
             <Badge label={rightsLabel(source.rights)} />
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={c.textMuted} style={{ alignSelf: "center" }} />
+        <Ionicons name="chevron-forward" size={18} color={palette.muted} style={{ alignSelf: "center" }} />
       </Card>
     </Pressable>
   );

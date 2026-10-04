@@ -106,6 +106,10 @@ export const schedule = pgTable(
     channels: text("channels").array().default(["push", "email"]).notNull(),
     paused: boolean("paused").default(false).notNull(),
     skipNext: boolean("skip_next").default(false).notNull(),
+    /** When verification leaves fewer pieces than asked for: send a shorter letter, or skip it (§6.2). */
+    shortLetterPolicy: text("short_letter_policy").default("shorten").notNull(),
+    /** Pieces per letter (open item #2: 3 by default). */
+    itemCount: integer("item_count").default(3).notNull(),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     version: integer("version").default(1).notNull(),
     ...timestamps,

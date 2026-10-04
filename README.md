@@ -10,12 +10,12 @@ for AWS.
 
 | Path | What |
 |---|---|
-| `apps/api` | Hono API on Lambda (Better Auth, `/me/sources`, `/me/preferences`, `/me/schedule`, `/me/onboarding`, `/items/:id/review`, `/client-logs`) |
-| `apps/workers` | Lambda workers: `migrate`, and the ingestion pipeline `sweep → fetch-source → extract → enrich` |
-| `apps/mobile` | Expo app (Expo Router): email-code sign-in, onboarding (import from your AI, fill-in sentence, five quick picks), Today · Library · Activity · Preferences tabs, source management, JS error reporting |
-| `packages/core` | Pure domain rules (rights, fetch scheduling, delivery schedule, onboarding import parsing, reading time); no I/O |
+| `apps/api` | Hono API on Lambda (Better Auth, `/me/sources`, `/me/preferences`, `/me/schedule` incl. `test-letter`, `/me/onboarding`, `/letters`, `/items/:id` + `/summary` + `/review`, `/events`, `/me/saved`, `/me/activity`, `/me/authors/:key/follow`, `/client-logs`) |
+| `apps/workers` | Lambda workers: `migrate`, the ingestion pipeline `sweep → fetch-source → extract → enrich`, and the letter engine `sweep → letter-step` (collect → rank → generate → verify → lock → ready → sent) plus `author` cards |
+| `apps/mobile` | Expo app (Expo Router): email-code sign-in, onboarding (import from your AI, fill-in sentence, five quick picks), Layout 6 (`docs/design/layout6`): Today as full-screen pages with pull-to-read, every action in a floating pill, a big-type menu instead of tabs; Library, Activity, Preferences, source management, JS error reporting |
+| `packages/core` | Pure domain rules (rights, fetch scheduling, delivery schedule, onboarding import parsing, reading time, ranking, feedback codes, copy verification, activity, P.S.); no I/O |
 | `packages/ingest` | Source adapters, SSRF-safe fetching, extraction to blocks, transcripts |
-| `packages/ai` | Claude enrichment (Message Batches), onboarding profile import, and Bedrock embeddings |
+| `packages/ai` | Claude enrichment (Message Batches), onboarding profile import, the letter writer, section summaries and recaps, author cards (web search), and Bedrock embeddings |
 | `packages/db` | Drizzle schema, migrations and shared queries |
 | `packages/schema` | zod contracts shared with the app |
 | `packages/config` | Environment and secrets |
@@ -31,7 +31,7 @@ pnpm db:up && pnpm db:migrate   # Postgres 17 + pgvector on localhost:5433
 pnpm typecheck && pnpm test     # tests use their own databases on the same server
 
 pnpm dev:api                    # API on :8787; sign-in codes print to the console
-pnpm dev:workers                # ingestion pipeline, sweeping every minute
+pnpm dev:workers                # ingestion every minute; letters (schedules, test letters) every 5s
 pnpm dev:mobile                 # Expo dev server: scan the QR code with Expo Go, or press w for web
 
 # Add sources for a user and run ingestion to completion, then list the items:
@@ -45,6 +45,17 @@ and embeddings). Onboarding's "import from your AI" reads the pasted note
 through the Claude Code CLI on your machine (`claude`, signed in), so it needs
 no key locally; set `PROFILE_IMPORTER=anthropic` to use `ANTHROPIC_API_KEY`
 instead. If neither works, a plain parser reads the note.
+
+Letters are written by Claude too. Locally the letter copy (Sonnet), section
+summaries and the P.S. recap (Haiku) and author cards (Sonnet with web search)
+all go through the same Claude Code CLI (`LETTER_WRITER=claude-cli`, the
+default); `LETTER_WRITER=anthropic` uses `ANTHROPIC_API_KEY`, and
+`LETTER_WRITER=none` writes copy from each piece's own opening sentences with
+no model (also the fallback whenever a call fails; nothing is ever invented).
+`UNSPLASH_ACCESS_KEY` adds stock photos for pieces without their own image.
+A test letter (`POST /me/schedule/test-letter`) needs `pnpm dev:workers`
+running: the API can't reach its in-memory queues, so the runner's watchdog
+picks the new letter up within seconds.
 
 The app finds the API on the machine running the Expo dev server (port 8787),
 so a phone on the same network works without configuration. Release builds set

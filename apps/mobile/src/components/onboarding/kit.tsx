@@ -6,9 +6,10 @@ import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, type PressableProps, Text, type TextProps, View, type ViewStyle } from "react-native";
 
 /**
- * The onboarding look, taken value for value from the design canvas (board 13,
- * FillInSwipe, and the cards it uses). The board is light only, so onboarding
- * is too: it doesn't follow the system's dark mode.
+ * The app's look, taken value for value from the design canvas: onboarding
+ * (board 13, FillInSwipe) and Layout 6 (the pager boards in docs/design/layout6).
+ * The boards are light only, so the app is too: it doesn't follow the system's
+ * dark mode.
  */
 
 export const ONBOARDING_FONTS = {
@@ -33,7 +34,7 @@ export const font = {
   mono: "JetBrainsMono_500Medium",
 } as const;
 
-const palette = {
+export const palette = {
   ground: "#FBFBFA",
   surface: "#FFFFFF",
   ink: "#121316",
@@ -68,6 +69,22 @@ const palette = {
   pillOnTint: "rgba(255,255,255,0.7)",
   whyOnTint: "rgba(255,255,255,0.75)",
   stampBg: "rgba(255,255,255,0.9)",
+  // Layout 6 (the pager boards).
+  /** Author card and dialog tiles. */
+  panel: "#F6F7F9",
+  /** Hairlines between rows on white. */
+  rule: "#EEF0F4",
+  /** Activity level 2, the verdict tick in the pill. */
+  blueMid: "#8FA1FF",
+  /** Selected options and badges. */
+  blueInk: "#1E2F99",
+  /** The pill's small labels. */
+  pillMuted: "#9EA3AD",
+  /** Checkbox outline in the reasons sheet. */
+  boxLine: "#8A8F99",
+  /** The pill and the reading tray. */
+  pill: "#121316",
+  photoBase: "#25272B",
 };
 
 export type OnboardingColors = typeof palette;

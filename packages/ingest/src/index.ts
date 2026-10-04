@@ -7,3 +7,4 @@ export * from "./simhash.ts";
 export * from "./transcripts.ts";
 export * from "./url.ts";
 export * from "./youtube.ts";
+export * from "./content-store.ts";

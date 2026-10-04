@@ -15,6 +15,8 @@ export interface PageMetadata {
   language: string | null;
   /** From `<link rel=canonical>` or `og:url`. */
   canonicalUrl: string | null;
+  /** og:image, twitter:image or JSON-LD image; extraction falls back to the article's first image. */
+  leadImageUrl: string | null;
 }
 
 export interface ExtractedArticle {
@@ -80,6 +82,8 @@ export function extractArticle(html: string, pageUrl: string): ExtractedArticle 
   }
 
   // Readability often keeps the title as the first heading; the Reader shows it separately.
+  metadata.leadImageUrl ??= (blocks.find((b) => b.type === "image") as { src: string } | undefined)?.src ?? null;
+
   const title = metadata.title ?? readabilityTitle;
   if (blocks[0]?.type === "heading" && title && blocks[0].text === title) blocks = blocks.slice(1);
   metadata.title = title;
@@ -171,6 +175,15 @@ function readMetadata(document: Doc, pageUrl: string): PageMetadata {
     return null;
   })();
 
+  const ldImage = (() => {
+    const img = article?.image;
+    const first = Array.isArray(img) ? img[0] : img;
+    if (typeof first === "string") return first;
+    if (first && typeof first === "object" && typeof (first as { url?: unknown }).url === "string") return (first as { url: string }).url;
+    return null;
+  })();
+  const image = meta(document, "og:image:secure_url", "og:image", "og:image:url", "twitter:image", "twitter:image:src") ?? ldImage;
+
   return {
     title: meta(document, "og:title", "twitter:title") ?? (cleanText(document.querySelector("title")?.textContent) || null),
     siteName: meta(document, "og:site_name", "application-name"),
@@ -178,7 +191,16 @@ function readMetadata(document: Doc, pageUrl: string): PageMetadata {
     publishedAt: publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt : null,
     language: cleanText(document.documentElement?.getAttribute("lang")).split(/[-_]/)[0]?.toLowerCase() || null,
     canonicalUrl: canonicalHref ? resolveUrl(canonicalHref, pageUrl) : null,
+    leadImageUrl: httpUrl(image, pageUrl),
   };
+}
+
+/** An absolute http(s) URL, or null (data: URIs, tracking pixels and junk are dropped). */
+function httpUrl(href: string | null, base: string): string | null {
+  if (!href) return null;
+  const url = resolveUrl(href, base);
+  if (!url || !/^https?:\/\//i.test(url) || url.length > 2_000) return null;
+  return url;
 }
 
 function hasPaywallSignal(document: Doc): boolean {

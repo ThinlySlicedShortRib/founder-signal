@@ -96,6 +96,20 @@ data "aws_iam_policy_document" "api" {
     actions   = ["ses:SendEmail", "ses:SendRawEmail"]
     resources = ["*"]
   }
+
+  # The reader's full text and transcripts.
+  statement {
+    sid       = "ReadContent"
+    actions   = ["s3:GetObject"]
+    resources = ["${module.content.bucket_arn}/items/*"]
+  }
+
+  # POST /me/schedule/test-letter starts the letter pipeline.
+  statement {
+    sid       = "StartLetters"
+    actions   = ["sqs:SendMessage"]
+    resources = [module.queues.arns["letter-step"]]
+  }
 }
 
 module "api" {
@@ -107,7 +121,10 @@ module "api" {
   runtime          = var.lambda_runtime
   vpc_config       = local.vpc_config
   policy_json      = data.aws_iam_policy_document.api.json
-  environment      = local.app_env
+  environment = merge(local.app_env, {
+    CONTENT_BUCKET        = module.content.bucket_name
+    QUEUE_URL_LETTER_STEP = module.queues.urls["letter-step"]
+  })
 
   log_retention_days = var.log_retention_days
   domain_name        = var.api_domain_name
@@ -133,6 +150,7 @@ module "migrate" {
 }
 
 # --- Ingestion pipeline (M1): sweep → fetch-source → extract → enrich -----------
+# --- Letter engine (M3): sweep → letter-step (×5 steps) → author ----------------
 # All workers run in the VPC because they use the database. Fetch traffic goes
 # through the NAT; at personal volume that costs nothing on fck-nat (no
 # per-GB charge) and little on a managed gateway. See build plan §2.
@@ -150,13 +168,13 @@ locals {
   # Queue consumers. visibility = 6x the function timeout (AWS guidance for SQS triggers).
   workers = {
     sweep = {
-      description = "Every 5 minutes: claims due sources and queues enrichment"
+      description = "Every 5 minutes: claims due sources, queues enrichment, starts due letters, watchdog, delivery"
       timeout     = 60
       memory      = 256
       queue       = null
       batch_size  = null
       concurrency = null
-      sends_to    = ["fetch-source", "enrich"]
+      sends_to    = ["fetch-source", "enrich", "letter-step"]
       secrets     = [module.database.master_secret_arn]
       content     = []
       bedrock     = false
@@ -202,6 +220,38 @@ locals {
       content     = ["s3:GetObject"]
       bedrock     = true
     }
+    # M3: the letter engine (build plan §6.2). One message per step; steps claim the letter with a
+    # compare-and-set on its status, so duplicates are harmless.
+    letter-step = {
+      description = "Runs one letter step: collect, rank, generate (Sonnet 5.5), verify and lock"
+      timeout     = 300
+      memory      = 512
+      queue       = "letter-step"
+      batch_size  = 1
+      concurrency = 5
+      # Queues its own next step, and author lookups at lock.
+      sends_to = ["letter-step", "author"]
+      secrets = [
+        module.database.master_secret_arn,
+        module.secrets.anthropic_api_key_secret_arn,
+        module.secrets.unsplash_access_key_secret_arn,
+      ]
+      content = ["s3:GetObject"]
+      bedrock = false
+    }
+    author = {
+      description = "Looks up an author card with Claude and web search, once per ~90 days"
+      timeout     = 300
+      memory      = 256
+      queue       = "author"
+      batch_size  = 1
+      # Web search is slow and billed per search; there's no hurry.
+      concurrency = 2
+      sends_to    = []
+      secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
+      content     = []
+      bedrock     = false
+    }
   }
 
   queued_workers = { for k, w in local.workers : k => w if w.queue != null }
@@ -209,13 +259,16 @@ locals {
   embedding_model_arn = "arn:aws:bedrock:${data.aws_region.current.region}::foundation-model/${var.embedding_model_id}"
 
   worker_env = merge(local.app_env, {
-    QUEUE_URL_FETCH_SOURCE      = module.queues.urls["fetch-source"]
-    QUEUE_URL_EXTRACT           = module.queues.urls["extract"]
-    QUEUE_URL_ENRICH            = module.queues.urls["enrich"]
-    CONTENT_BUCKET              = module.content.bucket_name
-    SUPADATA_API_KEY_SECRET_ARN = module.secrets.supadata_api_key_secret_arn
-    ENRICHMENT                  = var.enrichment_enabled ? "anthropic" : "none"
-    EMBEDDING_MODEL_ID          = var.embedding_model_id
+    QUEUE_URL_FETCH_SOURCE         = module.queues.urls["fetch-source"]
+    QUEUE_URL_EXTRACT              = module.queues.urls["extract"]
+    QUEUE_URL_ENRICH               = module.queues.urls["enrich"]
+    QUEUE_URL_LETTER_STEP          = module.queues.urls["letter-step"]
+    QUEUE_URL_AUTHOR               = module.queues.urls["author"]
+    UNSPLASH_ACCESS_KEY_SECRET_ARN = module.secrets.unsplash_access_key_secret_arn
+    CONTENT_BUCKET                 = module.content.bucket_name
+    SUPADATA_API_KEY_SECRET_ARN    = module.secrets.supadata_api_key_secret_arn
+    ENRICHMENT                     = var.enrichment_enabled ? "anthropic" : "none"
+    EMBEDDING_MODEL_ID             = var.embedding_model_id
   })
 }
 

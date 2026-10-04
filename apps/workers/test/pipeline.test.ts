@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { EnrichmentBatches, EnrichmentInput, EnrichmentResult } from "@fs/ai";
+import { type EnrichmentBatches, type EnrichmentInput, type EnrichmentResult, fallbackLetterWriter } from "@fs/ai";
 import { addUserSource, createDb, type NewSource, schema } from "@fs/db";
 import type { FetchResult, TranscriptProvider, YouTubeClient } from "@fs/ingest";
 import { and, eq, inArray } from "drizzle-orm";
@@ -120,6 +120,9 @@ function createWorld() {
     transcripts,
     // Off by default so enrichment messages don't interleave with other tests' steps.
     enricher: null,
+    letterWriter: fallbackLetterWriter,
+    authorEnricher: null,
+    stockPhotos: null,
     politenessMs: 0,
     log: () => {},
   };

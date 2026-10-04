@@ -1,6 +1,6 @@
-import type { ProfileImporter } from "@fs/ai";
+import type { ProfileImporter, ReaderWriter } from "@fs/ai";
 import { createDb } from "@fs/db";
-import type { FetchResult, YouTubeClient } from "@fs/ingest";
+import { type FetchResult, memoryContentStore, type YouTubeClient } from "@fs/ingest";
 import { createApp } from "../src/app.ts";
 import { createAuth } from "../src/auth.ts";
 import { createOtpRecorder } from "../src/routes/dev.ts";
@@ -20,7 +20,9 @@ export function createTestApp({
   corsOrigins,
   devSignIn = false,
   profileImporter = null,
-}: { corsOrigins?: string[]; devSignIn?: boolean; profileImporter?: ProfileImporter | null } = {}) {
+  reader = null,
+  withQueue = false,
+}: { corsOrigins?: string[]; devSignIn?: boolean; profileImporter?: ProfileImporter | null; reader?: ReaderWriter | null; withQueue?: boolean } = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
   const { db, pool } = createDb({ connectionString, ssl: false });
@@ -65,9 +67,15 @@ export function createTestApp({
     },
   };
 
-  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, profileImporter, corsOrigins, devOtps });
+  // Blocks and transcripts, as the workers would have stored them.
+  const { store, objects } = memoryContentStore();
+  // Letters the API asked the pipeline to start (null queue: the local setup, where the watchdog starts them).
+  const startedLetters: string[] = [];
+  const letterQueue = withQueue ? { start: async (id: string) => void startedLetters.push(id) } : null;
 
-  return { app, db, pool, sentEmails, clientLogRecords, web };
+  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, profileImporter, store, letterQueue, reader, corsOrigins, devOtps });
+
+  return { app, db, pool, sentEmails, clientLogRecords, web, store, objects, startedLetters };
 }
 
 /** Signs in through the real email-OTP flow and returns the session cookie header. */

@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1143.0",
     "@fs/core": "workspace:*",
     "@fs/schema": "workspace:*",
     "@mozilla/readability": "^0.6.0",

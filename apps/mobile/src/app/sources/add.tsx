@@ -2,12 +2,11 @@ import type { SourceMode } from "@fs/schema";
 import { router } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform } from "react-native";
-import { Body, Button, ChoiceList, Heading, Screen, Small, TextField } from "@/components/ui";
+import { Body, Button, ChoiceList, Heading, Screen, Small, space, TextField } from "@/components/ui";
+import { palette } from "@/components/onboarding/kit";
 import { MODE_OPTIONS, useAddSource } from "@/lib/sources";
-import { space, useColors } from "@/lib/theme";
 
 export default function AddSource() {
-  const c = useColors();
   const add = useAddSource();
   const [url, setUrl] = useState("");
   const [mode, setMode] = useState<SourceMode>("more_like_this");
@@ -25,7 +24,7 @@ export default function AddSource() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: palette.ground }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <Screen>
         <Body muted>Paste a site, a feed, a single article or a YouTube channel. We’ll work out the rest.</Body>
         <TextField

@@ -94,3 +94,9 @@ export function nextRunAt({ weekdays, localTime, timeZone }: ScheduleRule, now: 
   }
   return null;
 }
+
+/** The calendar date ("YYYY-MM-DD") of `instant` in `timeZone`. */
+export function localDateOf(instant: Date, timeZone: string): string {
+  const w = wallClock(instant.getTime(), timeZone);
+  return `${w.year}-${String(w.month).padStart(2, "0")}-${String(w.day).padStart(2, "0")}`;
+}

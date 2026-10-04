@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, Text, View } from "react-native";
-import { Body, Button, Card, Screen, Small, TextField, Title } from "@/components/ui";
+import { Body, Button, Card, Screen, Small, space, TextField, Title } from "@/components/ui";
+import { font, palette } from "@/components/onboarding/kit";
 import { authClient } from "@/lib/auth";
 import { API_URL } from "@/lib/config";
 import { queryClient } from "@/lib/query";
-import { space, useColors } from "@/lib/theme";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignIn() {
-  const c = useColors();
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -59,7 +58,7 @@ export default function SignIn() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: palette.ground }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <Screen edges="both">
         <View style={{ gap: space.sm, marginTop: space.xxl }}>
           <Title style={{ fontSize: 34, lineHeight: 40 }}>Founder Signal</Title>
@@ -93,7 +92,7 @@ export default function SignIn() {
           ) : (
             <>
               <Body>
-                We sent a code to <Text style={{ fontWeight: "600" }}>{email}</Text>.
+                We sent a code to <Text style={{ fontFamily: font.bodySemi }}>{email}</Text>.
               </Body>
               <TextField
                 label="Sign-in code"
@@ -135,10 +134,9 @@ export default function SignIn() {
 }
 
 function TextLink({ label, onPress }: { label: string; onPress: () => void }) {
-  const c = useColors();
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={{ minHeight: 44, justifyContent: "center" }}>
-      <Text style={{ color: c.accent, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: palette.blue, fontFamily: font.bodySemi }}>{label}</Text>
     </Pressable>
   );
 }

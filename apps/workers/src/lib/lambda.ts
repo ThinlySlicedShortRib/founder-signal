@@ -13,7 +13,13 @@ export function lambdaDeps(): Promise<PipelineDeps> {
     const env = readEnv();
     depsPromise = buildPipelineDeps(
       env,
-      sqsQueues({ "fetch-source": env.QUEUE_URL_FETCH_SOURCE, extract: env.QUEUE_URL_EXTRACT, enrich: env.QUEUE_URL_ENRICH }),
+      sqsQueues({
+        "fetch-source": env.QUEUE_URL_FETCH_SOURCE,
+        extract: env.QUEUE_URL_EXTRACT,
+        enrich: env.QUEUE_URL_ENRICH,
+        "letter-step": env.QUEUE_URL_LETTER_STEP,
+        author: env.QUEUE_URL_AUTHOR,
+      }),
     );
     depsPromise.catch(() => (depsPromise = undefined));
   }

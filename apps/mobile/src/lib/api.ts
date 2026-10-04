@@ -17,7 +17,7 @@ export class ApiError extends Error {
   }
 }
 
-async function authedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export async function authedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
   for (const [k, v] of Object.entries(await authHeaders())) headers.set(k, v);
   try {

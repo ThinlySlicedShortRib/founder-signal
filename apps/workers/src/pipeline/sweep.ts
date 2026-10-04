@@ -1,5 +1,6 @@
 import { schema } from "@fs/db";
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
+import { sweepLetters } from "../letters/sweep.ts";
 import { logger, type PipelineDeps } from "./deps.ts";
 
 const { contentItem, enrichmentBatch, source, userSource } = schema;
@@ -11,9 +12,10 @@ const MAX_SOURCES_PER_SWEEP = 100;
 const BATCH_POLL_MIN_AGE = "3 minutes";
 
 /**
- * Runs every 5 minutes (EventBridge Scheduler). The M1 part of the sweep:
- * due sources → fetch-source, and enrichment batch submission and polling.
- * Overlapping sweeps are safe: sources are claimed with SKIP LOCKED and a lease.
+ * Runs every 5 minutes (EventBridge Scheduler): due sources → fetch-source,
+ * enrichment batch submission and polling, and letters (due schedules,
+ * the watchdog and delivery; see letters/sweep.ts). Overlapping sweeps are
+ * safe: everything is claimed with SKIP LOCKED.
  */
 export async function sweep(deps: PipelineDeps) {
   const { db, queues } = deps;
@@ -62,7 +64,9 @@ export async function sweep(deps: PipelineDeps) {
     batchesPolled = open.length;
   }
 
-  log("sweep", { sourcesClaimed: claimed.rows.length, enrichSubmitted, batchesPolled });
-  return { sourcesClaimed: claimed.rows.length, enrichSubmitted, batchesPolled };
+  const letters = await sweepLetters(deps);
+
+  log("sweep", { sourcesClaimed: claimed.rows.length, enrichSubmitted, batchesPolled, ...letters });
+  return { sourcesClaimed: claimed.rows.length, enrichSubmitted, batchesPolled, ...letters };
 }
 

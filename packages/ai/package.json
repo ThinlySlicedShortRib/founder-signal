@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1143.0",
+    "@fs/core": "workspace:*",
     "@fs/schema": "workspace:*",
     "zod": "^4.6.5"
   },

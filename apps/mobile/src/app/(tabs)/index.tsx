@@ -3,6 +3,8 @@ import { router } from "expo-router";
 import { View } from "react-native";
 import { Body, Button, Card, ErrorBanner, Heading, Screen, Small, Title } from "@/components/ui";
 import { authClient } from "@/lib/auth";
+import { presetLabel } from "@/lib/onboarding";
+import { useProfile } from "@/lib/profile";
 import { useSources } from "@/lib/sources";
 import { space, useColors } from "@/lib/theme";
 
@@ -14,6 +16,7 @@ function greeting(date = new Date()) {
 export default function Today() {
   const { data: session } = authClient.useSession();
   const sources = useSources();
+  const schedule = useProfile().data?.schedule;
   const list = sources.data ?? [];
   const active = list.filter((s) => !s.blocked);
   const collected = active.reduce((n, s) => n + s.itemCount, 0);
@@ -30,7 +33,11 @@ export default function Today() {
       title: "Collect pieces from them",
       detail: collected ? `${collected} piece${collected === 1 ? "" : "s"} collected so far` : "We check your sources every few minutes once they're added.",
     },
-    { done: false, title: "Choose when your letter arrives", detail: "Goals, topics and your schedule come next." },
+    {
+      done: !!schedule,
+      title: "Choose when your letter arrives",
+      detail: schedule?.preset ? `Arrives ${presetLabel(schedule.preset)}` : "Set it in Preferences.",
+    },
   ];
 
   return (

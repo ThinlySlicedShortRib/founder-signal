@@ -1,4 +1,6 @@
-import { type Env, resolveBetterAuthSecret, resolveDatabaseConfig, resolveYouTubeApiKey } from "@fs/config";
+import Anthropic from "@anthropic-ai/sdk";
+import { anthropicProfileImporter, claudeCliProfileImporter, PROFILE_IMPORT_MODEL, PROFILE_IMPORT_PROMPT_VERSION, type ProfileImporter } from "@fs/ai";
+import { type Env, resolveAnthropicApiKey, resolveBetterAuthSecret, resolveDatabaseConfig, resolveYouTubeApiKey } from "@fs/config";
 import { createDb } from "@fs/db";
 import { createSafeFetcher, youTubeDataClient } from "@fs/ingest";
 import { createApp } from "./app.ts";
@@ -38,5 +40,31 @@ export async function buildApp(env: Env) {
     youtube: youTubeKey ? youTubeDataClient({ apiKey: youTubeKey }) : null,
   };
 
-  return createApp({ auth, clientLogs, db, detect, corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS, devOtps });
+  return createApp({ auth, clientLogs, db, detect, profileImporter: profileImporter(env), corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS, devOtps });
+}
+
+/**
+ * Onboarding's import reads the pasted note with Claude. Locally that's the
+ * Claude Code CLI on your machine by default (PROFILE_IMPORTER=claude-cli), so
+ * no API key is needed; set PROFILE_IMPORTER=anthropic to use the API instead.
+ * Anywhere else it's the API, with the key resolved on first use so an unset
+ * secret only degrades imports to the plain parser rather than failing the
+ * API's cold start. Without either, the plain parser reads the note.
+ */
+function profileImporter(env: Env): ProfileImporter | null {
+  if (env.APP_ENV === "local" && (env.PROFILE_IMPORTER ?? "claude-cli") === "claude-cli") {
+    return claudeCliProfileImporter({ command: env.CLAUDE_CLI_PATH });
+  }
+  if (!env.ANTHROPIC_API_KEY && !env.ANTHROPIC_API_KEY_SECRET_ARN) return null;
+  let inner: Promise<ProfileImporter> | undefined;
+  return {
+    method: "anthropic",
+    model: PROFILE_IMPORT_MODEL,
+    promptVersion: PROFILE_IMPORT_PROMPT_VERSION,
+    async read(input) {
+      inner ??= resolveAnthropicApiKey(env).then((apiKey) => anthropicProfileImporter(new Anthropic({ apiKey })));
+      inner.catch(() => (inner = undefined));
+      return (await inner).read(input);
+    },
+  };
 }

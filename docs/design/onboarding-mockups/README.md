@@ -17,7 +17,8 @@ session; the artifact is the place to view and play them.
    (health, finances, family and relationships, other people's details,
    confidential work, passwords and keys), the user pastes the answer back,
    we drop anything personal that slipped through, and they untick anything
-   they don't want kept. The raw paste is never stored.
+   they don't want kept. *(Changed since: the note is now saved with the import,
+   and Claude reads it into facts that each fill part of the form; see round 8.)*
 2. **A fill-in sentence, one blank at a time** ("I'm a ___. Lately I've been
    into ___. Send me more on ___. I follow people on ___. Send it ___."),
    pre-filled from the import when there is one. "Lately I've been into" is

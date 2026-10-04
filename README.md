@@ -10,12 +10,12 @@ for AWS.
 
 | Path | What |
 |---|---|
-| `apps/api` | Hono API on Lambda (Better Auth, `/me/sources`, `/client-logs`) |
+| `apps/api` | Hono API on Lambda (Better Auth, `/me/sources`, `/me/preferences`, `/me/schedule`, `/me/onboarding`, `/items/:id/review`, `/client-logs`) |
 | `apps/workers` | Lambda workers: `migrate`, and the ingestion pipeline `sweep → fetch-source → extract → enrich` |
-| `apps/mobile` | Expo app (Expo Router): email-code sign-in, Today · Library · Activity · Preferences tabs, source management, JS error reporting |
-| `packages/core` | Pure domain rules (rights, fetch scheduling, reading time); no I/O |
+| `apps/mobile` | Expo app (Expo Router): email-code sign-in, onboarding (import from your AI, fill-in sentence, five quick picks), Today · Library · Activity · Preferences tabs, source management, JS error reporting |
+| `packages/core` | Pure domain rules (rights, fetch scheduling, delivery schedule, onboarding import parsing, reading time); no I/O |
 | `packages/ingest` | Source adapters, SSRF-safe fetching, extraction to blocks, transcripts |
-| `packages/ai` | Claude enrichment (Message Batches) and Bedrock embeddings |
+| `packages/ai` | Claude enrichment (Message Batches), onboarding profile import, and Bedrock embeddings |
 | `packages/db` | Drizzle schema, migrations and shared queries |
 | `packages/schema` | zod contracts shared with the app |
 | `packages/config` | Environment and secrets |
@@ -41,7 +41,10 @@ pnpm ingest you@example.com jvns.ca https://seths.blog/
 Optional keys in `.env`: `YOUTUBE_API_KEY` (YouTube channels and videos),
 `SUPADATA_API_KEY` (video transcripts), and `ENRICHMENT=anthropic` with
 `ANTHROPIC_API_KEY` plus AWS credentials for Bedrock (tags, quality labels
-and embeddings).
+and embeddings). Onboarding's "import from your AI" reads the pasted note
+through the Claude Code CLI on your machine (`claude`, signed in), so it needs
+no key locally; set `PROFILE_IMPORTER=anthropic` to use `ANTHROPIC_API_KEY`
+instead. If neither works, a plain parser reads the note.
 
 The app finds the API on the machine running the Expo dev server (port 8787),
 so a phone on the same network works without configuration. Release builds set

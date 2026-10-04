@@ -1,3 +1,4 @@
+import type { ProfileImporter } from "@fs/ai";
 import { createDb } from "@fs/db";
 import type { FetchResult, YouTubeClient } from "@fs/ingest";
 import { createApp } from "../src/app.ts";
@@ -15,7 +16,11 @@ export interface FakePage {
 }
 
 /** Builds the real app against the test database, with in-memory email and log sinks and a fake web. */
-export function createTestApp({ corsOrigins, devSignIn = false }: { corsOrigins?: string[]; devSignIn?: boolean } = {}) {
+export function createTestApp({
+  corsOrigins,
+  devSignIn = false,
+  profileImporter = null,
+}: { corsOrigins?: string[]; devSignIn?: boolean; profileImporter?: ProfileImporter | null } = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
   const { db, pool } = createDb({ connectionString, ssl: false });
@@ -60,7 +65,7 @@ export function createTestApp({ corsOrigins, devSignIn = false }: { corsOrigins?
     },
   };
 
-  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, corsOrigins, devOtps });
+  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, profileImporter, corsOrigins, devOtps });
 
   return { app, db, pool, sentEmails, clientLogRecords, web };
 }

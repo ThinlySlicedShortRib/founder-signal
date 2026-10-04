@@ -4,12 +4,15 @@ import { Body, Button, Card, Divider, Heading, Row, Screen, Small } from "@/comp
 import { authClient } from "@/lib/auth";
 import { API_URL, APP_VERSION } from "@/lib/config";
 import { confirm } from "@/lib/confirm";
+import { listText, presetLabel } from "@/lib/onboarding";
+import { useProfile } from "@/lib/profile";
 import { queryClient } from "@/lib/query";
 import { useSources } from "@/lib/sources";
 
 export default function Preferences() {
   const { data: session } = authClient.useSession();
   const sources = useSources();
+  const profile = useProfile().data;
   const [signingOut, setSigningOut] = useState(false);
   const count = sources.data?.length;
 
@@ -33,9 +36,9 @@ export default function Preferences() {
           accessibilityHint="Add, pause or remove the sources your letters draw from"
         />
         <Divider />
-        <Row icon="flag-outline" label="Goals and topics" detail="Coming soon" />
+        <Row icon="flag-outline" label="Goals and topics" detail={profile?.topics.length ? listText(profile.topics.slice(0, 3)) : "None yet"} />
         <Divider />
-        <Row icon="time-outline" label="Schedule" detail="Coming soon" />
+        <Row icon="time-outline" label="Schedule" detail={profile?.schedule?.preset ? presetLabel(profile.schedule.preset) : "Not set"} />
       </Card>
 
       <Card>

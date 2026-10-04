@@ -9,11 +9,13 @@ import { apiError } from "./lib/errors.ts";
 import { createRateLimiter } from "./lib/rate-limit.ts";
 import { type AppEnv, requireUser } from "./lib/session.ts";
 import { devRoutes, type OtpRecorder } from "./routes/dev.ts";
+import { onboardingRoutes, preferenceRoutes, type ProfileRouteDeps } from "./routes/profile.ts";
+import { reviewRoutes } from "./routes/reviews.ts";
 import { type SourceRouteDeps, sourceRoutes } from "./routes/sources.ts";
 
 export type { AppEnv };
 
-export interface AppDeps extends SourceRouteDeps {
+export interface AppDeps extends SourceRouteDeps, ProfileRouteDeps {
   auth: Auth;
   clientLogs: ClientLogSink;
   /** Browser origins allowed to call the API with cookies (the Expo web dev server). Native apps don't need CORS. */
@@ -22,7 +24,7 @@ export interface AppDeps extends SourceRouteDeps {
   devOtps?: OtpRecorder;
 }
 
-export function createApp({ auth, clientLogs, db, detect, corsOrigins = [], devOtps }: AppDeps) {
+export function createApp({ auth, clientLogs, db, detect, profileImporter, corsOrigins = [], devOtps }: AppDeps) {
   const app = new Hono<AppEnv>();
 
   if (corsOrigins.length) {
@@ -81,7 +83,10 @@ export function createApp({ auth, clientLogs, db, detect, corsOrigins = [], devO
       },
     )
 
-    .route("/me/sources", sourceRoutes({ db, detect }));
+    .route("/me/sources", sourceRoutes({ db, detect }))
+    .route("/me", preferenceRoutes({ db }))
+    .route("/me/onboarding", onboardingRoutes({ db, profileImporter }))
+    .route("/items", reviewRoutes({ db }));
 
   return routes;
 }

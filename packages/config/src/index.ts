@@ -49,6 +49,11 @@ const envSchema = z.object({
   QUEUE_URL_EXTRACT: z.string().optional(),
   QUEUE_URL_ENRICH: z.string().optional(),
 
+  // Onboarding's "import from your AI". Locally it defaults to the Claude Code CLI on your machine
+  // (your Claude login, no API key); "anthropic" uses ANTHROPIC_API_KEY. On AWS it's always "anthropic".
+  PROFILE_IMPORTER: z.enum(["claude-cli", "anthropic"]).optional(),
+  CLAUDE_CLI_PATH: z.string().default("claude"),
+
   // Enrichment: "anthropic" (Message Batches + Bedrock embeddings) or "none" to skip it locally.
   ENRICHMENT: z.enum(["anthropic", "none"]).default("none"),
   EMBEDDING_MODEL_ID: z.string().default("amazon.titan-embed-text-v2:0"),

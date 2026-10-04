@@ -52,6 +52,15 @@ export interface GenerationMeta {
   fallbackReason?: string;
 }
 
+/** How the feedback P.S. recap was written. */
+export interface RecapMeta {
+  /** "anthropic", "claude-cli" or "fallback" (from the user's reasons, when no model is available or its text failed the checks). */
+  method: string;
+  model: string | null;
+  promptVersion: string;
+  fallbackReason?: string;
+}
+
 /**
  * The pipeline's working state between steps (§6.2: each step writes its
  * output before advancing, so re-running a step after a crash is safe).
@@ -64,7 +73,8 @@ export interface LetterWork {
   pickCount?: number;
   /** Copy per item from the generate step, keyed by item ID. */
   drafts?: Record<string, DraftCopy>;
-  letterCopy?: { headline: string; intro: string };
+  /** The writer's letter-level copy. `postscript` is missing on letters generated before it was written. */
+  letterCopy?: { headline: string; intro: string; postscript?: string };
   generation?: GenerationMeta;
   /** What the writer was given (brief and pieces with passages), kept for verification and reproduction. */
   writer?: { brief: Record<string, unknown>; pieces: Record<string, unknown>[] };
@@ -151,9 +161,19 @@ export const letter = pgTable(
     /** "Tomorrow, more of": the options offered, and what the user picked (read by the next letter's rank step). */
     leanings: text("leanings").array().default([]).notNull(),
     chosenLeanings: text("chosen_leanings").array().default([]).notNull(),
-    /** The P.S. recap and the signature of the verdicts it was written from; rewritten when they change. */
+    /**
+     * The P.S. before any feedback: a quick recap of the pieces, written with the letter at lock
+     * (the writer's, or from the titles when its copy can't be used; `generation_meta` says which writer).
+     */
+    postscriptDefault: text("postscript_default"),
+    /**
+     * The P.S. once the user has given feedback on the pieces, the signature of the verdicts and
+     * reasons it was written from, and how it was written. Rewritten when they change; cleared
+     * when the feedback is removed, so the default shows again.
+     */
     postscriptRecap: text("postscript_recap"),
     postscriptRecapSignature: text("postscript_recap_signature"),
+    postscriptRecapMeta: jsonb("postscript_recap_meta").$type<RecapMeta>(),
     ...timestamps,
   },
   (t) => [

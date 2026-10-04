@@ -1,8 +1,9 @@
-import type { ReaderWriter } from "@fs/ai";
-import { fallbackRecap, initialsFor, verdictSignature } from "@fs/core";
+import { RECAP_PROMPT_VERSION, type ReaderWriter } from "@fs/ai";
+import { checkPostscript, fallbackPostscript, fallbackRecap, initialsFor, verdictSignature } from "@fs/core";
 import { type Db, schema } from "@fs/db";
+import type { RecapMeta } from "@fs/db/schema";
 import type { AuthorCard, LetterPiece, LetterStatus, LetterView, Postscript, ReviewVote } from "@fs/schema";
-import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 const { author, contentItem, interaction, letter, letterItem, review, schedule, userAuthor } = schema;
 
@@ -109,34 +110,72 @@ async function displayNumber(db: Db, l: LetterRow): Promise<number> {
 
 const publicStatus = (s: LetterRow["status"]): LetterStatus => (s === "skipped" ? "skipped_no_candidates" : s);
 
+type RecapPiece = { itemId: string; title: string; summary: string; verdict: ReviewVote | null; reasons: string[] };
+
+/** Recaps being written in this process, so two reads at once make one model call. */
+const writing = new Map<string, Promise<string | null>>();
+
 /**
- * The P.S. recap (one or two sentences on the pieces marked worth it). It's
- * rewritten lazily, here, whenever the verdicts it was written from change;
- * null until something is marked worth it.
+ * The P.S. recap. With no feedback on the letter's pieces it's the default
+ * written with the letter (no model call). Once the user gives a verdict
+ * either way (skips don't count), it's rewritten here, lazily, from all the
+ * pieces with their verdicts and reasons, and cached until the verdicts or
+ * reasons change. Removing the feedback goes back to the default. Null only
+ * for a letter without pieces yet.
  */
-async function recapFor(
-  db: Db,
-  reader: ReaderWriter | null,
-  l: LetterRow,
-  pieces: { itemId: string; title: string; summary: string; verdict: ReviewVote | null; reasons: string[] }[],
-): Promise<string | null> {
-  const worth = pieces.filter((p) => p.verdict === "interested");
-  if (!worth.length) return null;
-  const signature = verdictSignature(worth.map((p) => ({ itemId: p.itemId, vote: "interested", reasons: p.reasons })));
+async function recapFor(db: Db, reader: ReaderWriter | null, l: LetterRow, pieces: RecapPiece[]): Promise<string | null> {
+  const voted = pieces.filter((p): p is RecapPiece & { verdict: ReviewVote } => p.verdict !== null);
+  if (!voted.length) {
+    if (l.postscriptRecap !== null || l.postscriptRecapSignature !== null) {
+      await db.update(letter).set({ postscriptRecap: null, postscriptRecapSignature: null, postscriptRecapMeta: null }).where(eq(letter.id, l.id));
+    }
+    return defaultRecap(db, l, pieces);
+  }
+  // The prompt version is part of the signature, so a new prompt rewrites recaps as they're read.
+  const signature = `${RECAP_PROMPT_VERSION}|${verdictSignature(voted.map((p) => ({ itemId: p.itemId, vote: p.verdict, reasons: p.reasons })))}`;
   if (l.postscriptRecap && l.postscriptRecapSignature === signature) return l.postscriptRecap;
 
+  const key = `${l.id}|${signature}`;
+  const pending = writing.get(key);
+  if (pending) return pending;
+  const job = writeRecap(db, reader, l, pieces, signature).finally(() => writing.delete(key));
+  writing.set(key, job);
+  return job;
+}
+
+async function writeRecap(db: Db, reader: ReaderWriter | null, l: LetterRow, pieces: RecapPiece[], signature: string): Promise<string | null> {
   let recap: string | null = null;
+  let meta: RecapMeta = { method: "fallback", model: null, promptVersion: RECAP_PROMPT_VERSION, fallbackReason: "no_model" };
   if (reader) {
     try {
-      recap = (await reader.recap({ pieces: worth.map((p) => ({ title: p.title, summary: p.summary, reasons: p.reasons })) })).slice(0, 400) || null;
+      const out = await reader.recap({ pieces: pieces.map((p) => ({ title: p.title, summary: p.summary, verdict: p.verdict, reasons: p.reasons })) });
+      // The same checks as the default P.S.; it needn't name a piece without a verdict.
+      const failed = checkPostscript(out, pieces, { requireEach: false });
+      if (failed.length) meta.fallbackReason = `checks:${failed.join(",")}`.slice(0, 200);
+      else {
+        recap = out;
+        meta = { method: reader.method, model: reader.model, promptVersion: RECAP_PROMPT_VERSION };
+      }
     } catch (err) {
+      meta.fallbackReason = (err as Error).message.slice(0, 200);
       console.warn(JSON.stringify({ level: "warn", message: "recap fell back to the plain one", error: (err as Error).message }));
     }
   }
-  recap ??= fallbackRecap(worth.map((p) => ({ title: p.title, reasons: p.reasons })));
-  await db.update(letter).set({ postscriptRecap: recap, postscriptRecapSignature: signature }).where(eq(letter.id, l.id));
+  recap ??= fallbackRecap(pieces.map((p) => ({ title: p.title, vote: p.verdict, reasons: p.reasons })));
+  await db.update(letter).set({ postscriptRecap: recap, postscriptRecapSignature: signature, postscriptRecapMeta: meta }).where(eq(letter.id, l.id));
   return recap;
 }
+
+/** The letter's default P.S. Letters locked before it was written get one from their titles, stored on first read. */
+async function defaultRecap(db: Db, l: LetterRow, pieces: RecapPiece[]): Promise<string | null> {
+  if (l.postscriptDefault) return l.postscriptDefault;
+  const recap = fallbackPostscript(pieces.map((p) => p.title));
+  if (recap) await db.update(letter).set({ postscriptDefault: recap }).where(and(eq(letter.id, l.id), isNull(letter.postscriptDefault)));
+  return recap;
+}
+
+/** The P.S. as last written, for responses that don't re-read the verdicts. */
+export const storedRecap = (l: LetterRow) => l.postscriptRecap ?? l.postscriptDefault;
 
 export async function postscriptFor(db: Db, l: LetterRow, recap: string | null): Promise<Postscript> {
   return { recap, nextLetterAt: await nextLetterAt(db, l.userId), leanings: l.leanings.slice(0, 6), chosenLeanings: l.chosenLeanings.slice(0, 10) };

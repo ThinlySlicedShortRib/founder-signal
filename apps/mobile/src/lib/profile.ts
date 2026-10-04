@@ -71,8 +71,11 @@ export function useLatestImport({ enabled }: { enabled: boolean }) {
 }
 
 export function useReview() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ itemId, ...json }: { itemId: string } & Partial<PutReviewInput> & Pick<PutReviewInput, "vote">) =>
       (await unwrap(api.items[":id"].review.$put({ param: { id: itemId }, json }))).review,
+    // A verdict rewrites the letter's P.S. recap, so the letter is refetched for it.
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["letters"] }),
   });
 }

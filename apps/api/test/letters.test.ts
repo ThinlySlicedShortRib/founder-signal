@@ -27,9 +27,13 @@ const reader: ReaderWriter = {
     return "Relevant to your pricing work.";
   },
   async recap(input) {
-    readerCalls.push(`recap:${input.pieces.map((p) => p.title).join("+")}`);
+    readerCalls.push(`recap:${input.pieces.map((p) => `${p.title}=${p.verdict ?? "none"}${p.reasons.length ? `(${p.reasons.join(",")})` : ""}`).join("+")}`);
     if (readerFails) throw new Error("overloaded");
-    return `You liked ${input.pieces.length} piece(s).`;
+    await new Promise((r) => setTimeout(r, 20));
+    const voted = input.pieces.filter((p) => p.verdict);
+    // A title with INVENT gets a recap that fails the checks (another piece, a new number).
+    if (voted.some((p) => p.title.includes("INVENT"))) return "You'll love “Ten pricing myths”, up 400%.";
+    return `You weighed in on ${voted.map((p) => `“${p.title}”`).join(" and ")}.`;
   },
 };
 
@@ -48,12 +52,17 @@ let cookie: string;
 let userId: string;
 let otherCookie: string;
 let otherId: string;
+// The P.S. tests' own user, so their letters don't change the other tests' "today" and lists.
+let psCookie: string;
+let psUser: string;
 const idOf = async (email: string) => (await ctx.db.select().from(user).where(eq(user.email, email)))[0]!.id;
 beforeAll(async () => {
   cookie = await signIn(ctx, "letters@example.com");
   userId = await idOf("letters@example.com");
   otherCookie = await signIn(ctx, "letters-other@example.com");
   otherId = await idOf("letters-other@example.com");
+  psCookie = await signIn(ctx, "letters-ps@example.com");
+  psUser = await idOf("letters-ps@example.com");
   await ctx.db.insert(profile).values({ userId, role: "founder", lately: "membership pricing" });
   await ctx.db.insert(topicWeight).values({ userId, topic: "pricing", origin: "explicit" });
   await ctx.db.insert(schedule).values({ userId, weekdays: [1, 2, 3, 4, 5], localTime: "07:30", timeZone: "America/New_York", nextRunAt: new Date("2030-01-07T12:30:00Z") });
@@ -262,7 +271,13 @@ describe("/letters", () => {
     ]);
     expect(l.pieces[1]).toMatchObject({ verdict: "not_interested", skipped: true, completed: false, saved: false, tag: "New source", image: null });
     expect(l.pieces[2]).toMatchObject({ verdict: null, skipped: false, completed: true, saved: true });
-    expect(l.postscript).toEqual({ recap: null, nextLetterAt: "2030-01-07T12:30:00.000Z", leanings: ["Pricing, with numbers", "Short reads", "Something new"], chosenLeanings: [] });
+    // A verdict (here a dislike) means the P.S. is the recap written from the feedback.
+    expect(l.postscript).toEqual({
+      recap: "You weighed in on “How we priced our first contract”.",
+      nextLetterAt: "2030-01-07T12:30:00.000Z",
+      leanings: ["Pricing, with numbers", "Short reads", "Something new"],
+      chosenLeanings: [],
+    });
   });
 
   it("shows the author card: sourced details without their sources, the user's reading, and the follow", async () => {
@@ -286,22 +301,84 @@ describe("/letters", () => {
     expect(l.pieces[0]!.author).toBeNull();
   });
 
-  it("writes the P.S. recap from what was worth it, and only rewrites it when verdicts change", async () => {
+  it("shows the default P.S. until there's feedback, rewrites it from all verdicts, and goes back when it's removed", async () => {
+    const a = await seedArticle({ title: "The fee is the product" });
+    const b = await seedArticle({ title: "Pricing pages that convert" });
+    const ps = await seedLetter(
+      psUser,
+      [
+        { itemId: a.item.id, snap: snapshot({ title: "The fee is the product" }) },
+        { itemId: b.item.id, snap: snapshot({ title: "Pricing pages that convert" }) },
+      ],
+      { postscriptDefault: "Two on pricing: “The fee is the product” and “Pricing pages that convert”." },
+    );
+    const recap = async () => letterViewSchema.parse(((await (await call("GET", `/letters/${ps.id}`, undefined, psCookie)).json()) as { letter: unknown }).letter).postscript.recap;
+    const row = async () => (await ctx.db.select().from(letter).where(eq(letter.id, ps.id)))[0]!;
     readerCalls.length = 0;
-    await call("PUT", `/items/${video.item.id}/review`, { vote: "interested", reasons: ["practical"] });
-    let l = letterViewSchema.parse(((await (await call("GET", "/letters/today")).json()) as { letter: unknown }).letter);
-    expect(l.postscript.recap).toBe("You liked 1 piece(s).");
-    expect(readerCalls).toEqual(["recap:Hiring your first engineer"]);
 
-    await call("GET", "/letters/today");
+    // No feedback: the stored default, with no model call.
+    expect(await recap()).toBe("Two on pricing: “The fee is the product” and “Pricing pages that convert”.");
+    expect(readerCalls).toEqual([]);
+
+    // A verdict: rewritten from all the pieces, with their verdicts and reasons, then cached.
+    await call("PUT", `/items/${a.item.id}/review`, { vote: "interested", reasons: ["practical"] }, psCookie);
+    expect(await recap()).toBe("You weighed in on “The fee is the product”.");
+    expect(readerCalls).toEqual(["recap:The fee is the product=interested(practical)+Pricing pages that convert=none"]);
+    expect((await row()).postscriptRecapMeta).toEqual({ method: "anthropic", model: "test-haiku", promptVersion: "recap-v2" });
+    await recap();
     expect(readerCalls).toHaveLength(1);
 
-    await call("PUT", `/items/${video.item.id}/review`, { vote: "interested", reasons: ["practical", "numbers"] });
-    readerFails = true;
-    l = letterViewSchema.parse(((await (await call("GET", "/letters/today")).json()) as { letter: unknown }).letter);
-    readerFails = false;
-    expect(l.postscript.recap).toBe("You marked “Hiring your first engineer” worth it, for how practical it was and the numbers.");
+    // A skip isn't feedback on the piece; a changed verdict is, and two reads at once make one call.
+    await call("POST", "/events", { events: [event("skip", b.item.id, "2026-10-05T09:00:00Z", ps.id)] }, psCookie);
+    await recap();
+    expect(readerCalls).toHaveLength(1);
+    await call("PUT", `/items/${b.item.id}/review`, { vote: "not_interested", reasons: ["too_basic"] }, psCookie);
+    const [r1, r2] = await Promise.all([recap(), recap()]);
+    expect(r1).toBe("You weighed in on “The fee is the product” and “Pricing pages that convert”.");
+    expect(r2).toBe(r1);
     expect(readerCalls).toHaveLength(2);
+    expect(readerCalls[1]).toBe("recap:The fee is the product=interested(practical)+Pricing pages that convert=not_interested(too_basic)");
+
+    // The model failing: the plain recap from the user's own reasons.
+    await call("PUT", `/items/${a.item.id}/review`, { vote: "interested", reasons: ["practical", "numbers"] }, psCookie);
+    readerFails = true;
+    expect(await recap()).toBe(
+      "You marked “The fee is the product” worth it, for how practical it was and the numbers. “Pricing pages that convert” wasn't for you: too basic.",
+    );
+    readerFails = false;
+    expect(readerCalls).toHaveLength(3);
+    expect((await row()).postscriptRecapMeta).toEqual({ method: "fallback", model: null, promptVersion: "recap-v2", fallbackReason: "overloaded" });
+
+    // All feedback removed: back to the default, without a model call.
+    await call("DELETE", `/items/${a.item.id}/review`, undefined, psCookie);
+    await call("DELETE", `/items/${b.item.id}/review`, undefined, psCookie);
+    expect(await recap()).toBe("Two on pricing: “The fee is the product” and “Pricing pages that convert”.");
+    expect(readerCalls).toHaveLength(3);
+    expect(await row()).toMatchObject({ postscriptRecap: null, postscriptRecapSignature: null, postscriptRecapMeta: null });
+  });
+
+  it("falls back when the model's recap names another piece or adds a number", async () => {
+    const a = await seedArticle({ title: "INVENT a pricing page" });
+    const ps = await seedLetter(psUser, [{ itemId: a.item.id, snap: snapshot({ title: "INVENT a pricing page" }) }], {
+      postscriptDefault: "Today was “INVENT a pricing page”.",
+    });
+    await call("PUT", `/items/${a.item.id}/review`, { vote: "not_interested", reasons: [] }, psCookie);
+    const l = letterViewSchema.parse(((await (await call("GET", `/letters/${ps.id}`, undefined, psCookie)).json()) as { letter: unknown }).letter);
+    expect(l.postscript.recap).toBe("“INVENT a pricing page” wasn't for you.");
+    const [row] = await ctx.db.select().from(letter).where(eq(letter.id, ps.id));
+    expect(row!.postscriptRecapMeta).toMatchObject({ method: "fallback", fallbackReason: expect.stringContaining("postscript_names_other_piece") });
+  });
+
+  it("gives a letter from before default recaps one from its titles, stored on first read", async () => {
+    const a = await seedArticle({ title: "An old letter's piece" });
+    const old = await seedLetter(psUser, [{ itemId: a.item.id, snap: snapshot({ title: "An old letter's piece" }) }]);
+    expect(old.postscriptDefault).toBeNull();
+    readerCalls.length = 0;
+    const l = letterViewSchema.parse(((await (await call("GET", `/letters/${old.id}`, undefined, psCookie)).json()) as { letter: unknown }).letter);
+    expect(l.postscript.recap).toBe("Today was “An old letter's piece”. Tell me if it was worth your time.");
+    expect(readerCalls).toEqual([]);
+    const [row] = await ctx.db.select().from(letter).where(eq(letter.id, old.id));
+    expect(row!.postscriptDefault).toBe(l.postscript.recap);
   });
 
   it("stores the chosen leanings", async () => {

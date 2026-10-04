@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  discoveryMode,
   readEnv,
   resolveAnthropicApiKey,
   resolveBetterAuthSecret,
@@ -49,5 +50,14 @@ describe("optional integrations", () => {
   it("are null when not configured", async () => {
     expect(await resolveYouTubeApiKey(readEnv({}))).toBeNull();
     expect(await resolveSupadataApiKey(readEnv({ SUPADATA_API_KEY: "sd" }))).toBe("sd");
+  });
+});
+
+describe("discoveryMode", () => {
+  it("uses the CLI locally, the API on AWS, and can be turned off", () => {
+    expect(discoveryMode(readEnv({}))).toBe("claude-cli");
+    expect(discoveryMode(readEnv({ APP_ENV: "dev" }))).toBe("anthropic");
+    expect(discoveryMode(readEnv({ APP_ENV: "dev", DISCOVERY: "none" }))).toBe("none");
+    expect(() => readEnv({ DISCOVERY: "maybe" })).toThrow(/Invalid environment/);
   });
 });

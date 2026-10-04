@@ -56,6 +56,7 @@ const envSchema = z.object({
   QUEUE_URL_ENRICH: z.string().optional(),
   QUEUE_URL_LETTER_STEP: z.string().optional(),
   QUEUE_URL_AUTHOR: z.string().optional(),
+  QUEUE_URL_DISCOVER: z.string().optional(),
 
   // Onboarding's "import from your AI". Locally it defaults to the Claude Code CLI on your machine
   // (your Claude login, no API key); "anthropic" uses ANTHROPIC_API_KEY. On AWS it's always "anthropic".
@@ -66,6 +67,11 @@ const envSchema = z.object({
   // Locally it defaults to the Claude Code CLI ("claude-cli"); on AWS it's "anthropic". "none" writes
   // copy from the pieces' own words with no model (also the fallback whenever a model call fails).
   LETTER_WRITER: z.enum(["claude-cli", "anthropic", "none"]).optional(),
+
+  // Open web discovery (build plan §6.3a): search queries and web search before each letter.
+  // Locally it defaults to the Claude Code CLI ("claude-cli"); on AWS it's "anthropic". "none" turns it
+  // off, so letters only draw from followed sources.
+  DISCOVERY: z.enum(["claude-cli", "anthropic", "none"]).optional(),
 
   // Stock photos for pieces without a lead image (Unsplash). Optional: without it those pieces get no picture.
   UNSPLASH_ACCESS_KEY: z.string().optional(),
@@ -170,6 +176,11 @@ export function resolveUnsplashAccessKey(env: Env): Promise<string | null> {
 /** Which backend writes letter copy: the CLI locally, the API on AWS, unless LETTER_WRITER says otherwise. */
 export function letterWriterMode(env: Env): "claude-cli" | "anthropic" | "none" {
   return env.LETTER_WRITER ?? (env.APP_ENV === "local" ? "claude-cli" : "anthropic");
+}
+
+/** Which backend runs discovery's queries and searches: the CLI locally, the API on AWS, unless DISCOVERY says otherwise. */
+export function discoveryMode(env: Env): "claude-cli" | "anthropic" | "none" {
+  return env.DISCOVERY ?? (env.APP_ENV === "local" ? "claude-cli" : "anthropic");
 }
 
 /**

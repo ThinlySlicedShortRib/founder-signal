@@ -96,6 +96,12 @@ variable "enrichment_enabled" {
   default     = true
 }
 
+variable "discovery_enabled" {
+  description = "Search the open web for pieces before each letter (Claude + web search, billed per search). Needs the Anthropic key set."
+  type        = bool
+  default     = true
+}
+
 variable "embedding_model_id" {
   type    = string
   default = "amazon.titan-embed-text-v2:0"

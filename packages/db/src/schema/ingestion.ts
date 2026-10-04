@@ -41,6 +41,13 @@ const timestamps = {
 /**
  * The growing publisher catalog (build plan §6.3a). Shared across users.
  * `key` is the host without `www.` for the web, or `youtube:<channelId>`.
+ *
+ * Status (§6.3a): a publisher found by discovery starts as `candidate`, moves
+ * to `trial` after a well-rated item and `trusted` after several (a trusted
+ * one with a feed is then polled as a shared source), and is `blocked`
+ * globally after repeated quality or verification failures. User-added
+ * publishers keep `candidate` and aren't moved by these rules; a user's own
+ * block is per user, in `user_publisher`.
  */
 export const publisher = pgTable("publisher", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -55,8 +62,19 @@ export const publisher = pgTable("publisher", {
   extractionsFailed: integer("extractions_failed").default(0).notNull(),
   verificationsPassed: integer("verifications_passed").default(0).notNull(),
   verificationsFailed: integer("verifications_failed").default(0).notNull(),
+  /** Votes on its items, across users. Recomputed from `review` by the catalog pass (discovered publishers only). */
   interestedCount: integer("interested_count").default(0).notNull(),
   notInterestedCount: integer("not_interested_count").default(0).notNull(),
+  /** Its items the enrichment step labelled `substantive`, and `thin`/`rewritten`/`seo_filler`. Recomputed like the votes. */
+  substantiveCount: integer("substantive_count").default(0).notNull(),
+  lowQualityCount: integer("low_quality_count").default(0).notNull(),
+  /** Why it has its status, e.g. `well_rated_item`, `low_quality` (see @fs/core `publisherVerdict`). */
+  statusReason: text("status_reason"),
+  statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+  /** The catalog pass last applied the promotion rules to it (§6.3a). */
+  evaluatedAt: timestamp("evaluated_at", { withTimezone: true }),
+  /** Feed autodetection ran for it (once, on its first extracted page); `feed_url` holds what it found. */
+  feedCheckedAt: timestamp("feed_checked_at", { withTimezone: true }),
   /** Politeness: the last time any of our workers fetched from this host. */
   lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),

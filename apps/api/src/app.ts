@@ -12,6 +12,7 @@ import { devRoutes, type OtpRecorder } from "./routes/dev.ts";
 import { onboardingRoutes, preferenceRoutes, type ProfileRouteDeps } from "./routes/profile.ts";
 import { itemRoutes, type LetterRouteDeps, letterRoutes, readingRoutes } from "./routes/letters.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
+import { publisherRoutes } from "./routes/publishers.ts";
 import { type SourceRouteDeps, sourceRoutes } from "./routes/sources.ts";
 
 export type { AppEnv };
@@ -85,6 +86,7 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, store
     )
 
     .route("/me/sources", sourceRoutes({ db, detect }))
+    .route("/me/publishers", publisherRoutes({ db }))
     .route("/me", preferenceRoutes({ db }))
     .route("/me/onboarding", onboardingRoutes({ db, profileImporter }))
     .route("/items", reviewRoutes({ db }))

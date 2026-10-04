@@ -131,6 +131,37 @@ export const sourceViewSchema = z.object({
 });
 export type SourceView = z.infer<typeof sourceViewSchema>;
 
+// ── Publishers (build plan §6.3a, §7: /me/publishers) ───────────────────────
+
+export const publisherStatuses = ["candidate", "trial", "trusted", "blocked"] as const;
+export type PublisherStatus = (typeof publisherStatuses)[number];
+
+/** Follow a discovered publisher (its feed becomes one of the user's sources) and/or block it for this user. */
+export const updatePublisherInputSchema = z
+  .object({ following: z.boolean(), blocked: z.boolean() })
+  .partial()
+  .refine((v) => v.following !== undefined || v.blocked !== undefined, "Nothing to update");
+export type UpdatePublisherInput = z.infer<typeof updatePublisherInputSchema>;
+
+export const publisherViewSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  /** Its domain (or `youtube:<channelId>`). */
+  key: z.string(),
+  /** Its standing in the shared catalog; `blocked` here means blocked for everyone. */
+  status: z.enum(publisherStatuses),
+  origin: z.enum(["user_added", "discovered"]),
+  /** It has a feed, so it can be followed. */
+  followable: z.boolean(),
+  following: z.boolean(),
+  /** Blocked for this user, by them or by their votes. */
+  blocked: z.boolean(),
+  /** Pieces discovery found for this user from it, and when it last did. */
+  found: z.number().int(),
+  lastFoundAt: z.iso.datetime().nullable(),
+});
+export type PublisherView = z.infer<typeof publisherViewSchema>;
+
 // ── Profile and onboarding (build plan §7: /me/preferences, /me/schedule) ───
 
 /**

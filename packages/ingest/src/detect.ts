@@ -190,3 +190,59 @@ async function detectYouTube(inputUrl: string, ref: NonNullable<ReturnType<typeo
     publisher: { key: `youtube:${channel.channelId}`, name: channel.title, feedUrl: null },
   } satisfies DetectedSource;
 }
+
+/** At most this many URLs are fetched to find a discovered publisher's feed. */
+export const MAX_FEED_PROBES = 6;
+
+/**
+ * Finds a publisher's feed from one of its pages (build plan §6.3a): feeds the
+ * page advertises with `<link rel="alternate">`, then those its homepage
+ * advertises, then a few common paths. Each candidate is fetched and must
+ * parse as a feed. At most MAX_FEED_PROBES fetches, all on the same site and
+ * through the given (SSRF-safe) fetcher. Null when there's none.
+ */
+export async function autodetectFeed(page: { body: string; url: string }, fetch: Fetcher): Promise<{ feedUrl: string; title: string | null } | null> {
+  let probes = 0;
+  const host = new URL(page.url).host;
+  const tried = new Set<string>();
+  const tryFeed = async (url: string) => {
+    if (probes >= MAX_FEED_PROBES || tried.has(url) || new URL(url).host !== host) return null;
+    tried.add(url);
+    probes++;
+    try {
+      const res = await fetch(url, { accept: "application/rss+xml,application/atom+xml,application/xml;q=0.9" });
+      if (res.status >= 400 || !looksLikeFeed(res.contentType, res.body)) return null;
+      const feed = parseFeed(res.body, res.url);
+      return feed ? { feedUrl: res.url, title: feed.title } : null;
+    } catch {
+      return null;
+    }
+  };
+
+  for (const url of discoverFeedLinks(page.body, page.url).slice(0, 2)) {
+    const found = await tryFeed(url);
+    if (found) return found;
+  }
+
+  const home = new URL("/", page.url).toString();
+  if (home !== page.url && probes < MAX_FEED_PROBES) {
+    probes++;
+    try {
+      const res = await fetch(home);
+      if (res.status < 400 && res.contentType.toLowerCase().includes("html")) {
+        for (const url of discoverFeedLinks(res.body, res.url).slice(0, 2)) {
+          const found = await tryFeed(url);
+          if (found) return found;
+        }
+      }
+    } catch {
+      // Fall through to the common paths.
+    }
+  }
+
+  for (const path of COMMON_FEED_PATHS) {
+    const found = await tryFeed(new URL(path, page.url).toString());
+    if (found) return found;
+  }
+  return null;
+}

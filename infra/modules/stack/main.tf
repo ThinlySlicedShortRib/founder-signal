@@ -151,6 +151,7 @@ module "migrate" {
 
 # --- Ingestion pipeline (M1): sweep → fetch-source → extract → enrich -----------
 # --- Letter engine (M3): sweep → letter-step (×5 steps) → author ----------------
+# --- Discovery (M3, §6.3a): sweep → discover → extract ----------------------------
 # All workers run in the VPC because they use the database. Fetch traffic goes
 # through the NAT; at personal volume that costs nothing on fck-nat (no
 # per-GB charge) and little on a managed gateway. See build plan §2.
@@ -168,13 +169,13 @@ locals {
   # Queue consumers. visibility = 6x the function timeout (AWS guidance for SQS triggers).
   workers = {
     sweep = {
-      description = "Every 5 minutes: claims due sources, queues enrichment, starts due letters, watchdog, delivery"
+      description = "Every 5 minutes: claims due sources, queues enrichment, starts discovery and due letters, publisher catalog, watchdog, delivery"
       timeout     = 60
       memory      = 256
       queue       = null
       batch_size  = null
       concurrency = null
-      sends_to    = ["fetch-source", "enrich", "letter-step"]
+      sends_to    = ["fetch-source", "enrich", "letter-step", "discover"]
       secrets     = [module.database.master_secret_arn]
       content     = []
       bedrock     = false
@@ -252,6 +253,21 @@ locals {
       content     = []
       bedrock     = false
     }
+    # Open web discovery (build plan §6.3a): a few hours before each letter, queries (Haiku 4.5) and
+    # web searches (Sonnet 5.5), capped per letter; found pages go to extract like any other item.
+    discover = {
+      description = "Searches the open web for a user's next letter and queues what it finds for extraction"
+      timeout     = 300
+      memory      = 512
+      queue       = "discover"
+      batch_size  = 1
+      # Web search is slow and billed per search; there's no hurry (it runs hours ahead).
+      concurrency = 2
+      sends_to    = ["extract"]
+      secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
+      content     = []
+      bedrock     = false
+    }
   }
 
   queued_workers = { for k, w in local.workers : k => w if w.queue != null }
@@ -264,10 +280,12 @@ locals {
     QUEUE_URL_ENRICH               = module.queues.urls["enrich"]
     QUEUE_URL_LETTER_STEP          = module.queues.urls["letter-step"]
     QUEUE_URL_AUTHOR               = module.queues.urls["author"]
+    QUEUE_URL_DISCOVER             = module.queues.urls["discover"]
     UNSPLASH_ACCESS_KEY_SECRET_ARN = module.secrets.unsplash_access_key_secret_arn
     CONTENT_BUCKET                 = module.content.bucket_name
     SUPADATA_API_KEY_SECRET_ARN    = module.secrets.supadata_api_key_secret_arn
     ENRICHMENT                     = var.enrichment_enabled ? "anthropic" : "none"
+    DISCOVERY                      = var.discovery_enabled ? "anthropic" : "none"
     EMBEDDING_MODEL_ID             = var.embedding_model_id
   })
 }

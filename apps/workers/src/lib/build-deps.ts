@@ -1,12 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   anthropicAuthorEnricher,
+  anthropicDiscoveryQueryGenerator,
   anthropicEnrichmentBatches,
+  anthropicWebSearcher,
   anthropicLetterWriter,
   type AuthorEnricher,
   bedrockTitanEmbedder,
   claudeCliAuthorEnricher,
+  claudeCliDiscoveryQueryGenerator,
   claudeCliLetterWriter,
+  claudeCliWebSearcher,
+  DISCOVERY_QUERY_MODEL,
+  DISCOVERY_QUERY_PROMPT_VERSION,
+  DISCOVERY_SEARCH_MODEL,
+  DISCOVERY_SEARCH_PROMPT_VERSION,
   ENRICHMENT_MODEL,
   ENRICHMENT_PROMPT_VERSION,
   type EnrichmentBatches,
@@ -17,6 +25,7 @@ import {
   AUTHOR_ENRICHMENT_MODEL,
 } from "@fs/ai";
 import {
+  discoveryMode,
   type Env,
   letterWriterMode,
   resolveAnthropicApiKey,
@@ -30,7 +39,7 @@ import { createDb } from "@fs/db";
 import { createSafeFetcher, supadataProvider, youTubeDataClient } from "@fs/ingest";
 import { copyingImageStore, s3ImageObjects } from "../letters/image-store.ts";
 import { unsplashStockPhotos } from "../letters/images.ts";
-import type { PipelineDeps } from "../pipeline/deps.ts";
+import type { Discovery, PipelineDeps } from "../pipeline/deps.ts";
 import { fsContentStore, s3ContentStore } from "./content-store.ts";
 import type { Queues } from "./queues.ts";
 
@@ -68,6 +77,7 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
       env.IMAGES_BUCKET && env.IMAGES_BASE_URL
         ? copyingImageStore({ objects: s3ImageObjects(env.IMAGES_BUCKET), baseUrl: env.IMAGES_BASE_URL, fetch })
         : null,
+    discovery: buildDiscovery(env),
     close: () => pool.end(),
   };
 }
@@ -112,5 +122,29 @@ function lazyAuthorEnricher(env: Env): AuthorEnricher {
     method: "anthropic",
     model: AUTHOR_ENRICHMENT_MODEL,
     enrich: async (query) => anthropicAuthorEnricher(await client()).enrich(query),
+  };
+}
+
+/** Discovery's query generator and web searcher: the CLI locally, the API on AWS, or none (§6.3a). */
+function buildDiscovery(env: Env): Discovery | null {
+  const mode = discoveryMode(env);
+  if (mode === "none") return null;
+  if (mode === "claude-cli") {
+    return { queries: claudeCliDiscoveryQueryGenerator({ command: env.CLAUDE_CLI_PATH }), search: claudeCliWebSearcher({ command: env.CLAUDE_CLI_PATH }) };
+  }
+  const client = lazyClient(env);
+  return {
+    queries: {
+      method: "anthropic",
+      model: DISCOVERY_QUERY_MODEL,
+      promptVersion: DISCOVERY_QUERY_PROMPT_VERSION,
+      generate: async (brief) => anthropicDiscoveryQueryGenerator(await client()).generate(brief),
+    },
+    search: {
+      method: "anthropic",
+      model: DISCOVERY_SEARCH_MODEL,
+      promptVersion: DISCOVERY_SEARCH_PROMPT_VERSION,
+      search: async (request) => anthropicWebSearcher(await client()).search(request),
+    },
   };
 }

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { authorKeyFor, cleanAuthorName, countWords, decideItemAccess, type ItemAccess, readTimeMinutes, resolveRights } from "@fs/core";
 import { loadRightsRules, schema } from "@fs/db";
 import {
+  autodetectFeed,
   canonicalizeUrl,
   extractArticle,
   FetchError,
@@ -36,7 +37,13 @@ export async function extract(deps: PipelineDeps, { itemId }: Message<"extract">
   const log = logger(deps);
 
   const [row] = await db
-    .select({ item: contentItem, publisherKey: publisher.key, publisherName: publisher.name, sourceKey: source.canonicalKey })
+    .select({
+      item: contentItem,
+      publisherKey: publisher.key,
+      publisherName: publisher.name,
+      publisherOrigin: publisher.origin,
+      sourceKey: source.canonicalKey,
+    })
     .from(contentItem)
     .innerJoin(publisher, eq(publisher.id, contentItem.publisherId))
     .leftJoin(source, eq(source.id, contentItem.sourceId))
@@ -78,7 +85,7 @@ async function extractPage(
   deps: PipelineDeps,
   item: Item,
   rights: Rights,
-  ctx: { publisherKey: string; publisherName: string },
+  ctx: { publisherKey: string; publisherName: string; publisherOrigin: "user_added" | "discovered" },
 ) {
   const { db } = deps;
 
@@ -181,7 +188,29 @@ async function extractPage(
       .where(eq(contentItem.id, item.id));
     await tx.update(publisher).set({ extractionsOk: sql`${publisher.extractionsOk} + 1` }).where(eq(publisher.id, item.publisherId));
   });
+  if (ctx.publisherOrigin === "discovered") await detectPublisherFeed(deps, item.publisherId, page);
   return { status: "extracted" as const, reason: null };
+}
+
+/**
+ * A discovered publisher's feed (§6.3a.4), looked for once, on its first
+ * extracted page: what the page or homepage advertises, or a common path. A
+ * failure here never fails the extraction.
+ */
+async function detectPublisherFeed(deps: PipelineDeps, publisherId: string, page: { body: string; url: string }) {
+  const [claimed] = await deps.db
+    .update(publisher)
+    .set({ feedCheckedAt: sql`now()` })
+    .where(and(eq(publisher.id, publisherId), sql`${publisher.feedCheckedAt} is null`))
+    .returning({ id: publisher.id });
+  if (!claimed) return;
+  try {
+    const found = await autodetectFeed(page, deps.fetch);
+    if (found) await deps.db.update(publisher).set({ feedUrl: sql`coalesce(${publisher.feedUrl}, ${found.feedUrl})` }).where(eq(publisher.id, publisherId));
+    logger(deps)("feed_autodetect", { publisherId, feedUrl: found?.feedUrl ?? null });
+  } catch (err) {
+    logger(deps)("feed_autodetect_failed", { publisherId, message: (err as Error).message });
+  }
 }
 
 async function extractVideo(deps: PipelineDeps, item: Item, rights: Rights, ctx: { publisherKey: string }) {

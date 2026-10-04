@@ -1,4 +1,5 @@
 import type { DislikeReason, LikeReason, ReviewVote, SourceMode } from "@fs/schema";
+import type { PublisherStatus } from "./discovery.ts";
 import { topicsFromText } from "./onboarding.ts";
 import { displayTopic, phraseMatches, stemSet } from "./text-match.ts";
 
@@ -13,6 +14,12 @@ import { displayTopic, phraseMatches, stemSet } from "./text-match.ts";
  * Goal similarity by embedding (w1) comes later; for now topics are matched
  * on words against the user's topics, their "lately" and the previous
  * letter's chosen leanings.
+ *
+ * Explore vs exploit (§6.3a.5): a publisher discovery found is scored from
+ * its record (good items against bad), and one still on `candidate` or
+ * `trial` gets an uncertainty bonus that shrinks as evidence comes in, so a
+ * new publisher has a real chance. One slot per letter is kept for the best
+ * of those (the exploration slot), as long as it's relevant at all.
  */
 
 export const RANKING_WEIGHTS = {
@@ -42,7 +49,28 @@ export const RANKING_WEIGHTS = {
   tooLong: -1,
   likesConcise: 0.3,
   likesVideo: 0.5,
+  /** Discovery found it for this user; the detail is the search's reason. */
+  discovered: 0.5,
+  /** × (good − bad) / (good + bad + 2) from a discovered publisher's record. */
+  publisherRecord: 1,
+  /** × 1/√(1 + evidence) for a discovered publisher still on candidate or trial. */
+  exploration: 1,
 } as const;
+
+/**
+ * The exploration slot only goes to a piece whose fit (its score without
+ * recency and the discovery bonuses) is at least this: a leaning, "lately" or
+ * topic match. It has to fit the user somehow.
+ */
+export const EXPLORATION_MIN_FIT = 1;
+
+/** Signals about how new or unproven a piece is, rather than how well it fits the user. */
+const NOT_FIT: ReadonlySet<PickSignal["kind"]> = new Set(["recency", "discovered", "publisher_record", "exploration"]);
+
+/** A scored piece's fit to the user: its score without recency and the discovery bonuses. */
+export function fitScore(s: Pick<ScoredCandidate, "signals">): number {
+  return s.signals.filter((x) => !NOT_FIT.has(x.kind)).reduce((sum, x) => sum + x.weight, 0);
+}
 
 /** Above this many minutes a piece counts as long for "too long" feedback. */
 export const LONG_PIECE_MINUTES = 12;
@@ -64,6 +92,10 @@ export interface RankCandidate {
   quality: string | null;
   depth: string | null;
   minutes: number | null;
+  /** Set when discovery found it for this user: the search's one-line reason. */
+  discoveredReason?: string | null;
+  /** The publisher's catalog standing, for publishers discovery found (§6.3a); null for ones the user added. */
+  catalog?: { status: PublisherStatus; good: number; bad: number } | null;
 }
 
 export interface RankReview {
@@ -100,7 +132,10 @@ export interface PickSignal {
     | "quality"
     | "depth"
     | "length"
-    | "format";
+    | "format"
+    | "discovered"
+    | "publisher_record"
+    | "exploration";
   weight: number;
   detail: string | null;
 }
@@ -122,8 +157,13 @@ const FORMAT_LEANINGS: [RegExp, (c: RankCandidate) => boolean][] = [
   [/^short(er)? reads?$/i, (c) => c.minutes !== null && c.minutes <= SHORT_PIECE_MINUTES],
   [/^(more )?videos?$/i, (c) => c.kind === "video"],
   [/^deeper dives?$/i, (c) => c.depth === "advanced" || (c.minutes ?? 0) > LONG_PIECE_MINUTES],
-  [/^something new$/i, () => false],
+  [/^something new$/i, (c) => isExploratory(c)],
 ];
+
+/** A piece from a publisher discovery found that hasn't proven itself yet: what the exploration slot is for. */
+export function isExploratory(c: Pick<RankCandidate, "catalog">): boolean {
+  return !!c.catalog && (c.catalog.status === "candidate" || c.catalog.status === "trial");
+}
 
 export function scoreCandidate(c: RankCandidate, profile: RankProfile, now: Date): ScoredCandidate {
   const W = RANKING_WEIGHTS;
@@ -219,6 +259,13 @@ export function scoreCandidate(c: RankCandidate, profile: RankProfile, now: Date
 
   if (likesVideo && c.kind === "video") add("format", W.likesVideo, "video");
 
+  if (c.discoveredReason) add("discovered", W.discovered, c.discoveredReason);
+  if (c.catalog) {
+    const { good, bad } = c.catalog;
+    add("publisher_record", (W.publisherRecord * (good - bad)) / (good + bad + 2), c.publisherName);
+    if (isExploratory(c)) add("exploration", W.exploration / Math.sqrt(1 + good + bad), c.publisherName);
+  }
+
   const score = round(signals.reduce((s, x) => s + x.weight, 0));
   signals.sort((a, b) => b.weight - a.weight);
   const fallbackTopic = c.tags[0] ?? textTopics[0] ?? (c.kind === "video" ? "Video" : "Reading");
@@ -233,14 +280,17 @@ export interface RankResult {
 
 /**
  * Scores every candidate and picks `count` greedily: at most one per
- * publisher, and a new topic each time while one is available. Ties break on
- * item ID so ranking is deterministic.
+ * publisher, and a new topic each time while one is available. With room for
+ * two or more, the first pick is the exploration slot: the best piece from an
+ * unproven discovered publisher, if one fits at least EXPLORATION_MIN_FIT.
+ * Ties break on item ID so ranking is deterministic.
  */
 export function rankCandidates(
   candidates: RankCandidate[],
   profile: RankProfile,
-  { now, count = 3, reserve = 6 }: { now: Date; count?: number; reserve?: number },
+  { now, count = 3, reserve = 6, explorationSlots = 1 }: { now: Date; count?: number; reserve?: number; explorationSlots?: number },
 ): RankResult {
+  const exploratory = new Set(candidates.filter(isExploratory).map((c) => c.itemId));
   const scored = candidates
     .map((c) => scoreCandidate(c, profile, now))
     .sort((a, b) => b.score - a.score || (a.itemId < b.itemId ? -1 : 1));
@@ -253,6 +303,12 @@ export function rankCandidates(
     publishers.add(s.publisherId);
     topics.add(s.topic.toLowerCase());
   };
+  if (count >= 2) {
+    for (const s of scored) {
+      if (picks.length >= Math.min(explorationSlots, count - 1)) break;
+      if (exploratory.has(s.itemId) && fitScore(s) >= EXPLORATION_MIN_FIT && !publishers.has(s.publisherId)) take(s);
+    }
+  }
   for (const s of scored) {
     if (picks.length >= count) break;
     if (!publishers.has(s.publisherId) && !topics.has(s.topic.toLowerCase())) take(s);

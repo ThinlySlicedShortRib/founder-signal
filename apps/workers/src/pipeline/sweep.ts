@@ -1,9 +1,12 @@
+import { DISCOVERY_LEAD_HOURS } from "@fs/core";
 import { schema } from "@fs/db";
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
+import { evaluatePublishers } from "../discovery/catalog.ts";
+import { startDueDiscovery } from "../discovery/discover.ts";
 import { sweepLetters } from "../letters/sweep.ts";
 import { logger, type PipelineDeps } from "./deps.ts";
 
-const { contentItem, enrichmentBatch, source, userSource } = schema;
+const { contentItem, enrichmentBatch, publisher, source, userSource } = schema;
 
 /** How long a claimed source is hidden from other sweeps while its fetch runs. */
 const FETCH_LEASE = "15 minutes";
@@ -13,25 +16,31 @@ const BATCH_POLL_MIN_AGE = "3 minutes";
 
 /**
  * Runs every 5 minutes (EventBridge Scheduler): due sources → fetch-source,
- * enrichment batch submission and polling, and letters (due schedules,
- * the watchdog and delivery; see letters/sweep.ts). Overlapping sweeps are
- * safe: everything is claimed with SKIP LOCKED.
+ * enrichment batch submission and polling, discovery for letters due within
+ * a few hours and the publisher catalog pass (§6.3a), and letters (due
+ * schedules, the watchdog and delivery; see letters/sweep.ts). Overlapping
+ * sweeps are safe: everything is claimed with SKIP LOCKED or an
+ * `ON CONFLICT DO NOTHING` insert.
  */
 export async function sweep(deps: PipelineDeps) {
   const { db, queues } = deps;
   const log = logger(deps);
 
-  // Only poll sources someone still follows.
+  // Only poll sources someone still follows, and trusted discovered publishers' feeds (§6.3a.4).
   const followed = db
     .select({ one: sql`1` })
     .from(userSource)
     .where(and(eq(userSource.sourceId, source.id), eq(userSource.blocked, false)));
+  const trusted = db
+    .select({ one: sql`1` })
+    .from(publisher)
+    .where(and(eq(publisher.id, source.publisherId), eq(publisher.origin, "discovered"), eq(publisher.status, "trusted")));
 
   const claimed = await db.execute<{ id: string }>(sql`
     update ${source} set next_fetch_at = now() + interval '${sql.raw(FETCH_LEASE)}'
     where id in (
       select id from ${source}
-      where next_fetch_at <= now() and exists (${followed})
+      where next_fetch_at <= now() and (exists (${followed}) or exists (${trusted}))
       order by next_fetch_at
       limit ${MAX_SOURCES_PER_SWEEP}
       for update skip locked
@@ -64,9 +73,21 @@ export async function sweep(deps: PipelineDeps) {
     batchesPolled = open.length;
   }
 
+  const discoveryStarted = await startDueDiscovery(deps, { leadHours: DISCOVERY_LEAD_HOURS });
+  const catalog = await evaluatePublishers(deps);
+
   const letters = await sweepLetters(deps);
 
-  log("sweep", { sourcesClaimed: claimed.rows.length, enrichSubmitted, batchesPolled, ...letters });
-  return { sourcesClaimed: claimed.rows.length, enrichSubmitted, batchesPolled, ...letters };
+  const result = {
+    sourcesClaimed: claimed.rows.length,
+    enrichSubmitted,
+    batchesPolled,
+    discoveryStarted,
+    publishersEvaluated: catalog.evaluated,
+    publishersChanged: catalog.changed,
+    ...letters,
+  };
+  log("sweep", result);
+  return result;
 }
 

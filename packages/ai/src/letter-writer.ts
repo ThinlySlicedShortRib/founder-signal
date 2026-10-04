@@ -14,7 +14,7 @@ import { ClaudeCliError, jsonSchemaOf, runClaudeCli } from "./claude-cli.ts";
 
 export const LETTER_WRITER_MODEL = "claude-sonnet-5-5";
 /** Bump when the prompt or schema changes; stored on each letter so it can be reproduced. */
-export const LETTER_PROMPT_VERSION = "letter-v1";
+export const LETTER_PROMPT_VERSION = "letter-v2";
 
 export interface LetterWriter {
   /** "anthropic", "claude-cli" or "fallback". */
@@ -58,7 +58,7 @@ For the letter:
 - intro: one line for the cover, like "Three things I picked for you. 33 minutes in all." Use only the piece count and total minutes you're given.
 
 For every piece, in the order given:
-- why_picked: one short sentence connecting the piece to something the reader told us (their role, what they're into lately, their topics, what they asked for more of). Quote their own words in “curly quotes” when it fits. Use the "picked because" signals. If nothing specific connects it, return null rather than something generic.
+- why_picked: one short sentence connecting the piece to something the reader told us (their role, what they're into lately, their topics, what they asked for more of). Quote their own words in “curly quotes” when it fits. Use the "picked because" signals. If nothing specific connects it, return null rather than something generic. A "discovered" signal means the piece was found by searching the web for this reader, from a publication they don't follow; its note is the search's, not the piece's, so say it's a new find and tie it to what they're into, but never repeat facts or numbers from the note.
 - summary: one or two sentences, under 220 characters, on what the piece actually says, written only from the passages you cite in evidence_ids. Every number, name and quotation must appear in those passages. Don't hype, don't add opinions, don't address the reader.
 - evidence_ids: the IDs of the passages the summary rests on (at least one).
 - tag: one of the piece's allowed tags if it applies, otherwise null. Never invent a tag.

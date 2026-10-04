@@ -77,6 +77,7 @@ function createWorld(over: Partial<PipelineDeps> = {}) {
     authorEnricher: null,
     stockPhotos: null,
     images: null,
+    discovery: null,
     politenessMs: 0,
     log: () => {},
     ...over,

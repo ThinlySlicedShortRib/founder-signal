@@ -6,6 +6,7 @@ export * from "./schedule.ts";
 export * from "./activity.ts";
 export * from "./authors.ts";
 export * from "./chapters.ts";
+export * from "./discovery.ts";
 export * from "./feedback-codes.ts";
 export * from "./letter-copy.ts";
 export * from "./postscript.ts";

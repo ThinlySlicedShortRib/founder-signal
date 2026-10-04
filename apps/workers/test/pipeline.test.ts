@@ -124,6 +124,7 @@ function createWorld() {
     authorEnricher: null,
     stockPhotos: null,
     images: null,
+    discovery: null,
     politenessMs: 0,
     log: () => {},
   };

@@ -2,6 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  autodetectFeed,
   buildSections,
   canonicalizeUrl,
   createSafeFetcher,
@@ -413,5 +414,48 @@ describe("lead images and video details", () => {
     expect(parseIsoDuration("P1DT2M")).toBe(86_520);
     expect(parseIsoDuration("PT")).toBeNull();
     expect(parseIsoDuration(undefined)).toBeNull();
+  });
+});
+
+describe("autodetectFeed", () => {
+  const plain = "<html><head><title>Post</title></head><body><p>Hi</p></body></html>";
+  const fetcher = (pages: Record<string, { contentType: string; body: string }>) => {
+    const requested: string[] = [];
+    const fetch: Fetcher = async (url) => {
+      requested.push(url);
+      const page = pages[url];
+      if (!page) return { status: 404, url, contentType: "text/html", headers: new Headers(), body: "" };
+      return { status: 200, url, contentType: page.contentType, headers: new Headers(), body: page.body };
+    };
+    return { fetch, requested };
+  };
+
+  it("uses the feed the page advertises", async () => {
+    const { fetch, requested } = fetcher({ "https://example.com/feed.xml": { contentType: "application/rss+xml", body: rssFeed } });
+    const found = await autodetectFeed({ body: articleHtml(), url: "https://example.com/posts/a" }, fetch);
+    expect(found).toEqual({ feedUrl: "https://example.com/feed.xml", title: "Example Blog" });
+    expect(requested).toEqual(["https://example.com/feed.xml"]);
+  });
+
+  it("falls back to the homepage's feed, then common paths, within the probe cap", async () => {
+    const viaHome = fetcher({
+      "https://example.com/": { contentType: "text/html", body: articleHtml() },
+      "https://example.com/feed.xml": { contentType: "application/rss+xml", body: rssFeed },
+    });
+    expect((await autodetectFeed({ body: plain, url: "https://example.com/posts/a" }, viaHome.fetch))?.feedUrl).toBe("https://example.com/feed.xml");
+
+    const viaPath = fetcher({ "https://example.com/rss": { contentType: "application/rss+xml", body: rssFeed } });
+    expect((await autodetectFeed({ body: plain, url: "https://example.com/posts/a" }, viaPath.fetch))?.feedUrl).toBe("https://example.com/rss");
+
+    const none = fetcher({});
+    expect(await autodetectFeed({ body: plain, url: "https://example.com/posts/a" }, none.fetch)).toBeNull();
+    expect(none.requested.length).toBeLessThanOrEqual(6);
+  });
+
+  it("never probes another site", async () => {
+    const html = '<html><head><link rel="alternate" type="application/rss+xml" href="https://elsewhere.test/feed.xml"></head></html>';
+    const { fetch, requested } = fetcher({});
+    await autodetectFeed({ body: html, url: "https://example.com/posts/a" }, fetch);
+    expect(requested.every((u) => u.startsWith("https://example.com/"))).toBe(true);
   });
 });

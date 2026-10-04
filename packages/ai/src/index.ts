@@ -1,5 +1,6 @@
 export * from "./author-enrichment.ts";
 export * from "./claude-cli.ts";
+export * from "./discovery.ts";
 export * from "./embeddings.ts";
 export * from "./enrichment.ts";
 export * from "./letter-writer.ts";

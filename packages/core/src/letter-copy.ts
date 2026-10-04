@@ -205,6 +205,9 @@ export function fallbackWhyPicked(signals: WriterPiece["signals"]): string | nul
     }
   }
   if (signals.some((s) => s.kind === "source_mode" && s.detail === "follow_closely")) return "From a source you follow closely.";
+  // The search's reason is model text from search results, not the user's words or the piece's, so it
+  // isn't repeated here: a number in it would fail verification. It stays in the pick signals.
+  if (signals.some((s) => s.kind === "discovered")) return "A new source, found by searching the web for what you're into.";
   return null;
 }
 

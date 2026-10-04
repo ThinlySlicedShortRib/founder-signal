@@ -5,6 +5,7 @@ import {
   authorNeedsCheck,
   cleanAuthorName,
   briefText,
+  DISCOVERED_CANDIDATE_DAYS,
   checkLetterCopy,
   checkPieceCopy,
   fallbackHeadline,
@@ -15,6 +16,7 @@ import {
   leaningOptions,
   nextSubstitute,
   type PieceCopy,
+  publisherEvidence,
   type RankCandidate,
   rankCandidates,
   type ScoredCandidate,
@@ -26,7 +28,7 @@ import {
 } from "@fs/core";
 import { schema } from "@fs/db";
 import type { DraftCopy, GenerationMeta, LetterItemSnapshot, RankedEntry } from "@fs/db/schema";
-import { and, desc, eq, gt, inArray, isNotNull, ne, notExists, or, sql } from "drizzle-orm";
+import { and, desc, eq, exists, gt, inArray, isNotNull, ne, notExists, or, sql } from "drizzle-orm";
 import { logger, type PipelineDeps } from "../pipeline/deps.ts";
 import type { Message } from "../pipeline/messages.ts";
 import { loadParagraphs, loadUserContext, type UserContext } from "./context.ts";
@@ -42,7 +44,7 @@ import {
   releaseStep,
 } from "./state.ts";
 
-const { author, contentItem, letter, letterItem, publisher, review, source, userSource } = schema;
+const { author, contentItem, letter, letterItem, publisher, review, source, userDiscovery, userPublisher, userSource } = schema;
 
 /** Items older than this aren't news to anyone. */
 const CANDIDATE_WINDOW_DAYS = 60;
@@ -85,28 +87,85 @@ export async function letterStep(deps: PipelineDeps, { letterId, expectedStatus 
 // ── collect ─────────────────────────────────────────────────────────────────
 
 /**
- * Candidates (§6.2): extracted or enriched items from the user's followed,
- * non-blocked sources, minus duplicates, thin or SEO filler, blocked
- * publishers, anything already in one of their letters and anything they've
- * reviewed. Videos only reach `extracted` with a transcript, so a video
- * without one ("saved, no skim", §6.3) is never a candidate.
+ * Candidates (§6.2) from three places:
+ * - the user's followed, non-blocked sources (published in the last
+ *   CANDIDATE_WINDOW_DAYS);
+ * - pages discovery found for them (§6.3a), found in the last
+ *   DISCOVERED_CANDIDATE_DAYS whatever their publish date, since good finds
+ *   are often evergreen; a found page that turned out to be a duplicate
+ *   counts as the original;
+ * - new items from trusted discovered publishers' feeds, for users discovery
+ *   has shown that publisher to.
+ * Minus duplicates, thin or SEO filler, publishers blocked globally or by
+ * this user, sources they blocked, anything already in one of their letters
+ * and anything they've reviewed. Videos only reach `extracted` with a
+ * transcript, so a video without one ("saved, no skim", §6.3) is never a
+ * candidate.
  */
 async function collect(deps: PipelineDeps, current: Letter) {
   const { db } = deps;
   const userId = current.userId;
+
+  const recent = gt(sql`coalesce(${contentItem.publishedAt}, ${contentItem.createdAt})`, sql`now() - make_interval(days => ${CANDIDATE_WINDOW_DAYS})`);
+  const followed = and(
+    recent,
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(userSource)
+        .where(and(eq(userSource.sourceId, contentItem.sourceId), eq(userSource.userId, userId), eq(userSource.blocked, false))),
+    ),
+  );
+  const discovered = exists(
+    db
+      .select({ one: sql`1` })
+      .from(userDiscovery)
+      .innerJoin(sql`${contentItem} as found`, sql`found.id = ${userDiscovery.itemId}`)
+      .where(
+        and(
+          eq(userDiscovery.userId, userId),
+          sql`(found.id = ${contentItem.id} or found.duplicate_of_id = ${contentItem.id})`,
+          gt(userDiscovery.foundAt, sql`now() - make_interval(days => ${DISCOVERED_CANDIDATE_DAYS})`),
+        ),
+      ),
+  );
+  const trustedFeed = and(
+    recent,
+    eq(publisher.origin, "discovered"),
+    eq(publisher.status, "trusted"),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(userDiscovery)
+        .innerJoin(sql`${contentItem} as found`, sql`found.id = ${userDiscovery.itemId}`)
+        .where(and(eq(userDiscovery.userId, userId), sql`found.publisher_id = ${contentItem.publisherId}`)),
+    ),
+  );
+
   const rows = await db
     .select({ id: contentItem.id })
     .from(contentItem)
     .innerJoin(publisher, eq(publisher.id, contentItem.publisherId))
-    .innerJoin(userSource, and(eq(userSource.sourceId, contentItem.sourceId), eq(userSource.userId, userId), eq(userSource.blocked, false)))
     .where(
       and(
+        or(followed, discovered, trustedFeed),
         inArray(contentItem.status, ["extracted", "enriched"]),
         sql`${contentItem.duplicateOfId} is null`,
         sql`${contentItem.title} is not null`,
         sql`coalesce(${contentItem.qualityLabel}, 'substantive') not in ('thin', 'seo_filler')`,
         ne(publisher.status, "blocked"),
-        gt(sql`coalesce(${contentItem.publishedAt}, ${contentItem.createdAt})`, sql`now() - make_interval(days => ${CANDIDATE_WINDOW_DAYS})`),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(userPublisher)
+            .where(and(eq(userPublisher.userId, userId), eq(userPublisher.publisherId, contentItem.publisherId), eq(userPublisher.blocked, true))),
+        ),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(userSource)
+            .where(and(eq(userSource.sourceId, contentItem.sourceId), eq(userSource.userId, userId), eq(userSource.blocked, true))),
+        ),
         notExists(
           db
             .select({ one: sql`1` })
@@ -117,7 +176,11 @@ async function collect(deps: PipelineDeps, current: Letter) {
         notExists(db.select({ one: sql`1` }).from(review).where(and(eq(review.itemId, contentItem.id), eq(review.userId, userId)))),
       ),
     )
-    .orderBy(sql`coalesce(${contentItem.publishedAt}, ${contentItem.createdAt}) desc`)
+    // Newest first; a discovered page counts as new when it was found.
+    .orderBy(
+      sql`greatest(coalesce(${contentItem.publishedAt}, ${contentItem.createdAt}),
+        coalesce((select max(${userDiscovery.foundAt}) from ${userDiscovery} where ${userDiscovery.userId} = ${userId} and ${userDiscovery.itemId} = ${contentItem.id}), '-infinity'::timestamptz)) desc`,
+    )
     .limit(MAX_CANDIDATES);
 
   const candidates = [...new Set(rows.map((r) => r.id))];
@@ -141,9 +204,14 @@ async function rank(deps: PipelineDeps, current: Letter) {
     ? await db
         .select({
           item: contentItem,
-          publisherName: publisher.name,
+          publisher,
           mode: userSource.mode,
           excerpt: sql<string | null>`(select excerpt from content_version where item_id = ${contentItem.id} order by fetched_at desc limit 1)`,
+          // Discovery's reason, from the user's first finding of this page (or of a duplicate of it).
+          discoveredReason: sql<string | null>`(
+            select ${userDiscovery.reason} from ${userDiscovery} join ${contentItem} found on found.id = ${userDiscovery.itemId}
+            where ${userDiscovery.userId} = ${current.userId} and (found.id = ${contentItem.id} or found.duplicate_of_id = ${contentItem.id})
+            order by ${userDiscovery.foundAt} limit 1)`,
         })
         .from(contentItem)
         .innerJoin(publisher, eq(publisher.id, contentItem.publisherId))
@@ -162,13 +230,16 @@ async function rank(deps: PipelineDeps, current: Letter) {
       tags: r.item.tags ?? [],
       excerpt: r.excerpt,
       publisherId: r.item.publisherId,
-      publisherName: r.publisherName,
+      publisherName: r.publisher.name,
       authorKey: r.item.authorKey,
       sourceMode: r.mode,
       publishedAt: r.item.publishedAt,
       quality: r.item.qualityLabel,
       depth: r.item.depth,
       minutes: minutesOf(r.item),
+      discoveredReason: r.discoveredReason,
+      // Explore vs exploit (§6.3a.5) is for publishers discovery found and the user doesn't follow.
+      catalog: r.publisher.origin === "discovered" && !r.mode ? { status: r.publisher.status, ...publisherEvidence(r.publisher) } : null,
     });
   }
 
@@ -178,7 +249,14 @@ async function rank(deps: PipelineDeps, current: Letter) {
   return { status: "ranked" as const, picks: picks.length, reserve: reserve.length };
 }
 
-const toEntry = (s: ScoredCandidate): RankedEntry => ({ itemId: s.itemId, score: s.score, topic: s.topic, signals: s.signals.filter((x) => x.weight > 0).slice(0, 4) });
+/** A pick's top positive signals; a `discovered` signal is always kept, so the letter can say where it came from. */
+function toEntry(s: ScoredCandidate): RankedEntry {
+  const positive = s.signals.filter((x) => x.weight > 0);
+  const top = positive.slice(0, 4);
+  const found = positive.find((x) => x.kind === "discovered");
+  if (found && !top.includes(found)) top.push(found);
+  return { itemId: s.itemId, score: s.score, topic: s.topic, signals: top };
+}
 
 function minutesOf(item: { type: string; durationSeconds: number | null; readTimeMinutes: number | null }): number {
   if (item.type === "video" && item.durationSeconds) return Math.max(1, Math.round(item.durationSeconds / 60));
@@ -246,6 +324,9 @@ async function writerPieces(deps: PipelineDeps, userId: string, entries: RankedE
         select 1 from ${letterItem} join ${letter} on ${letter.id} = ${letterItem.letterId}
         join ${contentItem} ci2 on ci2.id = ${letterItem.itemId}
         where ${letter.userId} = ${userId} and ci2.publisher_id = ${publisher.id} and ${letter.deliveredAt} is not null)`,
+      discovered: sql<boolean>`exists(
+        select 1 from ${userDiscovery} join ${contentItem} found on found.id = ${userDiscovery.itemId}
+        where ${userDiscovery.userId} = ${userId} and (found.id = ${contentItem.id} or found.duplicate_of_id = ${contentItem.id}))`,
     })
     .from(contentItem)
     .innerJoin(publisher, eq(publisher.id, contentItem.publisherId))
@@ -263,8 +344,10 @@ async function writerPieces(deps: PipelineDeps, userId: string, entries: RankedE
     if (!passages.length) continue;
     const minutes = minutesOf(r.item);
     const followedAt = r.followedAt ? new Date(r.followedAt) : null;
+    const newlyFollowed = followedAt && now.getTime() - followedAt.getTime() < NEW_SOURCE_DAYS * 86_400_000;
     const allowedTags = [
-      ...(!r.seenBefore && followedAt && now.getTime() - followedAt.getTime() < NEW_SOURCE_DAYS * 86_400_000 ? ["New source"] : []),
+      // A recently followed source, or a publisher discovery found, the first time it's in a letter.
+      ...(!r.seenBefore && (newlyFollowed || r.discovered) ? ["New source"] : []),
       ...(minutes <= 5 ? ["Quick read"] : []),
       ...(minutes >= 20 || r.item.depth === "advanced" ? ["Deep dive"] : []),
     ];
@@ -361,16 +444,49 @@ async function verifyAndLock(deps: PipelineDeps, current: Letter) {
   }
 
   const short = kept.length < ctx.itemCount;
+  const verification = {
+    passed: kept.map((k) => k.publisherId),
+    failed: generation.rejected.map((r) => publisherOf.get(r.itemId)).filter((id): id is string => !!id),
+  };
   if (!kept.length || (short && ctx.shortLetterPolicy === "skip")) {
-    await db
-      .update(letter)
-      .set({ status: "skipped_no_candidates", failureReason: kept.length ? "short letter skipped by policy" : "nothing passed verification", generationMeta: generation, watchdogAt: null })
-      .where(and(eq(letter.id, current.id), eq(letter.status, "verifying")));
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(letter)
+        .set({ status: "skipped_no_candidates", failureReason: kept.length ? "short letter skipped by policy" : "nothing passed verification", generationMeta: generation, watchdogAt: null })
+        .where(and(eq(letter.id, current.id), eq(letter.status, "verifying")))
+        .returning({ id: letter.id });
+      if (row) await recordVerification(tx, verification);
+    });
     return { status: "skipped_no_candidates" as const, kept: kept.length };
   }
 
-  await lock(deps, current, { kept, drafts, pieceById, generation, short, ctx, brief, unchanged: kept.length === picks.length && kept.every((k, i) => k.itemId === picks[i]) });
+  await lock(deps, current, {
+    kept,
+    drafts,
+    pieceById,
+    generation,
+    short,
+    ctx,
+    brief,
+    unchanged: kept.length === picks.length && kept.every((k, i) => k.itemId === picks[i]),
+    verification,
+  });
   return { status: "ready" as const, pieces: kept.length, short, rejected: generation.rejected.length };
+}
+
+/**
+ * Publishers' verification record (§6.3a.4): a pass for each piece that went
+ * into the letter, a failure for each that was rejected. Written once, with
+ * the letter's own status change.
+ */
+async function recordVerification(tx: Pick<PipelineDeps["db"], "update">, { passed, failed }: { passed: string[]; failed: string[] }) {
+  const tally = (ids: string[]) => ids.reduce((m, id) => m.set(id, (m.get(id) ?? 0) + 1), new Map<string, number>());
+  for (const [id, n] of tally(passed)) {
+    await tx.update(publisher).set({ verificationsPassed: sql`${publisher.verificationsPassed} + ${n}` }).where(eq(publisher.id, id));
+  }
+  for (const [id, n] of tally(failed)) {
+    await tx.update(publisher).set({ verificationsFailed: sql`${publisher.verificationsFailed} + ${n}` }).where(eq(publisher.id, id));
+  }
 }
 
 async function publishersOf(deps: PipelineDeps, itemIds: string[]) {
@@ -391,6 +507,7 @@ async function lock(
     ctx,
     brief,
     unchanged,
+    verification,
   }: {
     kept: ScoredCandidate[];
     drafts: Record<string, PieceCopy>;
@@ -400,6 +517,7 @@ async function lock(
     ctx: UserContext;
     brief: WriterBrief;
     unchanged: boolean;
+    verification: { passed: string[]; failed: string[] };
   },
 ) {
   const { db } = deps;
@@ -505,6 +623,7 @@ async function lock(
     await tx.delete(letterItem).where(eq(letterItem.letterId, current.id));
     await tx.insert(letterItem).values(items);
     if (authorRows.length) await tx.insert(author).values(authorRows).onConflictDoNothing({ target: author.key });
+    await recordVerification(tx, verification);
     return true;
   });
   if (!locked) return;

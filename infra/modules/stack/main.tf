@@ -165,6 +165,12 @@ module "content" {
   force_destroy = var.content_force_destroy
 }
 
+module "images" {
+  source        = "../image_storage"
+  bucket_name   = "${local.name}-images-${data.aws_caller_identity.current.account_id}"
+  force_destroy = var.content_force_destroy
+}
+
 locals {
   # Queue consumers. visibility = 6x the function timeout (AWS guidance for SQS triggers).
   workers = {
@@ -179,6 +185,7 @@ locals {
       secrets     = [module.database.master_secret_arn]
       content     = []
       bedrock     = false
+      images      = false
     }
     fetch-source = {
       description = "Lists a source's entries and queues new items for extraction"
@@ -191,6 +198,7 @@ locals {
       secrets     = [module.database.master_secret_arn, module.secrets.youtube_api_key_secret_arn]
       content     = []
       bedrock     = false
+      images      = false
     }
     extract = {
       description = "Fetches and extracts one item, applies the rights gate"
@@ -208,6 +216,7 @@ locals {
       ]
       content = ["s3:PutObject"]
       bedrock = false
+      images  = false
     }
     enrich = {
       description = "Submits and applies Message Batches; computes embeddings"
@@ -220,6 +229,7 @@ locals {
       secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
       content     = ["s3:GetObject"]
       bedrock     = true
+      images      = false
     }
     # M3: the letter engine (build plan §6.2). One message per step; steps claim the letter with a
     # compare-and-set on its status, so duplicates are harmless.
@@ -239,6 +249,7 @@ locals {
       ]
       content = ["s3:GetObject"]
       bedrock = false
+      images  = true
     }
     author = {
       description = "Looks up an author card with Claude and web search, once per ~90 days"
@@ -252,6 +263,7 @@ locals {
       secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
       content     = []
       bedrock     = false
+      images      = false
     }
     # Open web discovery (build plan §6.3a): a few hours before each letter, queries (Haiku 4.5) and
     # web searches (Sonnet 5.5), capped per letter; found pages go to extract like any other item.
@@ -267,6 +279,7 @@ locals {
       secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
       content     = []
       bedrock     = false
+      images      = false
     }
   }
 
@@ -283,6 +296,8 @@ locals {
     QUEUE_URL_DISCOVER             = module.queues.urls["discover"]
     UNSPLASH_ACCESS_KEY_SECRET_ARN = module.secrets.unsplash_access_key_secret_arn
     CONTENT_BUCKET                 = module.content.bucket_name
+    IMAGES_BUCKET                  = module.images.bucket_name
+    IMAGES_BASE_URL                = module.images.base_url
     SUPADATA_API_KEY_SECRET_ARN    = module.secrets.supadata_api_key_secret_arn
     ENRICHMENT                     = var.enrichment_enabled ? "anthropic" : "none"
     DISCOVERY                      = var.discovery_enabled ? "anthropic" : "none"
@@ -332,6 +347,30 @@ data "aws_iam_policy_document" "worker" {
       sid       = "ContentBucket"
       actions   = each.value.content
       resources = ["${module.content.bucket_arn}/items/*"]
+    }
+  }
+
+  # Article image copies (letter-step at lock). ListBucket so a missing copy is a 404, not a 403.
+  dynamic "statement" {
+    for_each = each.value.images ? [1] : []
+    content {
+      sid       = "WriteImages"
+      actions   = ["s3:GetObject", "s3:PutObject"]
+      resources = ["${module.images.bucket_arn}/images/*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = each.value.images ? [1] : []
+    content {
+      sid       = "ListImages"
+      actions   = ["s3:ListBucket"]
+      resources = [module.images.bucket_arn]
+      condition {
+        test     = "StringLike"
+        variable = "s3:prefix"
+        values   = ["images/*"]
+      }
     }
   }
 

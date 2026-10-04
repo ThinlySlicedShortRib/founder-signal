@@ -57,3 +57,11 @@ output "youtube_api_key_secret_arn" {
 output "supadata_api_key_secret_arn" {
   value = module.secrets.supadata_api_key_secret_arn
 }
+
+output "images_bucket" {
+  value = module.images.bucket_name
+}
+
+output "images_base_url" {
+  value = module.images.base_url
+}

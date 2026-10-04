@@ -15,6 +15,7 @@ Each environment is `envs/<env>` → `modules/stack`, which wires the modules be
 | `modules/observability` | `/founder-signal/<env>/mobile` log group, `MobileErrors` metric + alarm, alerts SNS topic | Cloud Logging bucket + log-based metric + alerting policy |
 | `modules/queues` | One SQS queue + DLQ per pipeline step (`fetch-source`, `extract`, `enrich`, `letter-step`, `author`), DLQ-depth alarms → alerts topic | Cloud Tasks queues / Pub/Sub + dead-letter topics |
 | `modules/content_storage` | Private, KMS-encrypted, TLS-only bucket for extracted blocks and transcripts | GCS bucket with CMEK |
+| `modules/image_storage` | Private bucket for copies of articles' lead images, served by a CloudFront distribution through origin access control; only `letter-step` writes `images/*` | GCS bucket behind Cloud CDN |
 | `modules/scheduler` | EventBridge Scheduler `rate(5 minutes)` → `sweep` | Cloud Scheduler |
 | `modules/stack` | Wires all of the above for one environment, plus the `migrate` Lambda, the ingestion workers (`sweep`, `fetch-source`, `extract`, `enrich`) and the letter engine (`letter-step`, `author`) | — |
 

@@ -5,6 +5,7 @@ import {
   authorNeedsCheck,
   cleanAuthorName,
   briefText,
+  CANDIDATE_WINDOW_DAYS,
   DISCOVERED_CANDIDATE_DAYS,
   checkLetterCopy,
   checkPieceCopy,
@@ -46,8 +47,6 @@ import {
 
 const { author, contentItem, letter, letterItem, publisher, review, source, userDiscovery, userPublisher, userSource } = schema;
 
-/** Items older than this aren't news to anyone. */
-const CANDIDATE_WINDOW_DAYS = 60;
 const MAX_CANDIDATES = 300;
 /** Reserve pieces the writer also writes copy for, so a substitution needs no second call. */
 const RESERVE_WITH_COPY = 3;

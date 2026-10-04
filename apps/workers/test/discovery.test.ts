@@ -1,12 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { type DiscoveryQueryGenerator, fallbackLetterWriter, type FoundPage, type SearchRequest, type WebSearcher } from "@fs/ai";
-import { type DiscoveryBrief, DISCOVERY_LEAD_HOURS, type GeneratedQuery, localDateOf, MAX_QUERIES_PER_LETTER, normalizeQuery } from "@fs/core";
+import {
+  type DiscoveryBrief,
+  DISCOVERY_LEAD_HOURS,
+  FIRST_LETTER_OCCURRENCE,
+  type GeneratedQuery,
+  HELD_LETTER_EXTRACTION_WAIT_MINUTES,
+  HELD_LETTER_MAX_MINUTES,
+  localDateOf,
+  MAX_QUERIES_PER_LETTER,
+  normalizeQuery,
+} from "@fs/core";
 import { addUserSource, createDb, type NewSource, schema } from "@fs/db";
 import type { FetchResult } from "@fs/ingest";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { evaluatePublishers, refreshUserPublisherBlocks } from "../src/discovery/catalog.ts";
 import { discover, startDueDiscovery } from "../src/discovery/discover.ts";
+import { releaseHeldLetters } from "../src/letters/held.ts";
 import { contentKeys, memoryContentStore } from "../src/lib/content-store.ts";
 import { drain } from "../src/lib/local.ts";
 import { memoryQueues } from "../src/lib/queues.ts";
@@ -40,7 +51,10 @@ afterAll(() => pool.end());
 beforeEach(async () => {
   await db.update(schedule).set({ nextRunAt: null });
   await db.update(source).set({ nextFetchAt: null });
-  await db.update(letter).set({ watchdogAt: null }).where(sql`${letter.status} in ('scheduled', 'collecting', 'ranking', 'generating', 'verifying')`);
+  await db
+    .update(letter)
+    .set({ watchdogAt: null, awaitingDiscovery: false })
+    .where(sql`${letter.status} in ('scheduled', 'collecting', 'ranking', 'generating', 'verifying')`);
   // The catalog pass would otherwise re-evaluate other tests' publishers mid-test.
   await db.update(publisher).set({ evaluatedAt: sql`now()` });
 });
@@ -379,6 +393,147 @@ describe("discovery runs", () => {
       .where(and(eq(discoveryQuery.userId, userId), sql`${discoveryQuery.ranAt} is not null`));
     const third = await runDiscoveryNow(w, userId);
     expect((await queriesOf(third.run.id)).map((x) => x.status)).toEqual(["cached", "skipped_stale"]);
+  });
+});
+
+// ── Letters held for discovery (the first letter, some test letters) ────────
+
+/** What the API does when onboarding is finished: the letter, held, and a run with the same occurrence ID. */
+async function holdLetter(userId: string, occurrenceId: string = FIRST_LETTER_OCCURRENCE) {
+  const now = new Date();
+  const [l] = await db
+    .insert(letter)
+    .values({
+      userId,
+      occurrenceId,
+      scheduledFor: now,
+      localDate: localDateOf(now, "UTC"),
+      awaitingDiscovery: true,
+      watchdogAt: new Date(now.getTime() + HELD_LETTER_MAX_MINUTES * 60_000),
+    })
+    .returning();
+  const [run] = await db.insert(discoveryRun).values({ userId, occurrenceId, letterDueAt: now }).returning();
+  return { letter: l!, run: run! };
+}
+
+const letterRow = async (id: string) => (await db.select().from(letter).where(eq(letter.id, id)))[0]!;
+const runRow = async (id: string) => (await db.select().from(discoveryRun).where(eq(discoveryRun.id, id)))[0]!;
+const queued = (w: ReturnType<typeof createWorld>) => w.mq.pending.map((m) => m.queue);
+
+describe("letters held for discovery", () => {
+  it("first letter: the sweep starts the run, the run finds a page, the letter waits for its extraction, then goes out with it", async () => {
+    const host = site("first");
+    const url = `https://${host}/posts/first-ten-customers`;
+    const query = uniq("first ten customers case study");
+    const w = createWorld({ queries: [q(query)], answers: { [query]: [{ url, title: null, reason: "How a two-person startup found its first ten customers" }] } });
+    // Its own words, so it isn't a near-duplicate of other tests' pages.
+    const paragraphs = Array.from({ length: 6 }, () => `<p>${Array.from({ length: 40 }, () => randomUUID().slice(0, 6)).join(" ")}.</p>`).join("");
+    w.web.set(url, {
+      body: `<!doctype html><html lang="en"><head><title>Finding our first ten customers</title></head><body><article><h1>Finding our first ten customers</h1>${paragraphs}</article></body></html>`,
+    });
+    // A brand-new user: no sources, no schedule.
+    const userId = await newUser();
+    const held = await holdLetter(userId);
+
+    // Nothing to send yet: the sweep only starts the run (locally the API can't reach the queues).
+    expect(await sweepLetters(w.deps)).toMatchObject({ lettersReleased: 0, lettersRequeued: 0 });
+    expect(queued(w)).toEqual(["discover"]);
+
+    // The run ends having queued its page for extraction: the letter keeps waiting.
+    const message = w.mq.take()!;
+    expect(await discover(w.deps, message.body as { runId: string })).toMatchObject({ status: "done", linked: 1, queued: 1 });
+    expect(queued(w)).toEqual(["extract"]);
+    expect(await letterRow(held.letter.id)).toMatchObject({ status: "scheduled", awaitingDiscovery: true });
+    expect(await releaseHeldLetters(w.deps)).toBe(0);
+
+    // Extracting it releases the letter, which then runs through and goes out with that page.
+    await drain(w.deps, w.mq);
+    const l = await letterRow(held.letter.id);
+    expect(l).toMatchObject({ status: "short_sent", awaitingDiscovery: false, isTest: false, number: 1 });
+    const [link] = await linksOf(userId);
+    expect(l.work.candidates).toEqual([link!.itemId]);
+    const pieces = await db.select().from(letterItem).where(eq(letterItem.letterId, l.id));
+    expect(pieces.map((p) => p.snapshot.title)).toEqual(["Finding our first ten customers"]);
+    expect((await runRow(held.run.id)).status).toBe("done");
+  });
+
+  it("starts the letter as soon as the run ends when it found nothing new to extract", async () => {
+    const w = createWorld({ queries: [q(uniq("nothing out there"))] });
+    const userId = await newUser();
+    const held = await holdLetter(userId, `test#${randomUUID()}`);
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+    // Nothing to pick from, so it ends empty rather than waiting.
+    expect(await letterRow(held.letter.id)).toMatchObject({ status: "skipped_no_candidates", awaitingDiscovery: false, failureReason: "no candidates" });
+  });
+
+  it("gives a run a letter waits on one attempt: if it throws, the run fails and the letter goes ahead", async () => {
+    const w = createWorld({ queries: [q(uniq("anything"))] });
+    // The worker crashes partway through the run.
+    Object.defineProperty(w.deps.discovery!.queries, "method", {
+      get() {
+        throw new Error("boom");
+      },
+    });
+    const userId = await newUser();
+    const held = await holdLetter(userId);
+    expect(await discover(w.deps, { runId: held.run.id })).toEqual({ status: "failed" });
+    expect(await runRow(held.run.id)).toMatchObject({ status: "failed", error: "boom" });
+    expect((await runRow(held.run.id)).finishedAt).not.toBeNull();
+    expect(await letterRow(held.letter.id)).toMatchObject({ status: "scheduled", awaitingDiscovery: false });
+    expect(queued(w)).toEqual(["letter-step"]);
+  });
+
+  it("with discovery off, fails the run and starts the letter", async () => {
+    const w = createWorld({ discovery: false });
+    const userId = await newUser();
+    const held = await holdLetter(userId);
+    expect(await sweepLetters(w.deps)).toMatchObject({ lettersReleased: 1 });
+    expect(await runRow(held.run.id)).toMatchObject({ status: "failed", error: "discovery is off" });
+    expect(queued(w)).toEqual(["letter-step"]);
+  });
+
+  it("waits for found pages to be extracted, but only for a few minutes after the run ends", async () => {
+    const w = createWorld();
+    const userId = await newUser();
+    const held = await holdLetter(userId);
+    // The run is done; one page it linked is still waiting for extraction.
+    const host = site("slow");
+    const [pub] = await db.insert(publisher).values({ key: host, name: host, origin: "discovered" }).returning();
+    const [item] = await db.insert(contentItem).values({ canonicalUrl: `https://${host}/slow`, type: "article", publisherId: pub!.id }).returning();
+    const [qry] = await db
+      .insert(discoveryQuery)
+      .values({ runId: held.run.id, position: 0, userId, queryText: "slow", normalizedQuery: "slow", origin: "topic", inputsHash: "h", method: "fake", promptVersion: "t", status: "searched" })
+      .returning();
+    await db.insert(userDiscovery).values({ userId, itemId: item!.id, queryId: qry!.id, reason: "Slow to load" });
+    await db.update(discoveryRun).set({ status: "done", finishedAt: new Date() }).where(eq(discoveryRun.id, held.run.id));
+
+    expect(await releaseHeldLetters(w.deps)).toBe(0);
+    await db
+      .update(discoveryRun)
+      .set({ finishedAt: new Date(Date.now() - (HELD_LETTER_EXTRACTION_WAIT_MINUTES + 1) * 60_000) })
+      .where(eq(discoveryRun.id, held.run.id));
+    expect(await releaseHeldLetters(w.deps)).toBe(1);
+    expect(queued(w)).toEqual(["letter-step"]);
+  });
+
+  it("backstop: the watchdog starts a letter whose run is stuck, once its time is up", async () => {
+    const w = createWorld();
+    const userId = await newUser();
+    const held = await holdLetter(userId);
+    // A worker claimed the run and died.
+    await db.update(discoveryRun).set({ status: "running", startedAt: new Date() }).where(eq(discoveryRun.id, held.run.id));
+
+    expect(await sweepLetters(w.deps)).toMatchObject({ lettersReleased: 0, lettersRequeued: 0 });
+    expect(queued(w)).toEqual([]);
+
+    await db.update(letter).set({ watchdogAt: new Date(Date.now() - 1000) }).where(eq(letter.id, held.letter.id));
+    expect(await sweepLetters(w.deps)).toMatchObject({ lettersReleased: 1, lettersRequeued: 0 });
+    expect(await letterRow(held.letter.id)).toMatchObject({ status: "scheduled", awaitingDiscovery: false });
+    expect(queued(w)).toEqual(["letter-step"]);
+    await drain(w.deps, w.mq);
+    // It went ahead with what there was (nothing, for a new user).
+    expect((await letterRow(held.letter.id)).status).toBe("skipped_no_candidates");
   });
 });
 

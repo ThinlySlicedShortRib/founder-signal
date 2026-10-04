@@ -22,7 +22,16 @@ export function createTestApp({
   profileImporter = null,
   reader = null,
   withQueue = false,
-}: { corsOrigins?: string[]; devSignIn?: boolean; profileImporter?: ProfileImporter | null; reader?: ReaderWriter | null; withQueue?: boolean } = {}) {
+  discovery = false,
+}: {
+  corsOrigins?: string[];
+  devSignIn?: boolean;
+  profileImporter?: ProfileImporter | null;
+  reader?: ReaderWriter | null;
+  withQueue?: boolean;
+  /** Discovery switched on (off by default, like DISCOVERY=none): on-demand letters may wait for a run. */
+  discovery?: boolean;
+} = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
   const { db, pool } = createDb({ connectionString, ssl: false });
@@ -72,10 +81,26 @@ export function createTestApp({
   // Letters the API asked the pipeline to start (null queue: the local setup, where the watchdog starts them).
   const startedLetters: string[] = [];
   const letterQueue = withQueue ? { start: async (id: string) => void startedLetters.push(id) } : null;
+  // Discovery runs it queued, likewise.
+  const startedRuns: string[] = [];
+  const discoverQueue = withQueue ? { start: async (id: string) => void startedRuns.push(id) } : null;
 
-  const app = createApp({ auth, clientLogs, db, detect: { fetch, youtube }, profileImporter, store, letterQueue, reader, corsOrigins, devOtps });
+  const app = createApp({
+    auth,
+    clientLogs,
+    db,
+    detect: { fetch, youtube },
+    profileImporter,
+    store,
+    letterQueue,
+    discoverQueue,
+    discovery,
+    reader,
+    corsOrigins,
+    devOtps,
+  });
 
-  return { app, db, pool, sentEmails, clientLogRecords, web, store, objects, startedLetters };
+  return { app, db, pool, sentEmails, clientLogRecords, web, store, objects, startedLetters, startedRuns };
 }
 
 /** Signs in through the real email-OTP flow and returns the session cookie header. */

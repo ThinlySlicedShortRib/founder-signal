@@ -1,0 +1,2 @@
+ALTER TABLE "letter" ADD COLUMN "awaiting_discovery" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX "letter_awaiting_discovery_idx" ON "letter" USING btree ("user_id") WHERE "letter"."awaiting_discovery";

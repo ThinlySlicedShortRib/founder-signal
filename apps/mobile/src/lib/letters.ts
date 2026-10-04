@@ -1,4 +1,4 @@
-import type { AuthorCard, DislikeReason, Interaction, LetterPiece, LetterView, LikeReason, SectionSummary } from "@fs/schema";
+import type { AuthorCard, DislikeReason, Interaction, LetterPiece, LetterProgress, LetterStage, LetterView, LikeReason, SectionSummary } from "@fs/schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 import { ApiError, api, unwrap } from "./api";
@@ -19,6 +19,7 @@ export const LETTER_KEYS = {
   today: ["letters", "today"] as const,
   list: ["letters", "list"] as const,
   one: (id: string) => ["letters", id] as const,
+  progress: (id: string) => ["letters", id, "progress"] as const,
   item: (id: string) => ["items", id] as const,
   saved: ["me", "saved"] as const,
   activity: (month: string) => ["me", "activity", month] as const,
@@ -94,12 +95,10 @@ export function usePieceState(itemId: string, base?: PieceState): PieceState {
 
 // ── Letters ──────────────────────────────────────────────────────────────────
 
-export function useTodayLetter({ poll = false }: { poll?: boolean } = {}) {
+export function useTodayLetter() {
   return useQuery({
     queryKey: LETTER_KEYS.today,
     queryFn: async () => (await unwrap(api.letters.today.$get())).letter,
-    // Polls (after asking for a test letter) until a letter shows up.
-    refetchInterval: (q) => (poll && !q.state.data ? 3_000 : false),
   });
 }
 
@@ -123,10 +122,64 @@ export function useLetters({ enabled = true }: { enabled?: boolean } = {}) {
   });
 }
 
-/** "Send me a test letter": the API queues one now; Today polls until it's delivered. */
+/** "Send me a test letter": the API starts one now, and Today follows it (see `trackLetter`). */
 export function useTestLetter() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => await unwrap(api.me.schedule["test-letter"].$post()),
+    onSuccess: (res) => {
+      if (res) trackLetter(qc, res.progress);
+    },
+  });
+}
+
+// ── The letter being put together now ───────────────────────────────────────
+
+/**
+ * The first letter (made when onboarding is finished) or a test letter, which
+ * Today follows from "searching" to "sent" (or how it ended). Kept on the
+ * device too, so reopening the app keeps following it.
+ */
+const TRACKED_KEY = "fs.letter.tracked";
+const trackedStore = { id: null as string | null, listeners: new Set<() => void>() };
+function setTracked(id: string | null) {
+  trackedStore.id = id;
+  void kvSet(TRACKED_KEY, id ?? "");
+  for (const fn of trackedStore.listeners) fn();
+}
+void kvGet(TRACKED_KEY).then((id) => {
+  if (id && trackedStore.id === null) setTracked(id);
+});
+
+export function trackLetter(qc: ReturnType<typeof useQueryClient>, progress: LetterProgress) {
+  qc.setQueryData(LETTER_KEYS.progress(progress.id), progress);
+  setTracked(progress.id);
+}
+
+export const untrackLetter = () => setTracked(null);
+
+export function useTrackedLetter(): string | null {
+  return useSyncExternalStore(
+    (fn) => {
+      trackedStore.listeners.add(fn);
+      return () => void trackedStore.listeners.delete(fn);
+    },
+    () => trackedStore.id,
+    () => trackedStore.id,
+  );
+}
+
+/** Still being put together: Today keeps polling. */
+export const inProgress = (stage: LetterStage | undefined) => stage === "searching" || stage === "reading" || stage === "writing";
+
+export function useLetterProgress(id: string | null) {
+  return useQuery({
+    queryKey: LETTER_KEYS.progress(id ?? "none"),
+    queryFn: async () => (await unwrap(api.letters[":id"].progress.$get({ param: { id: id! } }))).progress,
+    enabled: !!id,
+    refetchInterval: (q) => (inProgress(q.state.data?.stage) ? 3_000 : false),
+    // A letter that's gone (or someone else's) isn't retried.
+    retry: (n, err) => (err as ApiError).status !== 404 && n < 3,
   });
 }
 

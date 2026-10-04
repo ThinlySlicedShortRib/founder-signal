@@ -47,3 +47,11 @@ darker at every stop, `piece` variant: 0.44 / 0.54 / 0.86 / 0.97 at
 0.18 at the top → 0.5 at 40% → full from 72%. The P.S. keeps the board's
 `page` gradient and its bottom-rising blur.
 
+Not on the boards: while a letter is being made now (the first letter right
+after onboarding, or a test letter), Today shows it being put together in the
+empty Today's style ("Searching the web for you" → "Reading what I found" →
+"Writing your letter"), updating on its own, and opens the letter when it's
+sent; if it ends with nothing to send, Today says so and offers "Try again".
+Onboarding no longer has the platforms step or the five quick picks (see
+`docs/design/onboarding-mockups/README.md`).
+

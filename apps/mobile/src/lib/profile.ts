@@ -1,6 +1,7 @@
-import type { Assistant, CalibrationPick, DeliveryPreset, ProfileView, PutReviewInput, UpdateProfileInput } from "@fs/schema";
+import type { Assistant, DeliveryPreset, ProfileView, PutReviewInput, UpdateProfileInput } from "@fs/schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, unwrap } from "./api";
+import { trackLetter } from "./letters";
 
 export const PROFILE_KEY = ["me", "profile"] as const;
 
@@ -37,8 +38,19 @@ export function useUpdateSchedule() {
   );
 }
 
+/**
+ * Finishing onboarding also makes the first letter. Today follows it from the
+ * moment the route guard opens the app (the profile in the cache is what flips it).
+ */
 export function useCompleteOnboarding() {
-  return useProfileMutation(async () => (await unwrap(api.me.onboarding.complete.$post())).profile);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => await unwrap(api.me.onboarding.complete.$post()),
+    onSuccess: ({ profile, firstLetter }) => {
+      trackLetter(qc, firstLetter);
+      qc.setQueryData(PROFILE_KEY, profile);
+    },
+  });
 }
 
 export function useImportProfile() {
@@ -55,16 +67,6 @@ export function useLatestImport({ enabled }: { enabled: boolean }) {
     queryKey: ["me", "onboarding", "import", "latest"],
     queryFn: async () => (await unwrap(api.me.onboarding.import.latest.$get())).import,
     enabled,
-  });
-}
-
-export function useCalibrationPicks({ enabled }: { enabled: boolean }) {
-  return useQuery<CalibrationPick[]>({
-    queryKey: ["me", "onboarding", "picks"],
-    queryFn: async () => (await unwrap(api.me.onboarding.picks.$get())).picks,
-    enabled,
-    // The deck shouldn't reshuffle under the user's thumb.
-    staleTime: Infinity,
   });
 }
 

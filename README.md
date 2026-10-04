@@ -53,9 +53,12 @@ default); `LETTER_WRITER=anthropic` uses `ANTHROPIC_API_KEY`, and
 `LETTER_WRITER=none` writes copy from each piece's own opening sentences with
 no model (also the fallback whenever a call fails; nothing is ever invented).
 `UNSPLASH_ACCESS_KEY` adds stock photos for pieces without their own image.
-A test letter (`POST /me/schedule/test-letter`) needs `pnpm dev:workers`
-running: the API can't reach its in-memory queues, so the runner's watchdog
-picks the new letter up within seconds.
+The first letter (made when onboarding is finished) and a test letter
+(`POST /me/schedule/test-letter`) need `pnpm dev:workers` running: the API
+can't reach its in-memory queues, so the runner picks them up through the
+database within seconds. A new user follows nothing, so their first letter
+searches the web first (`DISCOVERY`, a few minutes with the CLI); with
+`DISCOVERY=none` it starts at once and only uses followed sources.
 
 The app finds the API on the machine running the Expo dev server (port 8787),
 so a phone on the same network works without configuration. Release builds set

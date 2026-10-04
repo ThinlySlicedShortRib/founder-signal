@@ -586,4 +586,42 @@ describe("POST /me/schedule/test-letter", () => {
       await queued.pool.end();
     }
   });
+
+  it("searches the web first when there's too little to pick from, and starts at once when there's enough", async () => {
+    const queued = createTestApp({ withQueue: true, discovery: true });
+    try {
+      const c = await signIn(queued, "letters-discover@example.com");
+      const id = (await queued.db.select().from(user).where(eq(user.email, "letters-discover@example.com")))[0]!.id;
+      const go = async () =>
+        (await (await queued.app.request(`${BASE_URL}/me/schedule/test-letter`, { method: "POST", headers: { cookie: c } })).json()) as {
+          letterId: string;
+          progress: { id: string; stage: string; isTest: boolean };
+        };
+
+      // A new user follows nothing: the letter waits for a run with its own occurrence ID.
+      const held = await go();
+      expect(held.progress).toEqual({ id: held.letterId, stage: "searching", isTest: true });
+      const [l] = await queued.db.select().from(letter).where(eq(letter.id, held.letterId));
+      expect(l).toMatchObject({ isTest: true, status: "scheduled", awaitingDiscovery: true });
+      const [run] = await queued.db.select().from(schema.discoveryRun).where(eq(schema.discoveryRun.occurrenceId, l!.occurrenceId));
+      expect(run).toMatchObject({ userId: id, status: "pending" });
+      expect(queued.startedRuns).toEqual([run!.id]);
+      expect(queued.startedLetters).toEqual([]);
+
+      // Three fresh pieces from followed sources (the default item count): no search needed.
+      for (const title of ["One", "Two", "Three"]) {
+        const { item } = await seedArticle({ title });
+        await queued.db.insert(userSource).values({ userId: id, sourceId: item.sourceId!, mode: "more_like_this" });
+      }
+      const straight = await go();
+      expect(straight.progress.stage).toBe("writing");
+      expect(queued.startedLetters).toEqual([straight.letterId]);
+      expect(queued.startedRuns).toHaveLength(1);
+      const [s] = await queued.db.select().from(letter).where(eq(letter.id, straight.letterId));
+      expect(s!.awaitingDiscovery).toBe(false);
+    } finally {
+      await queued.db.delete(userSource).where(inArray(userSource.sourceId, created.sources));
+      await queued.pool.end();
+    }
+  });
 });

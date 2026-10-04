@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillsFor, formFromFacts, NO_FILLS, parseProfileNote, quoteFrom, roleFromText, screenFacts, sensitiveCategory, topicsFromText } from "./onboarding.ts";
+import { fillsFor, formFromFacts, NO_FILLS, parseProfileNote, roleFromText, screenFacts, sensitiveCategory, topicsFromText } from "./onboarding.ts";
 import { nextRunAt, zonedTimeToUtc } from "./schedule.ts";
 
 const NOTE = `1. Work: Founder of a two-person B2B SaaS startup.
@@ -186,17 +186,5 @@ describe("zonedTimeToUtc", () => {
 
   it("handles half-hour zones", () => {
     expect(zonedTimeToUtc(2026, 10, 5, 7, 30, "Asia/Kolkata").toISOString()).toBe("2026-10-05T02:00:00.000Z");
-  });
-});
-
-describe("quoteFrom", () => {
-  it("takes the first whole sentence of a readable length", () => {
-    expect(quoteFrom("Hi. We asked for three times what felt comfortable. They said yes in a day.")).toBe("We asked for three times what felt comfortable.");
-  });
-
-  it("returns null when nothing fits", () => {
-    expect(quoteFrom("Short. Also short.")).toBeNull();
-    expect(quoteFrom(null)).toBeNull();
-    expect(quoteFrom("a lowercase fragment that runs on and on without a full stop")).toBeNull();
   });
 });

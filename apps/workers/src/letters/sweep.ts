@@ -4,6 +4,7 @@ import type { LetterWork } from "@fs/db/schema";
 import { sql } from "drizzle-orm";
 import { logger, type PipelineDeps } from "../pipeline/deps.ts";
 import { deliverLetter, markSent } from "./deliver.ts";
+import { releaseHeldLetters, startHeldDiscovery } from "./held.ts";
 import { type ExpectedStatus, MAX_STEP_ATTEMPTS, PREVIOUS_STATUS, type RunningStatus, STEP_LEASE_MINUTES, stepOutputWritten } from "./state.ts";
 
 const { letter, schedule } = schema;
@@ -17,16 +18,27 @@ const MAX_PER_SWEEP = 100;
 /**
  * The letter part of the 5-minute sweep (§6.1):
  * - due schedules become occurrences (one letter per occurrence, ever);
- * - the watchdog re-queues letters stuck in a step;
+ * - letters held for discovery (letters/held.ts): their runs are started,
+ *   and the ones ready to go are released;
+ * - the watchdog re-queues letters stuck in a step, and starts held letters
+ *   that waited too long;
  * - ready letters whose time has come are delivered.
  * Overlapping sweeps are safe: rows are claimed with SKIP LOCKED, and the
  * occurrence insert is `ON CONFLICT DO NOTHING`.
  */
 export async function sweepLetters(deps: PipelineDeps) {
   const occurrences = await claimDueSchedules(deps);
+  await startHeldDiscovery(deps);
+  const released = await releaseHeldLetters(deps);
   const watchdog = await runWatchdog(deps);
   const delivered = await deliverDue(deps);
-  return { lettersScheduled: occurrences, lettersRequeued: watchdog.requeued, lettersFailed: watchdog.failed, lettersDelivered: delivered };
+  return {
+    lettersScheduled: occurrences,
+    lettersReleased: released + watchdog.released,
+    lettersRequeued: watchdog.requeued,
+    lettersFailed: watchdog.failed,
+    lettersDelivered: delivered,
+  };
 }
 
 async function claimDueSchedules(deps: PipelineDeps): Promise<number> {
@@ -86,19 +98,29 @@ async function claimDueSchedules(deps: PipelineDeps): Promise<number> {
  * Letters whose watchdog time has passed without moving: a lost message, or a
  * step that died without releasing its claim (a Lambda timeout). A running
  * step whose output was written moves on; otherwise it's rolled back and run
- * again, until it runs out of attempts.
+ * again, until it runs out of attempts. A letter still held for discovery
+ * past its watchdog time (the run is stuck) starts without waiting further.
  */
-async function runWatchdog(deps: PipelineDeps): Promise<{ requeued: number; failed: number }> {
+async function runWatchdog(deps: PipelineDeps): Promise<{ requeued: number; failed: number; released: number }> {
   const { db } = deps;
   const log = logger(deps);
   const now = deps.now?.() ?? new Date();
   const toSend: { letterId: string; expectedStatus: ExpectedStatus }[] = [];
   const toDeliver: { id: string; userId: string; short: boolean }[] = [];
   let failed = 0;
+  let released = 0;
 
   await db.transaction(async (tx) => {
-    const stuck = await tx.execute<{ id: string; user_id: string; status: string; work: LetterWork; step_attempts: Record<string, number>; short: boolean }>(sql`
-      select id, user_id, status, work, step_attempts, short from ${letter}
+    const stuck = await tx.execute<{
+      id: string;
+      user_id: string;
+      status: string;
+      work: LetterWork;
+      step_attempts: Record<string, number>;
+      short: boolean;
+      awaiting_discovery: boolean;
+    }>(sql`
+      select id, user_id, status, work, step_attempts, short, awaiting_discovery from ${letter}
       where status in ('scheduled', 'collecting', 'ranking', 'generating', 'verifying', 'sending')
         and watchdog_at is not null and watchdog_at <= ${now}
       order by watchdog_at
@@ -112,7 +134,8 @@ async function runWatchdog(deps: PipelineDeps): Promise<{ requeued: number; fail
         continue;
       }
       if (l.status === "scheduled") {
-        await tx.execute(sql`update ${letter} set watchdog_at = ${bump} where id = ${l.id}`);
+        await tx.execute(sql`update ${letter} set watchdog_at = ${bump}, awaiting_discovery = false where id = ${l.id}`);
+        if (l.awaiting_discovery) released++;
         toSend.push({ letterId: l.id, expectedStatus: "scheduled" });
         continue;
       }
@@ -134,8 +157,8 @@ async function runWatchdog(deps: PipelineDeps): Promise<{ requeued: number; fail
 
   for (const m of toSend) await deps.queues.send("letter-step", m);
   for (const l of toDeliver) await markSent(deps, l);
-  if (toSend.length || failed) log("letter_watchdog", { requeued: toSend.length, failed });
-  return { requeued: toSend.length, failed };
+  if (toSend.length || failed) log("letter_watchdog", { requeued: toSend.length - released, failed, holdsExpired: released });
+  return { requeued: toSend.length - released, failed, released };
 }
 
 async function deliverDue(deps: PipelineDeps): Promise<number> {

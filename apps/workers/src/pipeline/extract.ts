@@ -13,6 +13,7 @@ import {
 } from "@fs/ingest";
 import type { Rights, Section, UnavailableReason } from "@fs/schema";
 import { and, eq, ne, sql } from "drizzle-orm";
+import { releaseHeldLetters } from "../letters/held.ts";
 import { contentKeys } from "../lib/content-store.ts";
 import { logger, type PipelineDeps } from "./deps.ts";
 import type { Message } from "./messages.ts";
@@ -63,6 +64,8 @@ export async function extract(deps: PipelineDeps, { itemId }: Message<"extract">
 
   const result = row.item.type === "video" ? await extractVideo(deps, row.item, rights, row) : await extractPage(deps, row.item, rights, row);
   log("extract", { itemId, type: row.item.type, status: result.status, reason: result.reason ?? null });
+  // A letter held for discovery may have been waiting on this page (cheap: held letters are few and indexed).
+  await releaseHeldLetters(deps);
   return result;
 }
 

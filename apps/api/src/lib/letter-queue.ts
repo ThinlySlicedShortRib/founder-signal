@@ -14,3 +14,18 @@ export function sqsLetterQueue(queueUrl: string): LetterQueue {
     },
   };
 }
+
+/** Starts a discovery run (§6.3a) that a held letter waits on: a `discover` message. */
+export interface DiscoverQueue {
+  start(runId: string): Promise<void>;
+}
+
+/** On AWS. Locally the dev runner's letter sweep starts the runs that held letters wait on. */
+export function sqsDiscoverQueue(queueUrl: string): DiscoverQueue {
+  const sqs = new SQSClient({});
+  return {
+    async start(runId) {
+      await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: JSON.stringify({ runId }) }));
+    },
+  };
+}

@@ -110,6 +110,14 @@ data "aws_iam_policy_document" "api" {
     actions   = ["sqs:SendMessage"]
     resources = [module.queues.arns["letter-step"]]
   }
+
+  # Finishing onboarding (and a test letter with little to pick from) starts a discovery run
+  # that the letter waits on (§6.3a).
+  statement {
+    sid       = "StartDiscovery"
+    actions   = ["sqs:SendMessage"]
+    resources = [module.queues.arns["discover"]]
+  }
 }
 
 module "api" {
@@ -124,6 +132,9 @@ module "api" {
   environment = merge(local.app_env, {
     CONTENT_BUCKET        = module.content.bucket_name
     QUEUE_URL_LETTER_STEP = module.queues.urls["letter-step"]
+    QUEUE_URL_DISCOVER    = module.queues.urls["discover"]
+    # Same switch as the workers: with "none", on-demand letters don't wait for a discovery run.
+    DISCOVERY = var.discovery_enabled ? "anthropic" : "none"
   })
 
   log_retention_days = var.log_retention_days
@@ -207,8 +218,8 @@ locals {
       queue       = "extract"
       batch_size  = 5
       concurrency = 5
-      # Re-queues itself to wait out per-host politeness.
-      sends_to = ["extract"]
+      # Re-queues itself to wait out per-host politeness; starts a letter held for the page it extracted.
+      sends_to = ["extract", "letter-step"]
       secrets = [
         module.database.master_secret_arn,
         module.secrets.youtube_api_key_secret_arn,
@@ -273,13 +284,15 @@ locals {
       memory      = 512
       queue       = "discover"
       batch_size  = 1
-      # Web search is slow and billed per search; there's no hurry (it runs hours ahead).
+      # Web search is slow and billed per search. Most runs are hours ahead of their letter; an
+      # on-demand one (first letter) has a user waiting, but two at a time is plenty at this volume.
       concurrency = 2
-      sends_to    = ["extract"]
-      secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
-      content     = []
-      bedrock     = false
-      images      = false
+      # Starts a letter held for the run once it has ended (the first letter, some test letters).
+      sends_to = ["extract", "letter-step"]
+      secrets  = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
+      content  = []
+      bedrock  = false
+      images   = false
     }
   }
 

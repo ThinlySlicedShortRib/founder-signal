@@ -26,7 +26,7 @@ export interface AppDeps extends SourceRouteDeps, ProfileRouteDeps, Omit<LetterR
   devOtps?: OtpRecorder;
 }
 
-export function createApp({ auth, clientLogs, db, detect, profileImporter, store, letterQueue, reader, corsOrigins = [], devOtps }: AppDeps) {
+export function createApp({ auth, clientLogs, db, detect, profileImporter, store, letterQueue, discoverQueue, discovery, reader, corsOrigins = [], devOtps }: AppDeps) {
   const app = new Hono<AppEnv>();
 
   if (corsOrigins.length) {
@@ -55,6 +55,8 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, store
   const clientLogLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
   // Local only, like /dev/sign-in-code. Elsewhere nothing is mounted; the empty router keeps the client's type.
   const devTools = devOtps ? devToolRoutes({ db }) : (new Hono() as ReturnType<typeof devToolRoutes>);
+  // The first letter (onboarding) and test letters are made on demand, sometimes after a discovery run.
+  const onDemand = { db, letterQueue, discoverQueue, discovery };
 
   const routes = app
     .get("/health", (c) => c.json({ ok: true as const }))
@@ -90,11 +92,11 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, store
     .route("/me/sources", sourceRoutes({ db, detect }))
     .route("/me/publishers", publisherRoutes({ db }))
     .route("/me", preferenceRoutes({ db }))
-    .route("/me/onboarding", onboardingRoutes({ db, profileImporter }))
+    .route("/me/onboarding", onboardingRoutes({ ...onDemand, profileImporter }))
     .route("/items", reviewRoutes({ db }))
     .route("/items", itemRoutes({ db, store, reader }))
     .route("/letters", letterRoutes({ db, reader }))
-    .route("/", readingRoutes({ db, letterQueue, detect }))
+    .route("/", readingRoutes({ ...onDemand, detect }))
     .route("/dev", devTools);
 
   return routes;

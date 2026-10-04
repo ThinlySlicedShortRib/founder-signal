@@ -4,15 +4,18 @@ import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
   Extrapolation,
   interpolate,
+  type SharedValue,
+  useAnimatedReaction,
   useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
@@ -51,6 +54,18 @@ export type ReaderMeta = {
 
 export type UpNext = { kicker: string; title: string; short: string; onPress: () => void };
 
+/** What a `lead` (the piece page above the article) is given. */
+export type ReaderLead = {
+  /** The screen's height; the lead is at least this tall. */
+  height: number;
+  /** The scroll offset, on the UI thread. */
+  scrollY: SharedValue<number>;
+  /** Scrolls to the start of the article. */
+  onRead: () => void;
+  /** Opens the video on YouTube. */
+  onPlay: () => void;
+};
+
 const HEAD_MAX = 200;
 const HEAD_MIN = 72;
 /** The header turns into the plain white bar once it's this short (the board's `≤ 96`). */
@@ -60,9 +75,18 @@ const PLAYER = 220;
 type SummaryState = { status: "loading" } | { status: "error" } | { status: "done"; summary: SectionSummary };
 
 /**
- * Reading in place (PagerReader / PagerVideo). The photo header shrinks with
- * scrolling to a white bar; every action is in the pill; at the end the pill
- * asks for the verdict, then offers the next piece.
+ * Reading in place (PagerReader / PagerVideo). Every action is in the pill;
+ * at the end the pill asks for the verdict, then offers the next piece.
+ *
+ * On its own (the Library), a photo header shrinks with scrolling to a white
+ * bar. In a letter, `lead` renders the piece page as the top of the same
+ * scroll and the article flows on beneath it: while the piece page is on
+ * screen the reader stays out of the way (no bar, no pill, and
+ * `onReadingChange(false)`, so the pager shows its own pill). Once the piece
+ * page's bottom has passed under the bar, the white bar slides in, the
+ * reading pill takes over and `onReadingChange(true)`; scrolling back above
+ * that point undoes it. Progress, time left, sections, `open`/`complete` and
+ * the verdict all count from the start of the article.
  */
 export function Reader({
   meta,
@@ -72,14 +96,20 @@ export function Reader({
   onSkip,
   onMenu,
   onAuthor,
+  lead,
+  onReadingChange,
 }: {
   meta: ReaderMeta;
   next: UpNext;
-  onBack: () => void;
+  /** Leaving the reader. With a `lead`, back scrolls to the top of the piece page instead. */
+  onBack?: () => void;
   backLabel?: string;
   onSkip?: () => void;
   onMenu: () => void;
   onAuthor: () => void;
+  /** The piece page, as the top of the scroll. */
+  lead?: (l: ReaderLead) => ReactNode;
+  onReadingChange?: (reading: boolean) => void;
 }) {
   const insets = useSafeAreaInsets();
   const pill = usePillSpace();
@@ -96,8 +126,10 @@ export function Reader({
   const title = data?.title ?? meta.title;
   const minutes = data?.minutes ?? meta.minutes ?? 1;
   const originalUrl = data?.originalUrl ?? meta.originalUrl;
-  const headMax = (video ? PLAYER : HEAD_MAX) + insets.top;
+  const flow = !!lead;
+  const headMax = flow ? 0 : (video ? PLAYER : HEAD_MAX) + insets.top;
   const headMin = HEAD_MIN + insets.top;
+  const [viewport, setViewport] = useState(useWindowDimensions().height);
 
   // ── Scroll position, progress, sections ────────────────────────────────────
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
@@ -105,6 +137,11 @@ export function Reader({
   const yRef = useRef(0);
   const viewH = useRef(0);
   const contentH = useRef(0);
+  /** Where the article starts in the scroll: under the photo header, or under the lead. */
+  const bodyTop = useRef(headMax);
+  /** The offset at which the article is reached (its top just under the bar): 0 without a lead. */
+  const startY = useSharedValue(flow ? Number.MAX_SAFE_INTEGER : 0);
+  /** Sections and the end card, measured within the article. */
   const sectionY = useRef(new Map<string, number>());
   const endY = useRef<number | null>(null);
   const [progress, setProgress] = useState(0);
@@ -112,17 +149,22 @@ export function Reader({
   const [atEnd, setAtEnd] = useState(false);
   const [nextIsEnd, setNextIsEnd] = useState(false);
 
+  const sectionTops = useCallback(() => [...sectionY.current.values()].map((v) => bodyTop.current + v), []);
+
   const recompute = useCallback(() => {
     const y = yRef.current;
-    const max = contentH.current - viewH.current;
-    setProgress(max > 0 ? Math.round(Math.min(1, Math.max(0, y / max)) * 100) / 100 : 1);
-    setCompact(!video && headMax - insets.top - y <= COMPACT_AT);
+    // Progress runs from the start of the article to the end of the scroll.
+    const start = flow ? Math.max(0, bodyTop.current - headMin) : 0;
+    const span = contentH.current - viewH.current - start;
+    setProgress(span > 0 ? Math.round(Math.min(1, Math.max(0, (y - start) / span)) * 100) / 100 : y >= start ? 1 : 0);
+    // With a lead, `compact` (reading) is decided on the UI thread below.
+    if (!flow) setCompact(!video && headMax - insets.top - y <= COMPACT_AT);
     const end = endY.current;
     // The end card in view; until it's been measured, the board's rule (92% scrolled).
-    setAtEnd(end !== null ? viewH.current > 0 && y + viewH.current >= end + 80 : max > 0 && y / max > 0.92);
-    const targets = [...sectionY.current.values()].filter((v) => v > y + headMin + 8);
+    setAtEnd(end !== null ? viewH.current > 0 && y + viewH.current >= bodyTop.current + end + 80 : span > 0 && (y - start) / span > 0.92);
+    const targets = sectionTops().filter((v) => v > y + headMin + 8);
     setNextIsEnd(targets.length === 0);
-  }, [video, headMax, headMin, insets.top]);
+  }, [flow, video, headMax, headMin, insets.top, sectionTops]);
 
   const onTick = useCallback(
     (y: number, view: number, content: number) => {
@@ -145,21 +187,40 @@ export function Reader({
     }
   });
 
-  // ── Events ─────────────────────────────────────────────────────────────────
-  const opened = useRef(false);
+  // With a lead: reading once the scroll reaches the start of the article. Decided on the UI
+  // thread so the bar keeps up with the finger; React hears about it when it flips.
+  const reading = useSharedValue(0);
+  useAnimatedReaction(
+    () => flow && scrollY.get() >= startY.get() - 1,
+    (now, before) => {
+      if (now === before) return;
+      reading.set(now ? 1 : 0);
+      scheduleOnRN(setCompact, now);
+    },
+  );
   useEffect(() => {
+    if (flow) onReadingChange?.(compact);
+  }, [flow, compact, onReadingChange]);
+
+  // ── Events ─────────────────────────────────────────────────────────────────
+  // `open` once the article is reached (scrolled to, or Read tapped); at once without a lead.
+  const opened = useRef(false);
+  const markOpen = useCallback(() => {
     if (opened.current) return;
     opened.current = true;
     track("open", meta.itemId, meta.letterId);
   }, [meta.itemId, meta.letterId]);
+  useEffect(() => {
+    if (!flow || compact) markOpen();
+  }, [flow, compact, markOpen]);
 
   const completed = useRef(meta.completed);
   useEffect(() => {
-    if (!atEnd || completed.current || !data) return;
+    if (!atEnd || completed.current || !data || (flow && !compact)) return;
     completed.current = true;
     setPieceState(meta.itemId, { completed: true });
     track("complete", meta.itemId, meta.letterId);
-  }, [atEnd, data, meta.itemId, meta.letterId]);
+  }, [atEnd, data, flow, compact, meta.itemId, meta.letterId]);
 
   // ── Tray, text size, summaries, verdict ────────────────────────────────────
   const [tray, setTrayOpen] = useState(false);
@@ -178,7 +239,7 @@ export function Reader({
     let found = sections[0];
     for (const s of sections) {
       const y = sectionY.current.get(s.id);
-      if (y !== undefined && y <= yRef.current + headMin + 48) found = s;
+      if (y !== undefined && bodyTop.current + y <= yRef.current + headMin + 48) found = s;
     }
     return found;
   }
@@ -188,9 +249,21 @@ export function Reader({
   }
 
   function nextSection() {
-    const targets = [...sectionY.current.values()].filter((v) => v > yRef.current + headMin + 8).sort((a, b) => a - b);
-    const target = targets[0] ?? endY.current;
-    if (target !== null && target !== undefined) scrollToY(target - headMin - 12);
+    const targets = sectionTops().filter((v) => v > yRef.current + headMin + 8).sort((a, b) => a - b);
+    const target = targets[0] ?? (endY.current !== null ? bodyTop.current + endY.current : null);
+    if (target !== null) scrollToY(target - headMin - 12);
+  }
+
+  /** Read on the piece page: to the start of the article, just under the bar. */
+  function read() {
+    markOpen();
+    scrollToY(bodyTop.current - headMin);
+  }
+
+  /** Back: to the top of the piece page, or out of the reader. */
+  function back() {
+    if (flow || !onBack) scrollToY(0);
+    else onBack();
   }
 
   async function share() {
@@ -250,12 +323,20 @@ export function Reader({
   const left = Math.max(0, Math.round(minutes * (1 - progress)));
   const showEndPill = atEnd && !state.verdict && !sheet;
   const showNextPill = atEnd && !!state.verdict && !sheet;
+  /** With a lead, the reading pill and tray only once the article is reached; the pager's pill before. */
+  const pillOn = !flow || compact;
 
   // ── Header styles ──────────────────────────────────────────────────────────
   const headStyle = useAnimatedStyle(() => ({ height: video ? headMax : Math.max(headMin, headMax - Math.max(0, scrollY.get())) }));
   const collapseAt = HEAD_MAX - COMPACT_AT;
   const photoStyle = useAnimatedStyle(() => ({ opacity: interpolate(scrollY.get(), [collapseAt - 8, collapseAt], [1, 0], Extrapolation.CLAMP) }));
   const barStyle = useAnimatedStyle(() => ({ opacity: interpolate(scrollY.get(), [collapseAt - 8, collapseAt], [0, 1], Extrapolation.CLAMP) }));
+  // With a lead, the bar fades and slides in from above (just fades in, at once, with Reduce Motion).
+  const flowBarStyle = useAnimatedStyle(() => {
+    const on = reading.get();
+    if (reduceMotion) return { opacity: on, transform: [{ translateY: 0 }] };
+    return { opacity: withTiming(on, { duration: 200 }), transform: [{ translateY: withTiming((on - 1) * 16, { duration: 200 }) }] };
+  });
 
   const kicker = [meta.position && meta.pieceCount ? `Piece ${meta.position} of ${meta.pieceCount}` : null, meta.topic].filter(Boolean).join(" · ");
   const sourceRights = video ? (data?.video?.chapters?.length ? "transcript" : "video") : data?.blocks ? "full text" : data?.digest ? "digest" : null;
@@ -270,13 +351,15 @@ export function Reader({
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
-      <StatusBar style={compact ? "dark" : "light"} />
+      {/* In a letter the pager sets the status bar, from onReadingChange. */}
+      {!flow && <StatusBar style={compact ? "dark" : "light"} />}
       <Animated.ScrollView
         ref={scrollRef}
         onScroll={onScroll}
         scrollEventThrottle={16}
         onLayout={(e) => {
           viewH.current = e.nativeEvent.layout.height;
+          if (viewH.current > 0) setViewport(viewH.current);
           recompute();
         }}
         onContentSizeChange={(_w, h) => {
@@ -285,7 +368,30 @@ export function Reader({
         }}
         contentContainerStyle={{ paddingTop: headMax }}
       >
-        <View style={{ backgroundColor: palette.surface, paddingTop: 18, paddingHorizontal: 20, paddingBottom: pill.space + 16, gap: 18 }}>
+        {/* The lead's height is where the article starts (measured by size: on web, onLayout misses moves). */}
+        {lead && (
+          <View
+            onLayout={(e) => {
+              bodyTop.current = e.nativeEvent.layout.height;
+              startY.set(Math.max(0, e.nativeEvent.layout.height - headMin));
+              recompute();
+            }}
+          >
+            {lead({
+              height: viewport,
+              scrollY,
+              onRead: read,
+              onPlay: () => {
+                markOpen();
+                openVideo(0);
+              },
+            })}
+          </View>
+        )}
+        {/* The article. Under a lead it's at least a screen tall, so it can always be scrolled up under the bar. */}
+        <View
+          style={{ backgroundColor: palette.surface, paddingTop: 18, paddingHorizontal: 20, paddingBottom: pill.space + 16, gap: 18, minHeight: flow ? viewport - headMin : undefined }}
+        >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, borderBottomWidth: 1, borderBottomColor: palette.rule, paddingBottom: 12 }}>
             <Text style={{ flex: 1, fontFamily: font.body, fontSize: 14, lineHeight: 19, color: palette.muted }}>
               {[meta.sourceName ?? data?.sourceName, `${minutes} min`, sourceRights].filter(Boolean).join(" · ")}
@@ -304,8 +410,9 @@ export function Reader({
               </Text>
             </Pressable>
           )}
-          {meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
-          {meta.whyPicked && (
+          {/* Under a lead, the piece page already shows the author and why it was picked. */}
+          {!flow && meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
+          {!flow && meta.whyPicked && (
             <AgentLine>
               <Text style={{ fontFamily: font.bodySemi }}>Why I picked this. </Text>
               {meta.whyPicked}
@@ -328,7 +435,7 @@ export function Reader({
                   key={s.id}
                   style={{ gap: 18 }}
                   onLayout={(e) => {
-                    sectionY.current.set(s.id, headMax + e.nativeEvent.layout.y);
+                    sectionY.current.set(s.id, e.nativeEvent.layout.y);
                     recompute();
                   }}
                 >
@@ -374,7 +481,7 @@ export function Reader({
           {/* The end card (.endc) */}
           <View
             onLayout={(e) => {
-              endY.current = headMax + e.nativeEvent.layout.y;
+              endY.current = e.nativeEvent.layout.y;
               recompute();
             }}
             style={{ gap: 12, borderRadius: 24, padding: 20, backgroundColor: TINTS[((meta.position ?? 1) - 1) % 3] }}
@@ -415,57 +522,65 @@ export function Reader({
         </View>
       </Animated.ScrollView>
 
-      {/* Header: the photo, shrinking to a plain white bar (.rhead / .rhead.compact), or the video still (.player). */}
-      <Animated.View style={[{ position: "absolute", top: 0, left: 0, right: 0, overflow: "hidden", zIndex: 5 }, headStyle]}>
-        {video ? (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.ink }]}>
-            {meta.image && <Image source={{ uri: meta.image.url }} style={[StyleSheet.absoluteFill, { opacity: 0.55 }]} contentFit="cover" />}
-            <RoundButton icon="chevron-down" label={backLabel} onPress={onBack} style={{ top: insets.top + 18, left: 14 }} />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Play on YouTube"
-              onPress={() => openVideo(0)}
-              style={{ position: "absolute", left: "50%", top: insets.top + PLAYER / 2, marginLeft: -38, marginTop: -38, width: 76, height: 76, borderRadius: 38, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center" }}
-            >
-              <PagerIcon name="play" size={30} color={palette.ink} />
-            </Pressable>
-            <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 10, gap: 6 }}>
-              <Mono color="#FFFFFF" numberOfLines={1}>
-                {data?.video?.durationSeconds ? `${timestamp(data.video.durationSeconds)} · ` : ""}
-                {title}
-              </Mono>
-              <View style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.3)" }} />
+      {/* Header: under a lead, the plain white bar once reading; otherwise the photo, shrinking to that
+          bar (.rhead / .rhead.compact), or the video still (.player). */}
+      {flow ? (
+        // Touches are switched on the plain View: on web an animated view keeps its first pointer-events.
+        <View
+          accessibilityElementsHidden={!compact}
+          importantForAccessibility={compact ? "auto" : "no-hide-descendants"}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, height: headMin, zIndex: 5, pointerEvents: compact ? "box-none" : "none" }}
+        >
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.rule }, flowBarStyle]}>
+            <CompactBar title={title} digest={digestMode} backLabel={backLabel} onBack={back} />
+          </Animated.View>
+        </View>
+      ) : (
+        <Animated.View style={[{ position: "absolute", top: 0, left: 0, right: 0, overflow: "hidden", zIndex: 5 }, headStyle]}>
+          {video ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.ink }]}>
+              {meta.image && <Image source={{ uri: meta.image.url }} style={[StyleSheet.absoluteFill, { opacity: 0.55 }]} contentFit="cover" />}
+              <RoundButton icon="chevron-down" label={backLabel} onPress={back} style={{ top: insets.top + 18, left: 14 }} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Play on YouTube"
+                onPress={() => openVideo(0)}
+                style={{ position: "absolute", left: "50%", top: insets.top + PLAYER / 2, marginLeft: -38, marginTop: -38, width: 76, height: 76, borderRadius: 38, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center" }}
+              >
+                <PagerIcon name="play" size={30} color={palette.ink} />
+              </Pressable>
+              <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 10, gap: 6 }}>
+                <Mono color="#FFFFFF" numberOfLines={1}>
+                  {data?.video?.durationSeconds ? `${timestamp(data.video.durationSeconds)} · ` : ""}
+                  {title}
+                </Mono>
+                <View style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.3)" }} />
+              </View>
             </View>
-          </View>
-        ) : (
-          <>
-            <Animated.View style={[StyleSheet.absoluteFill, { pointerEvents: compact ? "none" : "box-none" }, photoStyle]}>
-              <PhotoBackdrop image={meta.image} topic={meta.topic ?? title} variant="head" blurHeight="78%" />
-              <RoundButton icon="chevron-down" label={backLabel} onPress={onBack} style={{ top: insets.top + 18, left: 14 }} />
-              <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingBottom: 16, gap: 8 }}>
-                {!!kicker && <Mono color="rgba(255,255,255,0.85)">{kicker}</Mono>}
-                <Text accessibilityRole="header" numberOfLines={3} style={{ fontFamily: font.display, fontSize: 26, lineHeight: 28, letterSpacing: -0.65, color: "#FFFFFF" }}>
-                  {title}
-                </Text>
-              </View>
-            </Animated.View>
-            <Animated.View
-              style={[StyleSheet.absoluteFill, { backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.rule, pointerEvents: compact ? "box-none" : "none" }, barStyle]}
-            >
-              <RoundButton icon="chevron-down" label={backLabel} onPress={onBack} light style={{ bottom: 6, left: 14 }} />
-              <View style={{ position: "absolute", left: 66, right: 16, bottom: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text numberOfLines={1} style={{ flex: 1, fontFamily: font.display, fontSize: 17, lineHeight: 21, letterSpacing: -0.4, color: palette.ink }}>
-                  {title}
-                </Text>
-                {digestMode && <DigestBadge short />}
-              </View>
-            </Animated.View>
-          </>
-        )}
-      </Animated.View>
+          ) : (
+            <>
+              <Animated.View style={[StyleSheet.absoluteFill, { pointerEvents: compact ? "none" : "box-none" }, photoStyle]}>
+                <PhotoBackdrop image={meta.image} topic={meta.topic ?? title} variant="head" blurHeight="78%" />
+                <RoundButton icon="chevron-down" label={backLabel} onPress={back} style={{ top: insets.top + 18, left: 14 }} />
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingBottom: 16, gap: 8 }}>
+                  {!!kicker && <Mono color="rgba(255,255,255,0.85)">{kicker}</Mono>}
+                  <Text accessibilityRole="header" numberOfLines={3} style={{ fontFamily: font.display, fontSize: 26, lineHeight: 28, letterSpacing: -0.65, color: "#FFFFFF" }}>
+                    {title}
+                  </Text>
+                </View>
+              </Animated.View>
+              <Animated.View
+                style={[StyleSheet.absoluteFill, { backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.rule, pointerEvents: compact ? "box-none" : "none" }, barStyle]}
+              >
+                <CompactBar title={title} digest={digestMode} backLabel={backLabel} onBack={back} />
+              </Animated.View>
+            </>
+          )}
+        </Animated.View>
+      )}
 
       {/* The tray (.tray) */}
-      {tray && (
+      {tray && pillOn && (
         <>
           <Pressable accessibilityLabel="Close the menu" onPress={() => setTray(false)} style={[StyleSheet.absoluteFill, { zIndex: 19 }]} />
           <View
@@ -519,7 +634,7 @@ export function Reader({
               title={backLabel}
               onPress={() => {
                 setTray(false);
-                onBack();
+                back();
               }}
             />
             <TrayItem
@@ -534,8 +649,8 @@ export function Reader({
         </>
       )}
 
-      {/* The pill: reading → verdict → next */}
-      {showNextPill ? (
+      {/* The pill: reading → verdict → next (under a lead, only once reading) */}
+      {!pillOn ? null : showNextPill ? (
         <Pill label="Next">
           <PillStatus label={state.verdict === "interested" ? "Worth it. Noted." : "Less like this."}>
             <PagerIcon name="check" size={18} color={palette.blueMid} />
@@ -728,6 +843,21 @@ function Unavailable({ reason, onOpen }: { reason: string | null; onOpen?: () =>
         </View>
       )}
     </View>
+  );
+}
+
+/** The compact header (.rhead.compact): back, then the title on one line. */
+function CompactBar({ title, digest, backLabel, onBack }: { title: string; digest: boolean; backLabel: string; onBack: () => void }) {
+  return (
+    <>
+      <RoundButton icon="chevron-down" label={backLabel} onPress={onBack} light style={{ bottom: 6, left: 14 }} />
+      <View style={{ position: "absolute", left: 66, right: 16, bottom: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Text numberOfLines={1} style={{ flex: 1, fontFamily: font.display, fontSize: 17, lineHeight: 21, letterSpacing: -0.4, color: palette.ink }}>
+          {title}
+        </Text>
+        {digest && <DigestBadge short />}
+      </View>
+    </>
   );
 }
 

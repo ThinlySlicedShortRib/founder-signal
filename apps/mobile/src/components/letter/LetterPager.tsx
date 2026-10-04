@@ -44,7 +44,10 @@ export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "piece
 
 /**
  * A letter as full-screen pages: cover → one page per piece → P.S. The pill's
- * ↑ and ↓ move between pages (swiping up means "read", so it doesn't page).
+ * ↑ and ↓ move between pages (scrolling down means "read", so it doesn't page).
+ * A piece is one scroll: its page, then the article beneath it (the Reader
+ * with the PiecePage as its `lead`). Past the piece page the Reader takes the
+ * pill and the status bar goes dark; back above it, the pager's pill returns.
  */
 export function LetterPager({ letter: base, today }: { letter: LetterView; today: boolean }) {
   useLocalVersion();
@@ -52,7 +55,8 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
   const n = letter.pieces.length;
   const pageCount = n + 2;
   const [page, setPage] = useState<number | null>(null);
-  const [mode, setMode] = useState<"page" | "read">("page");
+  /** Scrolled past the piece page into the article. */
+  const [reading, setReading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [author, setAuthor] = useState<AuthorCard | null>(null);
 
@@ -74,7 +78,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
     (to: number) => {
       const p = Math.max(0, Math.min(pageCount - 1, to));
       setPage(p);
-      setMode("page");
+      setReading(false);
       lastPage.set(base.id, p);
     },
     [base.id, pageCount],
@@ -90,6 +94,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
 
   const piece = page >= 1 && page <= n ? letter.pieces[page - 1]! : null;
   const isPs = page === n + 1;
+  const inArticle = !!piece && reading;
 
   function skip(p: LetterPiece) {
     setPieceState(p.itemId, { skipped: true });
@@ -108,29 +113,34 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ground }}>
-      <StatusBar style={page === 0 ? "dark" : "light"} />
-      <Animated.View key={`${page}-${mode}`} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
+      <StatusBar style={page === 0 || inArticle ? "dark" : "light"} />
+      {/* Keyed by page only: moving into the article and back happens in place, in the same scroll. */}
+      <Animated.View key={page} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
         {page === 0 ? (
           <CoverPage letter={letter} pageCount={pageCount} onPiece={goPage} />
-        ) : piece && mode === "page" ? (
-          <PiecePage
-            piece={piece}
-            letterNumber={letter.number}
-            pieceCount={n}
-            page={page}
-            pageCount={pageCount}
-            onRead={() => setMode("read")}
-            onSkip={() => skip(piece)}
-            onAuthor={() => piece.author && setAuthor(piece.author)}
-          />
         ) : piece ? (
           <Reader
             meta={pieceMeta(piece, letter)}
             next={upNext(piece)}
-            onBack={() => setMode("page")}
             onSkip={() => skip(piece)}
             onMenu={() => setMenuOpen(true)}
             onAuthor={() => piece.author && setAuthor(piece.author)}
+            onReadingChange={setReading}
+            lead={({ height, scrollY, onRead, onPlay }) => (
+              <PiecePage
+                piece={piece}
+                letterNumber={letter.number}
+                pieceCount={n}
+                page={page}
+                pageCount={pageCount}
+                height={height}
+                scrollY={scrollY}
+                onRead={onRead}
+                onPlay={onPlay}
+                onSkip={() => skip(piece)}
+                onAuthor={() => piece.author && setAuthor(piece.author)}
+              />
+            )}
           />
         ) : (
           <PsPage letter={letter} page={page} pageCount={pageCount} />
@@ -139,7 +149,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
 
       <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={today ? "today" : null} />
 
-      {mode === "page" ? (
+      {!inArticle ? (
         <Pill label="Navigation">
           <PillButton icon="up" label="Previous page" dim={page === 0} onPress={() => goPage(page - 1)} />
           <PillLabel kicker={kicker} value={`${page + 1} / ${pageCount}`} />

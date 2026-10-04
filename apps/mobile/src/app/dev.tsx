@@ -12,6 +12,7 @@ import {
   letterInProgress,
   looksStalled,
   runInProgress,
+  useDevAccounts,
   useDevDiscovery,
   useDevLetter,
   useDevState,
@@ -19,6 +20,7 @@ import {
   useRefreshSources,
   useResetAccount,
   useRestartOnboarding,
+  useSwitchAccount,
 } from "@/lib/dev";
 import { clock, plural } from "@/lib/format";
 import { LETTER_KEYS } from "@/lib/letters";
@@ -86,6 +88,7 @@ export default function DevTools() {
         ) : (
           <>
             <StatusSection state={s!} />
+            <AccountsSection current={s!.user.email} />
             <OnboardingSection />
             <LettersSection letters={s!.letters} />
             <DiscoverySection runs={s!.discoveryRuns} />
@@ -169,6 +172,62 @@ function StatusSection({ state: s }: { state: DevState }) {
         <Row label="Events" value={String(s.counts.interactions)} />
         <Row label="Letters" value={String(s.counts.letters)} />
       </View>
+    </Section>
+  );
+}
+
+/** The local mock accounts (seed:personas); tapping one signs in as it. */
+function AccountsSection({ current }: { current: string }) {
+  const accounts = useDevAccounts();
+  const switchTo = useSwitchAccount();
+
+  return (
+    <Section kicker="Accounts" title="Sign in as">
+      {accounts.isPending ? (
+        <ActivityIndicator color={palette.muted} accessibilityLabel="Loading accounts" />
+      ) : accounts.isError ? (
+        <InlineError message={accounts.error.message} onRetry={() => void accounts.refetch()} />
+      ) : (
+        <View style={{ gap: 8 }}>
+          {accounts.data.map((a) => {
+            const on = a.email === current;
+            const busy = switchTo.isPending && switchTo.variables === a.email;
+            return (
+              <Pressable
+                key={a.email}
+                accessibilityRole="button"
+                accessibilityLabel={`Sign in as ${a.name || a.email}`}
+                accessibilityState={{ selected: on, busy, disabled: on || switchTo.isPending }}
+                disabled={on || switchTo.isPending}
+                onPress={() => switchTo.mutate(a.email, { onSuccess: () => router.replace("/") })}
+                style={({ pressed }) => ({
+                  minHeight: 56,
+                  borderRadius: 14,
+                  borderWidth: 1.5,
+                  borderColor: on ? palette.ink : palette.line,
+                  backgroundColor: palette.surface,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ fontFamily: font.bodySemi, fontSize: 15, color: palette.ink }}>{a.name || a.email.split("@")[0]}</Text>
+                  <Text style={{ fontFamily: font.body, fontSize: 13, lineHeight: 18, color: palette.muted }}>
+                    {a.email} · {a.onboarded ? (a.role ?? "onboarded") : "not onboarded"}
+                  </Text>
+                </View>
+                {busy ? <ActivityIndicator color={palette.muted} /> : on ? <Mono color={palette.blue}>Signed in</Mono> : null}
+              </Pressable>
+            );
+          })}
+          {!accounts.data.length && <Hint>No mock accounts yet: run pnpm --filter @fs/workers seed:personas.</Hint>}
+        </View>
+      )}
+      {switchTo.isError && <InlineError message={switchTo.error.message} />}
     </Section>
   );
 }

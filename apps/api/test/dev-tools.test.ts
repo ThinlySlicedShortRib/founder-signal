@@ -161,6 +161,37 @@ describe("dev tools: guard", () => {
   });
 });
 
+describe("dev tools: mock accounts", () => {
+  const mock = `devtools-${randomUUID().slice(0, 8)}@founder-signal.local`;
+  afterAll(async () => {
+    await ctx.db.delete(user).where(eq(user.email, mock));
+  });
+
+  it("signs in as a mock account, and only those", async () => {
+    const ok = await call(ctx, "POST", "/dev/sign-in-code", undefined, { email: mock.toUpperCase() });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ email: mock, otp: expect.any(String) });
+
+    for (const email of ["someone@example.com", "dev@founder-signal.local.evil.com", "not-an-email"]) {
+      const res = await call(ctx, "POST", "/dev/sign-in-code", undefined, { email });
+      expect(res.status, email).toBe(400);
+    }
+    const remoteRes = await call(remote, "POST", "/dev/sign-in-code", undefined, { email: mock });
+    expect(remoteRes.status).toBe(404);
+  });
+
+  it("lists the mock accounts and nobody else, only locally", async () => {
+    await signIn(ctx, mock);
+    await signIn(ctx, "devtools-outsider@example.com");
+    const res = await call(ctx, "GET", "/dev/accounts");
+    expect(res.status).toBe(200);
+    const { accounts } = (await res.json()) as { accounts: { email: string }[] };
+    expect(accounts.map((a) => a.email)).toContain(mock);
+    expect(accounts.every((a) => a.email.endsWith("@founder-signal.local"))).toBe(true);
+    expect((await call(remote, "GET", "/dev/accounts")).status).toBe(404);
+  });
+});
+
 describe("dev tools: state and actions", () => {
   beforeAll(async () => {
     mine = await seedUser(userId);

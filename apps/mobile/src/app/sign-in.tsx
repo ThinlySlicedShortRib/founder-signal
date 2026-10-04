@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, Text, View } from "react-nat
 import { Body, Button, Card, Screen, Small, space, TextField, Title } from "@/components/ui";
 import { font, palette } from "@/components/onboarding/kit";
 import { authClient } from "@/lib/auth";
-import { API_URL } from "@/lib/config";
+import { devSignIn } from "@/lib/dev";
 import { queryClient } from "@/lib/query";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -44,14 +44,9 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/dev/sign-in-code`, { method: "POST" });
-      if (!res.ok) throw new Error(res.status === 404 ? "Dev sign-in only works against a local API" : `Dev sign-in failed (${res.status})`);
-      const { email: devEmail, otp } = (await res.json()) as { email: string; otp: string };
-      const { error: err } = await authClient.signIn.emailOtp({ email: devEmail, otp });
-      if (err) throw new Error(err.message ?? "Dev sign-in failed");
-      queryClient.clear();
+      await devSignIn();
     } catch (err) {
-      setError(err instanceof TypeError ? `Can't reach the API at ${API_URL}` : (err as Error).message);
+      setError((err as Error).message);
     } finally {
       setBusy(false);
     }

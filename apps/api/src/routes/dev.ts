@@ -1,6 +1,9 @@
 import { localDateOf } from "@fs/core";
 import { type Db, schema } from "@fs/db";
 import {
+  DEV_ACCOUNT_DOMAIN,
+  type DevAccount,
+  devSignInInputSchema,
   DEV_RUN_PREFIX,
   type DevDiscoveryRun,
   devForgetLettersInputSchema,
@@ -31,6 +34,7 @@ const {
   schedule,
   source,
   topicWeight,
+  user: authUser,
   userAuthor,
   userDiscovery,
   userPublisher,
@@ -57,16 +61,35 @@ export type OtpRecorder = ReturnType<typeof createOtpRecorder>;
 
 /**
  * Local development only, never mounted on AWS: sends a sign-in code for the
- * dev account and returns it, so the app can sign in through the normal
- * email-code flow without anyone reading the API log.
+ * dev account or one of the local mock accounts (`@founder-signal.local`)
+ * and returns it, so the app can sign in through the normal email-code flow
+ * without anyone reading the API log. No other address is accepted.
  */
-export function devRoutes({ auth, otps }: { auth: Auth; otps: OtpRecorder }) {
-  return new Hono().post("/sign-in-code", async (c) => {
-    await auth.api.sendVerificationOTP({ body: { email: DEV_USER_EMAIL, type: "sign-in" } });
-    const otp = otps.take(DEV_USER_EMAIL);
-    if (!otp) return apiError(c, 500, "INTERNAL", "No code was generated");
-    return c.json({ email: DEV_USER_EMAIL, otp });
-  });
+export function devRoutes({ auth, otps, db }: { auth: Auth; otps: OtpRecorder; db: Db }) {
+  return new Hono()
+    .post("/sign-in-code", async (c) => {
+      // The body is optional: no body signs in as the dev account.
+      const raw = c.req.header("content-type")?.includes("application/json") ? await c.req.json().catch(() => null) : {};
+      const parsed = devSignInInputSchema.safeParse(raw ?? {});
+      if (!parsed.success) return apiError(c, 400, "VALIDATION_FAILED", `Only ${DEV_ACCOUNT_DOMAIN} accounts can use dev sign-in`);
+      const email = parsed.data.email ?? DEV_USER_EMAIL;
+      await auth.api.sendVerificationOTP({ body: { email, type: "sign-in" } });
+      const otp = otps.take(email);
+      if (!otp) return apiError(c, 500, "INTERNAL", "No code was generated");
+      return c.json({ email, otp });
+    })
+
+    /** The local mock accounts, for the Dev tools account switcher. */
+    .get("/accounts", async (c) => {
+      const rows = await db
+        .select({ email: authUser.email, name: authUser.name, role: profile.role, onboardedAt: profile.onboardedAt })
+        .from(authUser)
+        .leftJoin(profile, eq(profile.userId, authUser.id))
+        .where(sql`${authUser.email} like ${`%${DEV_ACCOUNT_DOMAIN}`}`)
+        .orderBy(authUser.email);
+      const accounts: DevAccount[] = rows.map((r) => ({ email: r.email, name: r.name, role: r.role, onboarded: !!r.onboardedAt }));
+      return c.json({ accounts });
+    });
 }
 
 // ── Dev tools (the app's Dev tools screen) ──────────────────────────────────

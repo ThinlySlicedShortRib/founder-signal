@@ -562,6 +562,26 @@ export const contentStatuses = ["pending", "extracted", "metadata_only", "enrich
  * `discoverFirst` is `test#<same id>` and waits, unstarted, until that run ends.
  */
 export const DEV_RUN_PREFIX = "dev#";
+
+/** Local mock accounts (`pnpm --filter @fs/workers seed:personas`); the dev sign-in shortcut only signs in as these. */
+export const DEV_ACCOUNT_DOMAIN = "@founder-signal.local";
+
+export const devSignInInputSchema = z.object({
+  /** A local mock account; defaults to the dev account. */
+  email: z
+    .email()
+    .transform((e) => e.toLowerCase())
+    .refine((e) => e.endsWith(DEV_ACCOUNT_DOMAIN), `Only ${DEV_ACCOUNT_DOMAIN} accounts`)
+    .optional(),
+});
+
+export const devAccountSchema = z.object({
+  email: z.string(),
+  name: z.string(),
+  role: z.string().nullable(),
+  onboarded: z.boolean(),
+});
+export type DevAccount = z.infer<typeof devAccountSchema>;
 export const TEST_LETTER_PREFIX = "test#";
 
 export const devLetterInputSchema = z.object({

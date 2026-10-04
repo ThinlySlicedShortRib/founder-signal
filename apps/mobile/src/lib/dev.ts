@@ -1,8 +1,11 @@
-import type { DevState } from "@fs/schema";
+import type { DevAccount, DevState } from "@fs/schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, unwrap } from "./api";
+import { authClient } from "./auth";
+import { API_URL } from "./config";
 import { clearLocalReadingState, LETTER_KEYS } from "./letters";
 import { PROFILE_KEY } from "./profile";
+import { queryClient } from "./query";
 
 /**
  * The Dev tools screen (development builds against a local API only): a
@@ -104,4 +107,42 @@ export function useResetAccount() {
       qc.setQueryData(PROFILE_KEY, profile);
     },
   });
+}
+
+// ── Accounts ─────────────────────────────────────────────────────────────────
+
+/**
+ * Signs in as the dev account or a local mock account (`@founder-signal.local`)
+ * through the normal email-code flow: the local API hands back the code.
+ * Signs out of the current account first, and starts every cache afresh.
+ */
+export async function devSignIn(email?: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/dev/sign-in-code`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(email ? { email } : {}),
+    });
+  } catch {
+    throw new Error(`Can't reach the API at ${API_URL}`);
+  }
+  if (!res.ok) throw new Error(res.status === 404 ? "Dev sign-in only works against a local API" : `Dev sign-in failed (${res.status})`);
+  const { email: address, otp } = (await res.json()) as { email: string; otp: string };
+  await authClient.signOut().catch(() => {});
+  const { error } = await authClient.signIn.emailOtp({ email: address, otp });
+  if (error) throw new Error(error.message ?? "Dev sign-in failed");
+  clearLocalReadingState();
+  queryClient.clear();
+}
+
+export function useDevAccounts() {
+  return useQuery({
+    queryKey: ["dev", "accounts"],
+    queryFn: async () => (await (await fetch(`${API_URL}/dev/accounts`)).json() as { accounts: DevAccount[] }).accounts,
+  });
+}
+
+export function useSwitchAccount() {
+  return useMutation({ mutationFn: (email: string) => devSignIn(email) });
 }

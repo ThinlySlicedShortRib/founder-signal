@@ -39,7 +39,7 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, store
   });
   app.notFound((c) => apiError(c, 404, "NOT_FOUND", "Not found"));
 
-  if (devOtps) app.route("/dev", devRoutes({ auth, otps: devOtps }));
+  if (devOtps) app.route("/dev", devRoutes({ auth, otps: devOtps, db }));
 
   // Better Auth owns everything under /api/auth (sign-in, sessions, sign-out).
   app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));

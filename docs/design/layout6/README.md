@@ -87,3 +87,8 @@ sent; if it ends with nothing to send, Today says so and offers "Try again".
 Onboarding no longer has the platforms step or the five quick picks (see
 `docs/design/onboarding-mockups/README.md`).
 
+**Cover: board "Home A" (canvas section "Home · tweaks (Oct 5)").** The headline is
+Bricolage 500 (was 700) at 38/40; article titles in the contents are Instrument
+Sans 500 (was 600) at 15/19.5, each with the reader's author chip (`AuthorChip`,
+unchanged) under it, opening the same author sheet as the piece page; minutes
+stay on the right.

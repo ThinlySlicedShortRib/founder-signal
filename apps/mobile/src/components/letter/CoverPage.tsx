@@ -9,6 +9,7 @@ import { font, palette } from "@/components/onboarding/kit";
 import { usePillSpace } from "@/components/pager/Pill";
 import { Display, Mono } from "@/components/pager/PagerScreen";
 import { dayAndTime, greeting, longDate } from "@/lib/format";
+import { AuthorChip } from "./Author";
 import { PieceIcon } from "./PieceIcon";
 import { ProgressBars } from "./ProgressBars";
 
@@ -17,7 +18,17 @@ import { ProgressBars } from "./ProgressBars";
  * "Letter No. N", the headline and the greeting on it; below, the post
  * office's note (in full, with "why this mix" opening inside it) and the contents.
  */
-export function CoverPage({ letter, pageCount, onPiece }: { letter: LetterView; pageCount: number; onPiece: (position: number) => void }) {
+export function CoverPage({
+  letter,
+  pageCount,
+  onPiece,
+  onAuthor,
+}: {
+  letter: LetterView;
+  pageCount: number;
+  onPiece: (position: number) => void;
+  onAuthor: (author: NonNullable<LetterView["pieces"][number]["author"]>) => void;
+}) {
   const { space } = usePillSpace();
   const art = useArt({ seed: letter.id, date: letter.localDate, number: letter.isTest ? null : letter.number, sequence: letter.isTest ? null : letter.number });
   const text = STYLES[art.style].text;
@@ -42,7 +53,8 @@ export function CoverPage({ letter, pageCount, onPiece }: { letter: LetterView; 
               {letter.isTest ? "Test letter" : `Letter No. ${letter.number}`}
               {letter.deliveredAt ? ` · arrived ${dayAndTime(letter.deliveredAt)}` : ""}
             </Mono>
-            <Display size={38} lineHeight={40} color={text.primary}>
+            {/* Board "Home A": the headline at Bricolage 500, lighter than the pager boards' 700. */}
+            <Display size={38} lineHeight={40} color={text.primary} style={{ fontFamily: font.displayMedium }}>
               {letter.headline}
             </Display>
             <Text style={{ fontFamily: font.body, fontSize: 16, lineHeight: 22, color: text.secondary }}>
@@ -60,18 +72,22 @@ export function CoverPage({ letter, pageCount, onPiece }: { letter: LetterView; 
               onPress={() => onPiece(p.position)}
               style={({ pressed }) => ({
                 flexDirection: "row",
-                alignItems: "center",
+                alignItems: "flex-start",
                 gap: 12,
                 minHeight: 56,
-                paddingVertical: 6,
+                paddingVertical: 12,
                 borderBottomWidth: 1,
                 borderBottomColor: palette.cardRule,
                 opacity: pressed ? 0.6 : 1,
               })}
             >
               <PieceIcon icon={p.icon} />
-              <Text style={{ flex: 1, fontFamily: font.bodySemi, fontSize: 15, lineHeight: 19.5, color: palette.ink, opacity: p.skipped ? 0.5 : 1 }}>{p.title}</Text>
-              <Text style={{ fontFamily: font.body, fontSize: 13, color: palette.muted }}>
+              {/* Board "Home A": a lighter title, with the reader's author chip under it. */}
+              <View style={{ flex: 1, gap: 8, opacity: p.skipped ? 0.5 : 1 }}>
+                <Text style={{ fontFamily: font.bodyMedium, fontSize: 15, lineHeight: 19.5, color: palette.ink }}>{p.title}</Text>
+                {p.author && <AuthorChip author={p.author} onPress={() => onAuthor(p.author!)} />}
+              </View>
+              <Text style={{ fontFamily: font.body, fontSize: 13, lineHeight: 19.5, color: palette.muted }}>
                 {p.completed || p.verdict ? "✓ " : ""}
                 {p.minutes} min
               </Text>

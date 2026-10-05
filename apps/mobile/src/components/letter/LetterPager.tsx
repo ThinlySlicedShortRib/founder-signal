@@ -118,7 +118,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
       {/* Keyed by page only: moving into the article and back happens in place, in the same scroll. */}
       <Animated.View key={page} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
         {page === 0 ? (
-          <CoverPage letter={letter} pageCount={pageCount} onPiece={goPage} />
+          <CoverPage letter={letter} pageCount={pageCount} onPiece={goPage} onAuthor={setAuthor} />
         ) : piece ? (
           <Reader
             meta={pieceMeta(piece, letter)}

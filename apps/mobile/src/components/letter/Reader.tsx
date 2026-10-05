@@ -1,9 +1,9 @@
-import type { AuthorCard, DislikeReason, ItemView, LikeReason, PieceImage, ReviewVote, Section, SectionSummary } from "@fs/schema";
+import type { AuthorCard, Block, DislikeReason, ItemView, LikeReason, PieceImage, ReviewVote, Section, SectionSummary } from "@fs/schema";
 import { dislikeReasons, likeReasons } from "@fs/schema";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
   Extrapolation,
@@ -29,6 +29,7 @@ import { DISLIKE_LABELS, LIKE_LABELS, setPieceState, track, usePieceState, useIt
 import { useReview } from "@/lib/profile";
 import { AuthorCardView, AuthorChip, SheetButton } from "./Author";
 import { BlockView, TEXT_SIZES, type TextSize } from "./BlockRenderer";
+import { FOCUS_STYLE_LABEL, FocusBlock, FocusProvider, nextFocusSetting, useFocusSetting, useFocusTracker } from "./Focus";
 import { PhotoBackdrop, TINTS } from "./Photo";
 
 /** What the reader knows about a piece before (or without) the item itself. */
@@ -146,6 +147,10 @@ export function Reader({
   const endY = useRef<number | null>(null);
   const [progress, setProgress] = useState(0);
   const [compact, setCompact] = useState(false);
+  /** The same, on the UI thread, for the focus highlight. */
+  const viewS = useSharedValue(0);
+  const contentS = useSharedValue(0);
+  const articleTop = useSharedValue(headMax);
   const [atEnd, setAtEnd] = useState(false);
   const [nextIsEnd, setNextIsEnd] = useState(false);
 
@@ -181,6 +186,8 @@ export function Reader({
   const onScroll = useAnimatedScrollHandler((e) => {
     const y = e.contentOffset.y;
     scrollY.set(y);
+    viewS.set(e.layoutMeasurement.height);
+    contentS.set(e.contentSize.height);
     if (Math.abs(y - lastTick.get()) >= 6) {
       lastTick.set(y);
       scheduleOnRN(onTick, y, e.layoutMeasurement.height, e.contentSize.height);
@@ -201,6 +208,27 @@ export function Reader({
   useEffect(() => {
     if (flow) onReadingChange?.(compact);
   }, [flow, compact, onReadingChange]);
+
+  // ── Focus highlight: the block at the reading line in full ink ─────────────
+  const [focusSetting, setFocusSetting] = useFocusSetting();
+  const articleRef = useRef<View>(null);
+  useEffect(() => {
+    if (!flow) articleTop.set(headMax);
+  }, [flow, headMax, articleTop]);
+  const focus = useFocusTracker({
+    articleRef,
+    setting: focusSetting,
+    reduceMotion,
+    scrollY,
+    viewH: viewS,
+    contentH: contentS,
+    articleTop,
+    startY,
+    reading,
+    flow,
+    headMin,
+    headMax,
+  });
 
   // ── Events ─────────────────────────────────────────────────────────────────
   // `open` once the article is reached (scrolled to, or Read tapped); at once without a lead.
@@ -234,6 +262,13 @@ export function Reader({
   const [reviewError, setReviewError] = useState(false);
 
   const sections = useMemo(() => sectionsOf(data), [data]);
+  const onSectionLayout = useCallback(
+    (id: string, y: number) => {
+      sectionY.current.set(id, y);
+      recompute();
+    },
+    [recompute],
+  );
 
   function sectionInView(): Section | undefined {
     let found = sections[0];
@@ -294,6 +329,12 @@ export function Reader({
     });
   }
 
+  const retrySummary = useRef(toggleSummary);
+  useEffect(() => {
+    retrySummary.current = toggleSummary;
+  });
+  const onRetrySummary = useCallback(() => retrySummary.current(), []);
+
   function finishVerdict() {
     if (!sheet) return;
     const vote: ReviewVote = sheet === "yes" ? "interested" : "not_interested";
@@ -341,7 +382,6 @@ export function Reader({
   const kicker = [meta.position && meta.pieceCount ? `Piece ${meta.position} of ${meta.pieceCount}` : null, meta.topic].filter(Boolean).join(" · ");
   const sourceRights = video ? (data?.video?.chapters?.length ? "transcript" : "video") : data?.blocks ? "full text" : data?.digest ? "digest" : null;
   const digestMode = !video && !!data && !data.blocks && !!data.digest;
-  const textStyle = { fontFamily: font.body, color: palette.ink, ...TEXT_SIZES[size] };
 
   function openVideo(at = 0) {
     const id = data?.video?.youtubeId;
@@ -359,11 +399,13 @@ export function Reader({
         scrollEventThrottle={16}
         onLayout={(e) => {
           viewH.current = e.nativeEvent.layout.height;
+          viewS.set(viewH.current);
           if (viewH.current > 0) setViewport(viewH.current);
           recompute();
         }}
         onContentSizeChange={(_w, h) => {
           contentH.current = h;
+          contentS.set(h);
           recompute();
         }}
         contentContainerStyle={{ paddingTop: headMax }}
@@ -373,6 +415,7 @@ export function Reader({
           <View
             onLayout={(e) => {
               bodyTop.current = e.nativeEvent.layout.height;
+              articleTop.set(e.nativeEvent.layout.height);
               startY.set(Math.max(0, e.nativeEvent.layout.height - headMin));
               recompute();
             }}
@@ -389,137 +432,115 @@ export function Reader({
           </View>
         )}
         {/* The article. Under a lead it's at least a screen tall, so it can always be scrolled up under the bar. */}
-        <View
-          style={{ backgroundColor: palette.surface, paddingTop: 18, paddingHorizontal: 20, paddingBottom: pill.space + 16, gap: 18, minHeight: flow ? viewport - headMin : undefined }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, borderBottomWidth: 1, borderBottomColor: palette.rule, paddingBottom: 12 }}>
-            <Text style={{ flex: 1, fontFamily: font.body, fontSize: 14, lineHeight: 19, color: palette.muted }}>
-              {[meta.sourceName ?? data?.sourceName, `${minutes} min`, sourceRights].filter(Boolean).join(" · ")}
-            </Text>
-            {originalUrl && (
-              <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>{video ? "YouTube" : "Original"}</Text>
-                <PagerIcon name="external" size={15} color={palette.blue} />
+        <FocusProvider value={focus}>
+          <View
+            ref={articleRef}
+            collapsable={false}
+            onLayout={focus.changed}
+            style={{ backgroundColor: palette.surface, paddingTop: 18, paddingHorizontal: 20, paddingBottom: pill.space + 16, gap: 18, minHeight: flow ? viewport - headMin : undefined }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, borderBottomWidth: 1, borderBottomColor: palette.rule, paddingBottom: 12 }}>
+              <Text style={{ flex: 1, fontFamily: font.body, fontSize: 14, lineHeight: 19, color: palette.muted }}>
+                {[meta.sourceName ?? data?.sourceName, `${minutes} min`, sourceRights].filter(Boolean).join(" · ")}
+              </Text>
+              {originalUrl && (
+                <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>{video ? "YouTube" : "Original"}</Text>
+                  <PagerIcon name="external" size={15} color={palette.blue} />
+                </Pressable>
+              )}
+            </View>
+            {meta.image?.credit && (
+              <Pressable accessibilityRole="link" disabled={!meta.image.creditUrl} onPress={() => meta.image?.creditUrl && void Linking.openURL(meta.image.creditUrl)} style={{ marginTop: -10 }}>
+                <Text style={{ fontFamily: font.body, fontSize: 12.5, color: palette.offText }}>
+                  {meta.image.source === "stock" ? "Stock photo" : "Photo"}: {meta.image.credit}
+                </Text>
               </Pressable>
             )}
-          </View>
-          {meta.image?.credit && (
-            <Pressable accessibilityRole="link" disabled={!meta.image.creditUrl} onPress={() => meta.image?.creditUrl && void Linking.openURL(meta.image.creditUrl)} style={{ marginTop: -10 }}>
-              <Text style={{ fontFamily: font.body, fontSize: 12.5, color: palette.offText }}>
-                {meta.image.source === "stock" ? "Stock photo" : "Photo"}: {meta.image.credit}
-              </Text>
-            </Pressable>
-          )}
-          {/* Under a lead, the piece page already shows the author and why it was picked. */}
-          {!flow && meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
-          {!flow && meta.whyPicked && (
-            <AgentLine>
-              <Text style={{ fontFamily: font.bodySemi }}>Why I picked this. </Text>
-              {meta.whyPicked}
-            </AgentLine>
-          )}
+            {/* Under a lead, the piece page already shows the author and why it was picked. */}
+            {!flow && meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
+            {!flow && meta.whyPicked && (
+              <AgentLine>
+                <Text style={{ fontFamily: font.bodySemi }}>Why I picked this. </Text>
+                {meta.whyPicked}
+              </AgentLine>
+            )}
 
-          {item.isPending ? (
-            <ActivityIndicator color={palette.muted} style={{ marginVertical: 40 }} accessibilityLabel="Loading the piece" />
-          ) : item.isError ? (
-            <InlineError message={item.error.message} onRetry={() => void item.refetch()} />
-          ) : video ? (
-            <Chapters item={data!} onOpen={openVideo} />
-          ) : data?.blocks ? (
-            sections.map((s) => {
-              const blocks = data.blocks!.slice(s.startBlock, s.endBlock);
-              const headed = blocks[0]?.type === "heading";
-              const sum = summaries[s.id];
-              return (
-                <View
-                  key={s.id}
-                  style={{ gap: 18 }}
-                  onLayout={(e) => {
-                    sectionY.current.set(s.id, e.nativeEvent.layout.y);
-                    recompute();
-                  }}
-                >
-                  {headed && <BlockView block={blocks[0]!} size={size} />}
-                  {sum && <SummaryCard state={sum} onRetry={toggleSummary} />}
-                  {blocks.slice(headed ? 1 : 0).map((b, i) => (
-                    <BlockView key={i} block={b} size={size} />
-                  ))}
+            {item.isPending ? (
+              <ActivityIndicator color={palette.muted} style={{ marginVertical: 40 }} accessibilityLabel="Loading the piece" />
+            ) : item.isError ? (
+              <InlineError message={item.error.message} onRetry={() => void item.refetch()} />
+            ) : video ? (
+              <Chapters item={data!} onOpen={openVideo} />
+            ) : data?.blocks ? (
+              <ArticleBlocks blocks={data.blocks} sections={sections} size={size} summaries={summaries} onSectionLayout={onSectionLayout} onRetry={onRetrySummary} />
+            ) : digestMode ? (
+              <>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, borderTopWidth: 1, borderBottomWidth: 1, borderColor: palette.rule }}>
+                  <DigestBadge />
+                  {originalUrl && (
+                    <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, justifyContent: "center" }}>
+                      <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>Read the original ↗</Text>
+                    </Pressable>
+                  )}
                 </View>
-              );
-            })
-          ) : digestMode ? (
-            <>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, borderTopWidth: 1, borderBottomWidth: 1, borderColor: palette.rule }}>
-                <DigestBadge />
-                {originalUrl && (
-                  <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, justifyContent: "center" }}>
-                    <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>Read the original ↗</Text>
-                  </Pressable>
-                )}
+                <DigestText text={data!.digest!} size={size} />
+              </>
+            ) : (
+              <Unavailable reason={data?.unavailableReason ?? null} onOpen={originalUrl ? () => void Linking.openURL(originalUrl) : undefined} />
+            )}
+
+            {/* About the author, in full, once the piece is read. */}
+            {meta.author && (
+              <View style={{ gap: 10, marginTop: 6 }}>
+                <Mono>About the author</Mono>
+                <AuthorCardView author={meta.author} onMore={onAuthor} />
               </View>
-              {data!.digest!
-                .split(/\n{2,}/)
-                .filter(Boolean)
-                .map((p, i) => (
-                  <Text key={i} style={textStyle}>
-                    {p}
-                  </Text>
-                ))}
-            </>
-          ) : (
-            <Unavailable reason={data?.unavailableReason ?? null} onOpen={originalUrl ? () => void Linking.openURL(originalUrl) : undefined} />
-          )}
+            )}
 
-          {/* About the author, in full, once the piece is read. */}
-          {meta.author && (
-            <View style={{ gap: 10, marginTop: 6 }}>
-              <Mono>About the author</Mono>
-              <AuthorCardView author={meta.author} onMore={onAuthor} />
-            </View>
-          )}
-
-          {/* The end card (.endc) */}
-          <View
-            onLayout={(e) => {
-              endY.current = e.nativeEvent.layout.y;
-              recompute();
-            }}
-            style={{ gap: 12, borderRadius: 24, padding: 20, backgroundColor: TINTS[((meta.position ?? 1) - 1) % 3] }}
-          >
-            <Mono color={palette.promptInk}>
-              Finished · {minutes} min{digestMode ? " · digest" : ""}
-            </Mono>
-            <Text style={{ fontFamily: font.display, fontSize: 28, lineHeight: 29.4, letterSpacing: -0.7, color: palette.ink }}>
-              {video ? "That's the video." : "That's the piece."}
-            </Text>
-            <Text style={{ fontFamily: font.body, fontSize: 15, color: palette.promptInk }}>
-              {state.verdict === "interested" ? "Worth it. Noted." : state.verdict === "not_interested" ? "Less like this. Noted." : "Use the pill: was it worth your time?"}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${next.kicker}: ${next.title}`}
-              onPress={next.onPress}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                minHeight: 64,
-                borderRadius: 18,
-                backgroundColor: palette.ink,
-                paddingHorizontal: 18,
-                paddingVertical: 10,
-                opacity: pressed ? 0.88 : 1,
-              })}
+            {/* The end card (.endc) */}
+            <View
+              onLayout={(e) => {
+                endY.current = e.nativeEvent.layout.y;
+                recompute();
+              }}
+              style={{ gap: 12, borderRadius: 24, padding: 20, backgroundColor: TINTS[((meta.position ?? 1) - 1) % 3] }}
             >
-              <View style={{ flex: 1, gap: 2 }}>
-                <Mono color={palette.pillMuted}>{next.kicker}</Mono>
-                <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: "#FFFFFF" }}>{next.title}</Text>
-              </View>
-              <PagerIcon name="down" color="#FFFFFF" />
-            </Pressable>
+              <Mono color={palette.promptInk}>
+                Finished · {minutes} min{digestMode ? " · digest" : ""}
+              </Mono>
+              <Text style={{ fontFamily: font.display, fontSize: 28, lineHeight: 29.4, letterSpacing: -0.7, color: palette.ink }}>
+                {video ? "That's the video." : "That's the piece."}
+              </Text>
+              <Text style={{ fontFamily: font.body, fontSize: 15, color: palette.promptInk }}>
+                {state.verdict === "interested" ? "Worth it. Noted." : state.verdict === "not_interested" ? "Less like this. Noted." : "Use the pill: was it worth your time?"}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${next.kicker}: ${next.title}`}
+                onPress={next.onPress}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  minHeight: 64,
+                  borderRadius: 18,
+                  backgroundColor: palette.ink,
+                  paddingHorizontal: 18,
+                  paddingVertical: 10,
+                  opacity: pressed ? 0.88 : 1,
+                })}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Mono color={palette.pillMuted}>{next.kicker}</Mono>
+                  <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: "#FFFFFF" }}>{next.title}</Text>
+                </View>
+                <PagerIcon name="down" color="#FFFFFF" />
+              </Pressable>
+            </View>
           </View>
-        </View>
+        </FocusProvider>
       </Animated.ScrollView>
 
       {/* Header: under a lead, the plain white bar once reading; otherwise the photo, shrinking to that
@@ -616,6 +637,14 @@ export function Reader({
                 title="Text size"
                 note={size === "large" ? "Large" : "Standard"}
                 onPress={() => setSize((s) => (s === "large" ? "standard" : "large"))}
+              />
+            )}
+            {!video && (
+              <TrayItem
+                glyph="¶"
+                title="Focus highlight"
+                note={focusSetting.on ? FOCUS_STYLE_LABEL[focusSetting.style] : "Off"}
+                onPress={() => setFocusSetting(nextFocusSetting(focusSetting))}
               />
             )}
             <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.1)", marginVertical: 4, marginHorizontal: 8 }} />
@@ -765,6 +794,80 @@ function sectionsOf(item: ItemView | undefined): Section[] {
   if (last.endBlock < n) out.push({ id: "_tail", title: null, startBlock: last.endBlock, endBlock: n });
   return out;
 }
+
+/**
+ * The article's blocks, by section. Memoised: the reader re-renders as progress ticks over, the
+ * article doesn't (focus is animated inside each block, never rendered).
+ */
+const ArticleBlocks = memo(function ArticleBlocks({
+  blocks,
+  sections,
+  size,
+  summaries,
+  onSectionLayout,
+  onRetry,
+}: {
+  blocks: Block[];
+  sections: Section[];
+  size: TextSize;
+  summaries: Record<string, SummaryState>;
+  onSectionLayout: (id: string, y: number) => void;
+  onRetry: () => void;
+}) {
+  return sections.map((s) => {
+    const headed = blocks[s.startBlock]?.type === "heading";
+    const sum = summaries[s.id];
+    const rest: number[] = [];
+    for (let i = s.startBlock + (headed ? 1 : 0); i < s.endBlock; i++) rest.push(i);
+    return (
+      <View key={s.id} style={{ gap: 18 }} onLayout={(e) => onSectionLayout(s.id, e.nativeEvent.layout.y)}>
+        {headed && <BlockView block={blocks[s.startBlock]!} size={size} />}
+        {sum && <SummaryCard state={sum} onRetry={onRetry} />}
+        {rest.map((i) => {
+          const b = blocks[i]!;
+          // Headings stay in full ink and aren't focused; a list's items are focused one by one;
+          // everything else is a focusable block.
+          if (b.type === "heading") return <BlockView key={i} block={b} size={size} />;
+          if (b.type === "list") {
+            return (
+              <BlockView
+                key={i}
+                block={b}
+                size={size}
+                wrapItem={(j, row) => (
+                  <FocusBlock key={j} index={listItemIndex(i, j)}>
+                    {row}
+                  </FocusBlock>
+                )}
+              />
+            );
+          }
+          return (
+            <FocusBlock key={i} index={i} media={b.type === "image" || b.type === "table"}>
+              <BlockView block={b} size={size} />
+            </FocusBlock>
+          );
+        })}
+      </View>
+    );
+  });
+});
+
+/** A focus index for a list's item, clear of the block indexes. */
+const listItemIndex = (block: number, item: number) => 1_000_000 + block * 1_000 + item;
+
+/** A digest's paragraphs, each focusable like the article's. */
+const DigestText = memo(function DigestText({ text, size }: { text: string; size: TextSize }) {
+  const style = { fontFamily: font.body, color: palette.ink, ...TEXT_SIZES[size] };
+  return text
+    .split(/\n{2,}/)
+    .filter(Boolean)
+    .map((p, i) => (
+      <FocusBlock key={i} index={i}>
+        <Text style={style}>{p}</Text>
+      </FocusBlock>
+    ));
+});
 
 function Chapters({ item, onOpen }: { item: ItemView; onOpen: (at: number) => void }) {
   const chapters = item.video?.chapters;

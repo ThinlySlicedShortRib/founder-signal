@@ -1,6 +1,6 @@
 import type { Block } from "@fs/schema";
 import { Image } from "expo-image";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { font, palette } from "@/components/onboarding/kit";
 
@@ -11,8 +11,11 @@ export const TEXT_SIZES = {
 } as const;
 export type TextSize = keyof typeof TEXT_SIZES;
 
-/** Renders extracted article blocks natively, in the reader's type. */
-export function BlockView({ block, size }: { block: Block; size: TextSize }) {
+/**
+ * Renders extracted article blocks natively, in the reader's type. `wrapItem` wraps each item of
+ * a list (the reader's focus highlight treats list items one by one).
+ */
+export function BlockView({ block, size, wrapItem }: { block: Block; size: TextSize; wrapItem?: (i: number, item: ReactNode) => ReactNode }) {
   const t = TEXT_SIZES[size];
   const body = { fontFamily: font.body, color: palette.ink, ...t };
   switch (block.type) {
@@ -36,16 +39,19 @@ export function BlockView({ block, size }: { block: Block; size: TextSize }) {
     case "list":
       return (
         <View style={{ gap: 8 }} accessibilityRole="list">
-          {block.items.map((item, i) => (
-            <View key={i} style={{ flexDirection: "row", gap: 10 }}>
-              {block.ordered ? (
-                <Text style={{ ...body, minWidth: 22, fontFamily: font.bodySemi, color: palette.blue }}>{i + 1}.</Text>
-              ) : (
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: palette.blue, marginTop: t.lineHeight / 2 - 3 }} />
-              )}
-              <Text style={{ ...body, flex: 1 }}>{item}</Text>
-            </View>
-          ))}
+          {block.items.map((item, i) => {
+            const row = (
+              <View key={i} style={{ flexDirection: "row", gap: 10 }}>
+                {block.ordered ? (
+                  <Text style={{ ...body, minWidth: 22, fontFamily: font.bodySemi, color: palette.blue }}>{i + 1}.</Text>
+                ) : (
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: palette.blue, marginTop: t.lineHeight / 2 - 3 }} />
+                )}
+                <Text style={{ ...body, flex: 1 }}>{item}</Text>
+              </View>
+            );
+            return wrapItem ? wrapItem(i, row) : row;
+          })}
         </View>
       );
     case "image":

@@ -6,7 +6,7 @@ import { ClaudeCliError, jsonSchemaOf, runClaudeCli } from "./claude-cli.ts";
 
 /**
  * The letter's copy (build plan §6.5): one Sonnet 5.5 call per letter writes
- * the headline, the cover line, the default P.S. (a quick recap of the pieces
+ * the headline, the cover intro (a short personal hook), the default P.S. (a quick recap of the pieces
  * together) and, per piece, "why I picked this", a one or two sentence summary
  * and an optional tag. The inputs are retrieved passages
  * with IDs and the user's brief, never a title alone. Every piece is then
@@ -15,7 +15,7 @@ import { ClaudeCliError, jsonSchemaOf, runClaudeCli } from "./claude-cli.ts";
 
 export const LETTER_WRITER_MODEL = "claude-sonnet-5-5";
 /** Bump when the prompt or schema changes; stored on each letter so it can be reproduced. */
-export const LETTER_PROMPT_VERSION = "letter-v3";
+export const LETTER_PROMPT_VERSION = "letter-v4";
 
 export interface LetterWriter {
   /** "anthropic", "claude-cli" or "fallback". */
@@ -36,7 +36,9 @@ export class LetterWriterError extends Error {
 
 const outputSchema = z.object({
   headline: z.string().describe("A few words naming what this letter is about and who it's for, e.g. \"Pricing and hiring, for a founder\". Under 60 characters"),
-  intro: z.string().describe("One line for the cover, e.g. \"Three things I picked for you. 33 minutes in all.\" Use only the piece count and total minutes given"),
+  intro: z
+    .string()
+    .describe("The cover's hook: one or two short sentences, under 200 characters, tying something the reader told us to what's inside today's pieces, so they want to start reading"),
   postscript: z
     .string()
     .describe("The P.S.: two or three short sentences, under 60 words, recapping the letter's pieces together, each named by its title in curly quotes"),
@@ -59,7 +61,12 @@ export const LETTER_SYSTEM_PROMPT = `You write a short daily reading letter for 
 
 For the letter:
 - headline: a few plain words naming the letter's main topics and who it's for, like "Pricing and hiring, for a founder".
-- intro: one line for the cover, like "Three things I picked for you. 33 minutes in all." Use only the piece count and total minutes you're given.
+- intro: the cover's hook, the first thing the reader sees. One or two short sentences, ideally under 140 characters and never over 200, that make them want to start reading. Speak to them as "you". Tie something real from their brief (their role, what they're into lately, their topics, what they asked for more of) to what's specifically inside one or more of the letter's pieces (not the reserve ones): a tension, an open question, a surprising angle or a payoff that the passages actually support. You may name a piece by its exact title in “curly quotes”, and quote the reader's own words the same way. Numbers only if they're the piece count, the minutes, or appear in that piece's title or passages. Curious, warm and specific, never hype or clickbait: no rhetorical questions ("Ever wondered…"), no "you won't believe", no exclamation marks. Don't recap every piece (the P.S. does that) or explain how the mix changed (shown elsewhere). Some made-up examples of the tone, not templates:
+  - "You're trying to get off hourly billing. “Price the outcome” is a designer who did it, including the first client who said no."
+  - "Before you hire that first engineer, read “The generalist trap”: why the person who can do everything may be the wrong first hire."
+  - "Your marketplace is stuck on the supply side, and “Seeding the long tail” is a founder admitting the first 200 sellers came from one spreadsheet."
+  - "You asked for more on enterprise sales, so today opens on the buyer's side of the table: what procurement reads before anyone says yes."
+  - "Going upmarket changes who signs. Three pieces on what that means for your pricing page, your first sales hire and your runway. 24 minutes in all."
 - postscript: the letter's P.S., one quick paragraph of two or three short sentences (under 60 words) recapping the letter's pieces together (not the reserve ones), speaking to the reader as "you". Name every one of them by its exact title in “curly quotes” and no other titles. Say nothing beyond what your summaries say: no new facts or numbers.
 
 For every piece, in the order given:

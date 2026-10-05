@@ -56,6 +56,15 @@ pages match) and "greeting · date" on scrims over it. The intro is two lines
 until "More", which also shows why this mix. See
 `docs/design/backgrounds/README.md`.
 
+**The cover intro is a personal hook.** The post office's line on the cover
+was "Three things I picked for you. 18 minutes in all."; now it's one or two
+short sentences tying what the reader told us (what they're into lately, their
+role, topics, chosen leanings) to what's inside today's pieces, often naming
+one by title, e.g. "You're trying to get off hourly billing. “Price the
+outcome” is a designer who did it, including the first client who said no."
+Without a model it's "You said you're into “…”: start with “…”, then two more
+on hiring and sales. 18 minutes in all." Build plan §6.5.
+
 **Icons instead of numbers in the contents.** Each row of the cover's contents
 leads with an icon for what the piece is about (pricing tag, person-plus for
 hiring, sparkles for AI, …) on its own, with no tile behind it, in the 28×28

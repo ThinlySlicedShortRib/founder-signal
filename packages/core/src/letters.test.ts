@@ -17,6 +17,9 @@ import {
   numbersIn,
   quotesIn,
   selectPassages,
+  COPY_LIMITS,
+  countIntro,
+  type WriterBrief,
   type WriterPiece,
 } from "./letter-copy.ts";
 import { fallbackRecap, leaningOptions, LEANING_MAX_CHARS, verdictSignature, whyThisMix } from "./postscript.ts";
@@ -394,10 +397,40 @@ describe("checkPieceCopy", () => {
 });
 
 describe("checkLetterCopy", () => {
-  it("only allows the letter's own numbers", () => {
-    expect(checkLetterCopy({ headline: "Pricing, for a founder", intro: "Three things. 33 minutes in all." }, [3, 33], "")).toEqual([]);
-    expect(checkLetterCopy({ headline: "Pricing", intro: "Five things. 50 minutes." }, [3, 33], "")).toContain("letter_number_unsupported:50");
+  const picks = [
+    { title: "The fee is the product", passages: [{ id: "a.p1", text: "The store makes most of its profit from the $60 fee." }] },
+    { title: "Ship it!", passages: [{ id: "b.p1", text: "Ship before you're ready." }] },
+  ];
+  const brief = "B2B SaaS founder\nMoving upmarket to enterprise";
+  const headline = "Pricing, for a founder";
+
+  it("keeps the headline to the letter's own numbers and the user's words", () => {
+    expect(checkLetterCopy({ headline, intro: "Three things. 33 minutes in all." }, [3, 33], "")).toEqual([]);
+    expect(checkLetterCopy({ headline: "Pricing", intro: "Five things. 50 minutes." }, [3, 33], "")).toContain("intro_number_unsupported:50");
     expect(checkLetterCopy({ headline: "", intro: "x" }, [], "")).toContain("headline_length");
+    // A passage's number is fine in the intro, not in the headline.
+    expect(checkLetterCopy({ headline: "The $60 fee", intro: "x" }, [], "", picks)).toContain("letter_number_unsupported:60");
+    expect(checkLetterCopy({ headline: "“The fee is the product”", intro: "x" }, [], brief, picks)).toContain("letter_quote_unsupported");
+  });
+
+  it("passes a hook tying the user to what's in the picks", () => {
+    const intro = "You're “moving upmarket to enterprise”, and “The fee is the product” shows a store living on a $60 fee. 33 minutes in all.";
+    expect(checkLetterCopy({ headline, intro }, [2, 33], brief, picks)).toEqual([]);
+  });
+
+  it("allows numbers from the picks' titles and passages, quotes from the brief or a title", () => {
+    expect(checkLetterCopy({ headline, intro: "A store that lives on a $75 fee." }, [2, 33], brief, picks)).toContain("intro_number_unsupported:75");
+    expect(checkLetterCopy({ headline, intro: "Start with “Ten pricing myths”." }, [2, 33], brief, picks)).toContain("intro_quote_unsupported");
+    // A quote from a passage isn't the user's words or a title.
+    expect(checkLetterCopy({ headline, intro: "It says “ship before you're ready”." }, [2, 33], brief, picks)).toContain("intro_quote_unsupported");
+  });
+
+  it("rejects exclamation marks outside a title, links and over-long intros", () => {
+    expect(checkLetterCopy({ headline, intro: "Start with “Ship it!” today." }, [], brief, picks)).toEqual([]);
+    expect(checkLetterCopy({ headline, intro: "Start with this one!" }, [], brief, picks)).toContain("intro_exclamation");
+    expect(checkLetterCopy({ headline, intro: "See www.example.com first." }, [], brief, picks)).toContain("contains_link");
+    expect(checkLetterCopy({ headline, intro: "word ".repeat(45) }, [], brief, picks)).toContain("intro_length");
+    expect(checkLetterCopy({ headline, intro: " " }, [], brief, picks)).toContain("intro_length");
   });
 });
 
@@ -446,8 +479,8 @@ describe("fallback copy", () => {
     expect(copy.pieces[0]!.summary).toBe(p.passages[0]!.text);
     expect(checkPieceCopy(copy.pieces[0]!, p, briefText({ role: null, lately: "how to price a first contract", topics: [], leanings: [], facts: [] }))).toEqual([]);
     expect(copy.headline).toBe("Pricing, for a founder");
-    expect(copy.intro).toBe("One thing I picked for you. 9 minutes in all.");
-    expect(checkLetterCopy(copy, [1, 9], "")).toEqual([]);
+    expect(copy.intro).toBe("For a founder: just one today, “How we priced our first B2B contract”. 9 minutes in all.");
+    expect(checkLetterCopy(copy, [1, 9], "Founder", [p])).toEqual([]);
     expect(copy.postscript).toBe("Today was “How we priced our first B2B contract”. Tell me if it was worth your time.");
   });
 
@@ -461,9 +494,45 @@ describe("fallback copy", () => {
     expect(fallbackWhyPicked([{ kind: "recency", detail: null }])).toBeNull();
   });
 
-  it("writes headlines and intros", () => {
+  it("writes headlines", () => {
     expect(fallbackHeadline(["Pricing", "Hiring", "Pricing"], null)).toBe("Pricing and hiring, picked for you");
-    expect(fallbackIntro(3, 33)).toBe("Three things I picked for you. 33 minutes in all.");
+  });
+
+  describe("intro", () => {
+    const pick = (title: string, topic: string, minutes: number, signals: { kind: string; detail: string | null }[] = []) => ({ title, topic, minutes, signals });
+    const none: WriterBrief = { role: null, lately: null, topics: [], leanings: [], facts: [] };
+    const picks = [
+      pick("Hiring your first engineer", "Hiring", 6),
+      pick("Price the outcome", "Pricing", 8, [{ kind: "lately", detail: "hourly billing" }]),
+      pick("Cold email that works", "Sales", 4),
+    ];
+
+    it("leads with the pick tied to what they're into lately, in their words", () => {
+      const brief = { ...none, role: "Solo consultant", lately: "Getting off hourly billing." };
+      const intro = fallbackIntro(brief, picks);
+      expect(intro).toBe("You said you're into “getting off hourly billing”: start with “Price the outcome”, then two more on hiring and sales. 18 minutes in all.");
+      expect(checkLetterCopy({ headline: "x", intro }, [3, 18], briefText(brief), picks.map((p) => ({ title: p.title, passages: [] })))).toEqual([]);
+    });
+
+    it("uses a chosen leaning, then the role, then nothing", () => {
+      const leaning = [pick("A", "Pricing", 5), pick("B", "Sales", 5, [{ kind: "leaning", detail: "More on sales" }])];
+      expect(fallbackIntro({ ...none, leanings: ["More on sales"] }, leaning)).toBe("You asked for “more on sales”: start with “B”, then one more on pricing. 10 minutes in all.");
+      // A lately that no pick is tied to isn't claimed.
+      expect(fallbackIntro({ ...none, role: "Indie hacker", lately: "Something else" }, picks.slice(0, 1))).toBe("For an indie hacker: just one today, “Hiring your first engineer”. 6 minutes in all.");
+      expect(fallbackIntro({ ...none, role: "B2B SaaS founder" }, [pick("Why?", "AI evals", 3)])).toBe("For a B2B SaaS founder: just one today, “Why?” 3 minutes in all.");
+      expect(fallbackIntro(none, [picks[0]!, picks[2]!, pick("Seed rounds", "Fundraising", 1)])).toBe("Start with “Hiring your first engineer”, then two more on sales and fundraising. 11 minutes in all.");
+    });
+
+    it("drops the topics, then the hook, to stay within the cap", () => {
+      const many = ["Pricing", "Sales", "Hiring", "SEO"].map((t, i) => pick(`Piece ${i}`, t, 2));
+      expect(fallbackIntro(none, many)).toBe("Start with “Piece 0”, then three more. 8 minutes in all.");
+      const long = "a very long title that goes on ".repeat(3).trim();
+      const intro = fallbackIntro({ ...none, role: "founder", lately: "x ".repeat(40) }, [pick(long, "Pricing", 5, [{ kind: "lately", detail: "x" }]), pick("B", "Sales", 5)]);
+      expect(intro).toBe(`For a founder: start with “${long}”, then one more on sales. 10 minutes in all.`);
+      expect(intro.length).toBeLessThanOrEqual(COPY_LIMITS.intro);
+      expect(fallbackIntro(none, [pick("t".repeat(200), "Pricing", 5)])).toBe("One thing I picked for you. 5 minutes in all.");
+      expect(countIntro(3, 33)).toBe("Three things I picked for you. 33 minutes in all.");
+    });
   });
 });
 

@@ -586,7 +586,7 @@ export const letterViewSchema = z.object({
   localDate: z.string(),
   /** e.g. "Pricing and hiring, for a founder". */
   headline: z.string(),
-  /** The post office's one line on the cover, e.g. "Three things I picked for you. 33 minutes in all." */
+  /** The post office's hook on the cover: one or two sentences tying the reader to today's pieces. */
   intro: z.string(),
   totalMinutes: z.number().int(),
   /** Explains a change in the mix, e.g. after a reasoned dislike (§6.4). */

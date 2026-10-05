@@ -545,17 +545,19 @@ async function lock(
     ids.map((id) => byId.get(id)!.publisherName),
     deps.random,
   );
-  const totalMinutes = ids.reduce((s, id) => s + pieceById.get(id)!.minutes, 0);
+  const keptPieces = ids.map((id) => pieceById.get(id)!);
+  const totalMinutes = keptPieces.reduce((s, p) => s + p.minutes, 0);
 
-  // The model's headline and cover line only if the pieces are the ones it wrote for, and they verify.
+  // The model's headline and cover intro only if the pieces are the ones it wrote for, and they verify.
   const modelCopy = current.work.letterCopy;
-  const useModel =
-    unchanged &&
-    modelCopy?.headline &&
-    modelCopy.intro &&
-    !checkLetterCopy(modelCopy, [kept.length, totalMinutes, ...ids.map((id) => pieceById.get(id)!.minutes)], briefText(brief)).length;
-  const headline = useModel ? modelCopy!.headline : fallbackHeadline(ids.map((id) => pieceById.get(id)!.topic), brief.role);
-  const intro = useModel ? modelCopy!.intro : fallbackIntro(kept.length, totalMinutes);
+  const copyReasons =
+    unchanged && modelCopy?.headline && modelCopy.intro
+      ? checkLetterCopy(modelCopy, [kept.length, totalMinutes, ...keptPieces.map((p) => p.minutes)], briefText(brief), keptPieces)
+      : null;
+  if (copyReasons?.length) logger(deps)("letter_copy_rejected", { letterId: current.id, reasons: copyReasons });
+  const useModel = copyReasons?.length === 0;
+  const headline = useModel ? modelCopy!.headline : fallbackHeadline(keptPieces.map((p) => p.topic), brief.role);
+  const intro = useModel ? modelCopy!.intro : fallbackIntro(brief, keptPieces);
   // The default P.S. likewise: the model's only for the pieces it wrote for, naming just them and
   // nothing beyond their delivered summaries; otherwise one from the titles. Feedback replaces it (API).
   const titled = ids.map((id) => ({ title: pieceById.get(id)!.title, summary: drafts[id]!.summary }));

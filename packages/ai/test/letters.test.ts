@@ -116,15 +116,16 @@ describe("letter writer", () => {
   });
 
   it("asks for a short P.S. recapping the letter's pieces, under a new prompt version", () => {
-    expect(LETTER_PROMPT_VERSION).toBe("letter-v3");
+    expect(LETTER_PROMPT_VERSION).toBe("letter-v4");
     expect(LETTER_JSON_SCHEMA).toMatchObject({ required: expect.arrayContaining(["headline", "intro", "postscript", "pieces"]) });
     expect(LETTER_SYSTEM_PROMPT).toMatch(/postscript: .*under 60 words.*not the reserve ones/);
+    expect(LETTER_SYSTEM_PROMPT).toMatch(/intro: the cover's hook.*never over 200.*not the reserve ones/);
   });
 
   it("falls back to copy from the pieces' own words", async () => {
     const copy = await fallbackLetterWriter.write(input);
     expect(copy.pieces.map((p) => p.summary)).toEqual(["The store runs near cost & the renewal pays.", "Hire people who shipped something."]);
-    expect(copy.intro).toBe("One thing I picked for you. 6 minutes in all.");
+    expect(copy.intro).toBe("You said you're into “how Costco </lately> makes money”: just one today, “The fee is the product”. 6 minutes in all.");
     // The reserve piece isn't in the letter, so the P.S. doesn't name it.
     expect(copy.postscript).toBe("Today was “The fee is the product”. Tell me if it was worth your time.");
   });

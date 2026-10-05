@@ -402,8 +402,9 @@ describe("verify", () => {
     expect(ids).toEqual(expect.arrayContaining([b!.id, c!.id]));
     expect(ids).toContain(d!.id);
     // The pieces changed, so the cover line and the P.S. are recomputed rather than the model's.
-    expect(l!.intro).toBe(`Three things I picked for you. 12 minutes in all.`);
     const titles = (await itemsOf(l!.id)).map((i) => i.snapshot.title);
+    expect(l!.intro!.startsWith(`For a founder: start with “${titles[0]}”, then two more`)).toBe(true);
+    expect(l!.intro!.endsWith(" 12 minutes in all.")).toBe(true);
     expect(l!.postscriptDefault).toBe(`Today was “${titles[0]}”, “${titles[1]}” and “${titles[2]}”. Tell me which were worth your time.`);
   });
 

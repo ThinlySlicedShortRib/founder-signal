@@ -63,7 +63,7 @@ export interface LetterCopy {
   pieces: PieceCopy[];
 }
 
-export const COPY_LIMITS = { summary: 320, whyPicked: 220, headline: 80, intro: 160, postscript: 480 } as const;
+export const COPY_LIMITS = { summary: 320, whyPicked: 220, headline: 80, intro: 200, postscript: 480 } as const;
 /** The P.S. is asked for in about 60 words; this is the hard cap, with room for long titles. */
 export const POSTSCRIPT_MAX_WORDS = 80;
 
@@ -163,14 +163,33 @@ export function checkPieceCopy(copy: PieceCopy, piece: Pick<WriterPiece, "passag
   return reasons;
 }
 
-/** The headline and intro may only use the letter's own numbers (piece count, minutes). */
-export function checkLetterCopy(copy: Pick<LetterCopy, "headline" | "intro">, allowedNumbers: number[], briefText: string): string[] {
+/**
+ * The headline and the cover intro. The headline may only use the letter's own
+ * numbers (piece count, minutes) and quote the user. The intro is a personal
+ * hook, so it may also use a number from one of the picks' titles or passages
+ * (a concrete figure is often the best reason to start reading), and quote the
+ * user or name a pick by its title; no exclamation marks outside a title, no links.
+ */
+export function checkLetterCopy(
+  copy: Pick<LetterCopy, "headline" | "intro">,
+  allowedNumbers: number[],
+  briefText: string,
+  picks: Pick<WriterPiece, "title" | "passages">[] = [],
+): string[] {
   const reasons: string[] = [];
   if (!copy.headline.trim() || copy.headline.length > COPY_LIMITS.headline) reasons.push("headline_length");
-  if (!copy.intro.trim() || copy.intro.length > COPY_LIMITS.intro) reasons.push("intro_length");
   const allowed = new Set(allowedNumbers.map(String));
-  for (const n of numbersIn(`${copy.headline} ${copy.intro}`)) if (!allowed.has(n)) reasons.push(`letter_number_unsupported:${n}`);
-  for (const q of quotesIn(`${copy.headline} ${copy.intro}`)) if (!containsQuote(briefText, q)) reasons.push("letter_quote_unsupported");
+  for (const n of numbersIn(copy.headline)) if (!allowed.has(n)) reasons.push(`letter_number_unsupported:${n}`);
+  for (const q of quotesIn(copy.headline)) if (!containsQuote(briefText, q)) reasons.push("letter_quote_unsupported");
+
+  const intro = copy.intro.trim();
+  if (!intro || intro.length > COPY_LIMITS.intro) reasons.push("intro_length");
+  const pickText = picks.flatMap((p) => [p.title, ...p.passages.map((x) => x.text)]).join("\n");
+  const introNumbers = new Set([...allowed, ...numbersIn(pickText)]);
+  for (const n of numbersIn(intro)) if (!introNumbers.has(n)) reasons.push(`intro_number_unsupported:${n}`);
+  for (const q of quotesIn(intro)) if (!containsQuote(briefText, q) && !picks.some((p) => containsQuote(p.title, q))) reasons.push("intro_quote_unsupported");
+  if (normalizeText(intro).replace(/"[^"]*"/g, "").includes("!")) reasons.push("intro_exclamation");
+  if (/https?:\/\/|www\./i.test(intro)) reasons.push("contains_link");
   return reasons;
 }
 
@@ -255,11 +274,67 @@ export function fallbackHeadline(topics: string[], role: string | null): string 
   return (line[0]!.toUpperCase() + line.slice(1)).slice(0, COPY_LIMITS.headline);
 }
 
-/** "Three things I picked for you. 33 minutes in all." */
-export function fallbackIntro(count: number, totalMinutes: number): string {
+/** "Three things I picked for you. 33 minutes in all." The last resort when nothing personal fits. */
+export function countIntro(count: number, totalMinutes: number): string {
   const n = NUMBER_WORDS[count] ?? String(count);
   const things = count === 1 ? "One thing I picked for you." : `${n} things I picked for you.`;
-  return `${things} ${totalMinutes} minute${totalMinutes === 1 ? "" : "s"} in all.`;
+  return `${things} ${minutesInAll(totalMinutes)}`;
+}
+
+function minutesInAll(totalMinutes: number): string {
+  return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"} in all.`;
+}
+
+/** "Moving upmarket" → "moving upmarket", but "SEO" and "AI evals" stay. */
+function lowerFirst(text: string): string {
+  return /^[A-Z][a-z]/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
+}
+
+function andList(items: string[]): string {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)!}`;
+}
+
+/**
+ * The cover intro without a model: a hook from the user's own words, then where
+ * to start and what follows, then the minutes. "You said you're into “getting
+ * off hourly billing”: start with “Price the outcome”, then two more on pricing
+ * and hiring. 18 minutes in all." It leads with the pick tied to what they're
+ * into lately or a "Tomorrow, more of" choice, else the first; with neither, their role.
+ * Falls back to shorter forms, and finally the count, to stay within the cap.
+ */
+export function fallbackIntro(brief: WriterBrief, picks: Pick<WriterPiece, "title" | "topic" | "minutes" | "signals">[]): string {
+  const total = picks.reduce((s, p) => s + p.minutes, 0);
+  if (!picks.length) return countIntro(0, total);
+  const tied = (kind: string) => picks.findIndex((p) => p.signals.some((s) => s.kind === kind && s.detail));
+  const latelyAt = brief.lately ? tied("lately") : -1;
+  const leadIndex = latelyAt >= 0 ? latelyAt : Math.max(0, tied("leaning"));
+  const lead = picks[leadIndex]!;
+  const rest = picks.filter((_, i) => i !== leadIndex);
+  const leaning = lead.signals.find((s) => s.kind === "leaning" && s.detail && brief.leanings.some((l) => normalizeText(l) === normalizeText(s.detail!)));
+
+  const hooks: string[] = [];
+  if (brief.lately && lead.signals.some((s) => s.kind === "lately")) hooks.push(`You said you're into “${lowerFirst(brief.lately.replace(/["“”]/g, "").trim().replace(/[.!?]+$/, ""))}”`);
+  else if (leaning) hooks.push(`You asked for “${lowerFirst(leaning.detail!)}”`);
+  if (brief.role) hooks.push(`For ${/^[aeiou]/i.test(brief.role) ? "an" : "a"} ${lowerFirst(brief.role.trim())}`);
+  hooks.push("");
+
+  const title = `“${lead.title}”`;
+  const topics = [...new Set(rest.map((p) => lowerFirst(p.topic)))];
+  const more = NUMBER_WORDS[rest.length]?.toLowerCase() ?? String(rest.length);
+  const mains = !rest.length
+    ? [`just one today, ${title}${/[.?!…]$/.test(lead.title) ? "" : "."}`]
+    : [
+        ...(topics.length <= 2 ? [`start with ${title}, then ${more} more on ${andList(topics)}.`] : []),
+        `start with ${title}, then ${more} more.`,
+      ];
+
+  for (const hook of hooks) {
+    for (const main of mains) {
+      const line = hook ? `${hook}: ${main} ${minutesInAll(total)}` : `${main[0]!.toUpperCase()}${main.slice(1)} ${minutesInAll(total)}`;
+      if (line.length <= COPY_LIMITS.intro) return line;
+    }
+  }
+  return countIntro(picks.length, total);
 }
 
 /** "Today was “A”, “B” and “C”. Tell me which were worth your time." The P.S. without a model; null without pieces. */
@@ -272,10 +347,9 @@ export function fallbackPostscript(titles: string[]): string | null {
 
 export function fallbackLetterCopy(input: WriterInput): LetterCopy {
   const picks = input.pieces.slice(0, input.pickCount);
-  const total = picks.reduce((s, p) => s + p.minutes, 0);
   return {
     headline: fallbackHeadline(picks.map((p) => p.topic), input.brief.role),
-    intro: fallbackIntro(picks.length, total),
+    intro: fallbackIntro(input.brief, picks),
     postscript: fallbackPostscript(picks.map((p) => p.title)) ?? "",
     pieces: input.pieces.map(fallbackPieceCopy),
   };

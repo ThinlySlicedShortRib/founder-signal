@@ -1,8 +1,10 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { font, InlineError, OButton, palette } from "@/components/onboarding/kit";
+import { ArtHero, useHeroStatusBar } from "@/components/art/ArtHero";
+import { STYLES } from "@/components/art/styles";
+import { useArt } from "@/components/art/useArt";
+import { font, InlineError, OButton } from "@/components/onboarding/kit";
 import { usePillSpace } from "@/components/pager/Pill";
 import { AgentLine, Display, Mono, PagerScreen } from "@/components/pager/PagerScreen";
 import { clock, greeting, longDate, localDay, weekday } from "@/lib/format";
@@ -22,7 +24,6 @@ const ENDED = {
  * or a test letter) didn't arrive.
  */
 export function EmptyToday({ ended }: { ended: "empty" | "failed" | null }) {
-  const insets = useSafeAreaInsets();
   const { space } = usePillSpace();
   const schedule = useProfile().data?.schedule;
   const test = useTestLetter();
@@ -41,17 +42,25 @@ export function EmptyToday({ ended }: { ended: "empty" | "failed" | null }) {
     });
   }
 
+  const day = localDay();
+  const art = useArt({ seed: day, date: day, number: 1 });
+  const text = STYLES[art.style].text;
+  const bar = useHeroStatusBar(art);
+
   return (
-    <PagerScreen current="today" kicker="Today" title="Soon">
-      <ScrollView contentContainerStyle={{ gap: 18, paddingTop: insets.top + 22, paddingHorizontal: 20, paddingBottom: space }}>
-        <View style={{ gap: 4 }}>
-          <Text style={{ fontFamily: font.body, fontSize: 16, color: palette.muted }}>{longDate(localDay())}</Text>
-          <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: palette.ink }}>{greeting()}</Text>
+    <PagerScreen current="today" kicker="Today" title="Soon" statusBar={bar.barStyle}>
+      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={{ gap: 18, paddingHorizontal: 20, paddingBottom: space }}>
+        <View style={{ marginHorizontal: -20 }}>
+          <ArtHero art={art} onHeight={bar.onHeroHeight}>
+            <Mono color={text.accent}>{when ? `Letter No. 1 · arrives ${when}` : "Letter No. 1"}</Mono>
+            <Display size={38} lineHeight={40} color={text.primary}>
+              {when ? `See you ${when}.` : "Your first letter is on its way."}
+            </Display>
+            <Text style={{ fontFamily: font.body, fontSize: 16, lineHeight: 22, color: text.secondary }}>
+              <Text style={{ fontFamily: font.bodySemi, color: text.primary }}>{greeting()}</Text> · {longDate(day)}
+            </Text>
+          </ArtHero>
         </View>
-        <Mono color={palette.blue}>{when ? `Letter No. 1 · arrives ${when}` : "Letter No. 1"}</Mono>
-        <Display size={52} lineHeight={54}>
-          {when ? `See you ${when}.` : "Your first letter is on its way."}
-        </Display>
         {ended ? (
           <View accessibilityRole="alert">
             <AgentLine>{ENDED[ended]}</AgentLine>

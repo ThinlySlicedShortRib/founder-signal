@@ -1,6 +1,8 @@
 import type { LetterStage } from "@fs/schema";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ArtHero, useHeroStatusBar } from "@/components/art/ArtHero";
+import { STYLES } from "@/components/art/styles";
+import { useArt } from "@/components/art/useArt";
 import { font, palette } from "@/components/onboarding/kit";
 import { BoardIcon } from "@/components/onboarding/icons";
 import { usePillSpace } from "@/components/pager/Pill";
@@ -20,22 +22,29 @@ const STEPS: { stage: LetterStage; label: string }[] = [
  * until it opens here. Same page as EmptyToday, under the same pill.
  */
 export function PreparingLetter({ stage, isTest }: { stage: LetterStage | null; isTest: boolean }) {
-  const insets = useSafeAreaInsets();
   const { space } = usePillSpace();
   const at = stage === "sent" ? STEPS.length : Math.max(0, STEPS.findIndex((s) => s.stage === stage));
   const current = stage === "sent" ? "It's ready. Opening it now." : `${STEPS[at]!.label}…`;
 
+  const day = localDay();
+  const art = useArt({ seed: day, date: day, number: isTest ? null : 1 });
+  const text = STYLES[art.style].text;
+  const bar = useHeroStatusBar(art);
+
   return (
-    <PagerScreen current="today" kicker="Today" title={stage === "sent" ? "Ready" : "Writing"}>
-      <ScrollView contentContainerStyle={{ gap: 18, paddingTop: insets.top + 22, paddingHorizontal: 20, paddingBottom: space }}>
-        <View style={{ gap: 4 }}>
-          <Text style={{ fontFamily: font.body, fontSize: 16, color: palette.muted }}>{longDate(localDay())}</Text>
-          <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: palette.ink }}>{greeting()}</Text>
+    <PagerScreen current="today" kicker="Today" title={stage === "sent" ? "Ready" : "Writing"} statusBar={bar.barStyle}>
+      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={{ gap: 18, paddingHorizontal: 20, paddingBottom: space }}>
+        <View style={{ marginHorizontal: -20 }}>
+          <ArtHero art={art} drift onHeight={bar.onHeroHeight}>
+            <Mono color={text.accent}>{isTest ? "Test letter" : "Letter No. 1"}</Mono>
+            <Display size={38} lineHeight={40} color={text.primary}>
+              {isTest ? "Your test letter is on its way." : "Your first letter is being put together."}
+            </Display>
+            <Text style={{ fontFamily: font.body, fontSize: 16, lineHeight: 22, color: text.secondary }}>
+              <Text style={{ fontFamily: font.bodySemi, color: text.primary }}>{greeting()}</Text> · {longDate(day)}
+            </Text>
+          </ArtHero>
         </View>
-        <Mono color={palette.blue}>{isTest ? "Test letter" : "Letter No. 1"}</Mono>
-        <Display size={52} lineHeight={54}>
-          {isTest ? "Your test letter is on its way." : "Your first letter is being put together."}
-        </Display>
 
         {/* The current step is announced as it changes; the list is for sighted users. */}
         <View accessibilityLiveRegion="polite" accessible accessibilityLabel={current} style={{ gap: 12, paddingVertical: 4 }}>

@@ -1,9 +1,12 @@
 import type { DevDiscoveryRun, DevLetter, DevState } from "@fs/schema";
 import { router } from "expo-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Chip, font, InlineError, OButton, palette } from "@/components/onboarding/kit";
+import { ArtSwatch } from "@/components/art/ArtSwatch";
+import { STYLE_ORDER, STYLES, styleForDay } from "@/components/art/styles";
+import { setForcedStyle, useForcedStyle } from "@/components/art/useArt";
+import { Chip, Chips, font, InlineError, OButton, palette } from "@/components/onboarding/kit";
 import { PagerIcon } from "@/components/pager/icons";
 import { usePillSpace } from "@/components/pager/Pill";
 import { AgentLine, Display, Mono, PagerScreen } from "@/components/pager/PagerScreen";
@@ -22,7 +25,7 @@ import {
   useRestartOnboarding,
   useSwitchAccount,
 } from "@/lib/dev";
-import { clock, plural } from "@/lib/format";
+import { clock, localDay, plural } from "@/lib/format";
 import { LETTER_KEYS } from "@/lib/letters";
 import { queryClient } from "@/lib/query";
 
@@ -95,6 +98,7 @@ export default function DevTools() {
             <SourcesSection state={s!} />
           </>
         )}
+        <BackgroundsSection />
       </ScrollView>
     </PagerScreen>
   );
@@ -435,6 +439,41 @@ function SourcesSection({ state: s }: { state: DevState }) {
 }
 
 // ── Pieces ───────────────────────────────────────────────────────────────────
+
+/** Today's cover art: every style with a few seeds, and one forced on Today until the app reloads. */
+function BackgroundsSection() {
+  const forced = useForcedStyle();
+  const daily = STYLES[styleForDay(localDay())].name;
+  const swatch = Math.floor((Math.min(useWindowDimensions().width, 520) - 40 - 16) / 3);
+  return (
+    <Section kicker="Backgrounds" title="Cover art">
+      <Hint>The day picks the style and the letter’s id the details (docs/design/backgrounds). Tap a style to force it on Today; it lasts until the app reloads.</Hint>
+      <Chips>
+        <Chip label={`Daily (${daily})`} on={!forced} onPress={() => setForcedStyle(null)} />
+      </Chips>
+      {STYLE_ORDER.map((id) => (
+        <Pressable
+          key={id}
+          accessibilityRole="button"
+          accessibilityState={{ selected: forced === id }}
+          accessibilityLabel={`Force ${STYLES[id].name} on Today`}
+          onPress={() => setForcedStyle(forced === id ? null : id)}
+          style={({ pressed }) => ({ gap: 8, opacity: pressed ? 0.8 : 1 })}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={{ fontFamily: font.bodySemi, fontSize: 15, color: palette.ink }}>{STYLES[id].name}</Text>
+            <Mono color={forced === id ? palette.blue : palette.muted}>{forced === id ? "On Today" : `${STYLES[id].tone} · scrim ${STYLES[id].scrim}`}</Mono>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {["a", "b", "c"].map((seed) => (
+              <ArtSwatch key={seed} style={id} seed={seed} width={swatch} />
+            ))}
+          </View>
+        </Pressable>
+      ))}
+    </Section>
+  );
+}
 
 function Row({ label, value }: { label: string; value: string }) {
   return (

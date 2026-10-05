@@ -10,6 +10,7 @@ export function PagerScreen({
   current,
   kicker,
   title,
+  statusBar = "dark",
   children,
 }: {
   /** Null for a page that isn't one of the menu's destinations. */
@@ -18,12 +19,14 @@ export function PagerScreen({
   kicker: string;
   /** The pill's value, e.g. "Saved". */
   title: string;
+  /** Light over dark art at the top of the page (Today's hero). */
+  statusBar?: "dark" | "light";
   children: ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <View style={{ flex: 1, backgroundColor: palette.ground }}>
-      <StatusBar style="dark" />
+      <StatusBar style={statusBar} />
       {children}
       <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={current} />
       <Pill label="Navigation">
@@ -77,11 +80,13 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 }
 
 /** .agent: the post office's voice, an orange dot on light orange. */
-export function AgentLine({ children }: { children: ReactNode }) {
+export function AgentLine({ children, numberOfLines }: { children: ReactNode; numberOfLines?: number }) {
   return (
     <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: palette.noteBg, borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14 }}>
       <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: palette.orange, marginTop: 2 }} />
-      <Text style={{ flex: 1, fontFamily: font.body, fontSize: 15, lineHeight: 21.75, color: palette.noteInk }}>{children}</Text>
+      <Text numberOfLines={numberOfLines} style={{ flex: 1, fontFamily: font.body, fontSize: 15, lineHeight: 21.75, color: palette.noteInk }}>
+        {children}
+      </Text>
     </View>
   );
 }

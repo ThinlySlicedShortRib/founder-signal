@@ -47,6 +47,15 @@ darker at every stop, `piece` variant: 0.44 / 0.54 / 0.86 / 0.97 at
 0.45 at the top → 0.85 at 30% → full from 55%, at blur intensity 90 (was 55). The P.S. keeps the board's
 `page` gradient and its bottom-rising blur.
 
+**Cover art.** Today's cover, the empty Today and the letter-being-made page
+have a generative art band at the top (at least 60% of the screen) instead of
+plain ground: one of eight styles a day (mesh, routes, postmark, halftone,
+riso, contour, stamp, airmail), seeded by the letter's id, with the masthead,
+"Letter No. N", the headline (now 38/40, was 52/54; the empty and preparing
+pages match) and "greeting · date" on scrims over it. The intro is two lines
+until "More", which also shows why this mix. See
+`docs/design/backgrounds/README.md`.
+
 Not on the boards: while a letter is being made now (the first letter right
 after onboarding, or a test letter), Today shows it being put together in the
 empty Today's style ("Searching the web for you" → "Reading what I found" →

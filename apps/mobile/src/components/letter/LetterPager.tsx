@@ -113,7 +113,8 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ground }}>
-      <StatusBar style={page === 0 || inArticle ? "dark" : "light"} />
+      {/* The cover sets its own, from its art. */}
+      {page !== 0 && <StatusBar style={inArticle ? "dark" : "light"} />}
       {/* Keyed by page only: moving into the article and back happens in place, in the same scroll. */}
       <Animated.View key={page} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
         {page === 0 ? (

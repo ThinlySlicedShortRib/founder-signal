@@ -1,0 +1,1 @@
+ALTER TABLE "content_item" ADD COLUMN IF NOT EXISTS "icon" text;

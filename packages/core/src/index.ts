@@ -12,3 +12,4 @@ export * from "./letter-copy.ts";
 export * from "./postscript.ts";
 export * from "./ranking.ts";
 export * from "./text-match.ts";
+export * from "./piece-icons.ts";

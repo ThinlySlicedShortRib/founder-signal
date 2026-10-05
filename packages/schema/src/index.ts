@@ -337,6 +337,148 @@ export type PutReviewInput = z.infer<typeof putReviewInputSchema>;
 // ── Letters (build plan §6.1–6.7, §7: /letters, /items/:id) ─────────────────
 // The app's reading experience (Layout 6 on the design canvas) is built on these.
 
+/**
+ * The icon beside a piece in the letter's contents, chosen per item at
+ * enrichment (or by `fallbackPieceIcon` in @fs/core). Keys are semantic and
+ * stable; the app maps each to a glyph, so the glyph set can change without
+ * touching stored data. The meanings go into the enrichment prompt.
+ */
+export const pieceIconKeys = [
+  "article",
+  "video",
+  "podcast",
+  "pricing",
+  "sales",
+  "fundraising",
+  "pitch",
+  "equity",
+  "finance",
+  "metrics",
+  "data",
+  "hiring",
+  "team",
+  "leadership",
+  "product",
+  "launch",
+  "growth",
+  "retention",
+  "marketing",
+  "brand",
+  "content",
+  "seo",
+  "social",
+  "email",
+  "community",
+  "customers",
+  "support",
+  "engineering",
+  "ai",
+  "automation",
+  "no-code",
+  "infrastructure",
+  "open-source",
+  "mobile",
+  "hardware",
+  "design",
+  "legal",
+  "security",
+  "operations",
+  "strategy",
+  "competition",
+  "marketplace",
+  "ecommerce",
+  "saas",
+  "services",
+  "small-business",
+  "bootstrapping",
+  "acquisitions",
+  "partnerships",
+  "international",
+  "economy",
+  "remote",
+  "health",
+  "productivity",
+  "writing",
+  "learning",
+  "story",
+  "failure",
+  "ideas",
+  "research",
+] as const;
+export type PieceIcon = (typeof pieceIconKeys)[number];
+export const pieceIconSchema = z.enum(pieceIconKeys);
+
+/** What each icon stands for, as the enrichment model is told. */
+export const pieceIconMeanings: Record<PieceIcon, string> = {
+  article: "a general article that fits nothing more specific",
+  video: "a general video that fits nothing more specific",
+  podcast: "podcasts, interviews and conversations",
+  pricing: "pricing, packaging, plans and discounts",
+  sales: "selling, closing deals, sales teams and pipelines",
+  fundraising: "raising money from investors, VCs and angels",
+  pitch: "pitch decks and pitching",
+  equity: "equity, cap tables, dilution and ownership",
+  finance: "cash flow, accounting, unit economics, profitability and taxes",
+  metrics: "KPIs, dashboards and measuring the business",
+  data: "data, analytics tooling and databases",
+  hiring: "hiring, recruiting and interviewing candidates",
+  team: "team culture, managing people and compensation",
+  leadership: "leadership, the CEO role and decision making",
+  product: "product management, roadmaps and product-market fit",
+  launch: "launching, go-to-market and getting the first users",
+  growth: "growth, scaling and acquisition channels",
+  retention: "retention, churn, activation and onboarding users",
+  marketing: "marketing in general, positioning and advertising",
+  brand: "brand, storytelling and reputation",
+  content: "content marketing, blogging and publishing",
+  seo: "SEO and search traffic",
+  social: "social media, audience building and creators",
+  email: "email, newsletters and cold outreach",
+  community: "communities, forums and events",
+  customers: "customer research, interviews and understanding users",
+  support: "customer support and customer success",
+  engineering: "software engineering, coding and technical architecture",
+  ai: "AI, machine learning and LLMs",
+  automation: "automation, workflows and internal tools",
+  "no-code": "no-code and low-code building",
+  infrastructure: "cloud, hosting, servers and devops",
+  "open-source": "open source",
+  mobile: "mobile apps",
+  hardware: "hardware and physical products",
+  design: "design, UX and visual craft",
+  legal: "legal matters, contracts, incorporation and compliance",
+  security: "security, privacy and fraud",
+  operations: "operations, processes and running the business day to day",
+  strategy: "strategy, moats and long-term planning",
+  competition: "competitors and competitive dynamics",
+  marketplace: "marketplaces and platforms with two sides",
+  ecommerce: "e-commerce, online stores and DTC brands",
+  saas: "SaaS and subscription businesses",
+  services: "agencies, consulting, freelancing and productized services",
+  "small-business": "small and local businesses, side projects",
+  bootstrapping: "bootstrapping and self-funded companies",
+  acquisitions: "acquisitions, exits and selling a company",
+  partnerships: "partnerships, channels and business development",
+  international: "international expansion and working across countries",
+  economy: "the economy, markets, industry trends and news",
+  remote: "remote work and distributed teams",
+  health: "founder health, burnout, stress and wellbeing",
+  productivity: "productivity, focus and time management",
+  writing: "writing and communication",
+  learning: "learning, books and self-education",
+  story: "a founder's own story or journey",
+  failure: "failures, postmortems, mistakes and lessons learned",
+  ideas: "startup ideas, validation and finding problems",
+  research: "research, studies and experiments",
+};
+
+/** The key if it's one of ours (trimmed, any case), else null. */
+export function parsePieceIcon(value: unknown): PieceIcon | null {
+  if (typeof value !== "string") return null;
+  const key = value.trim().toLowerCase();
+  return (pieceIconKeys as readonly string[]).includes(key) ? (key as PieceIcon) : null;
+}
+
 /** The picture behind a piece page: the article's own lead image, else a stock photo for its topic. */
 export const pieceImageSchema = z.object({
   url: z.url(),
@@ -394,6 +536,8 @@ export const letterPieceSchema = z.object({
   sourceName: z.string(),
   originalUrl: z.url(),
   image: pieceImageSchema.nullable(),
+  /** The icon in the contents list: the one picked at enrichment, else one from the topic and title. */
+  icon: pieceIconSchema,
   author: authorCardSchema.nullable(),
   /** `[A-Z]{2}[0-9]{2}`, unique within the letter (§6.7). */
   feedbackCode: z.string(),
@@ -536,6 +680,7 @@ export const savedPieceSchema = z.object({
   minutes: z.number().int().nullable(),
   sourceName: z.string(),
   image: pieceImageSchema.nullable(),
+  icon: pieceIconSchema,
   savedAt: z.iso.datetime(),
   /** Readable offline (rights allow it and the blocks are cached on the device). */
   offline: z.boolean(),

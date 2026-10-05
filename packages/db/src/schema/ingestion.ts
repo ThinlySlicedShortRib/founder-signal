@@ -193,6 +193,8 @@ export const contentItem = pgTable(
     tags: text("tags").array(),
     depth: text("depth"),
     qualityLabel: text("quality_label"),
+    /** The contents-list icon enrichment picked, a key of `pieceIconKeys` (@fs/schema); null before enrichment or when its pick wasn't one. */
+    icon: text("icon"),
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
     enrichmentBatchId: uuid("enrichment_batch_id").references(() => enrichmentBatch.id),
     enrichmentAttempts: integer("enrichment_attempts").default(0).notNull(),

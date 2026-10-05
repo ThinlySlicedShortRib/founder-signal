@@ -10,6 +10,7 @@ import { usePillSpace } from "@/components/pager/Pill";
 import { AgentLine, Display, Mono } from "@/components/pager/PagerScreen";
 import { dayAndTime, greeting, longDate } from "@/lib/format";
 import { TINTS } from "./Photo";
+import { PieceIcon } from "./PieceIcon";
 import { ProgressBars } from "./ProgressBars";
 
 /**
@@ -69,9 +70,7 @@ export function CoverPage({ letter, pageCount, onPiece }: { letter: LetterView; 
                 opacity: pressed ? 0.6 : 1,
               })}
             >
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: TINTS[i % 3], alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontFamily: font.mono, fontSize: 12, color: palette.ink }}>{String(p.position).padStart(2, "0")}</Text>
-              </View>
+              <PieceIcon icon={p.icon} tint={TINTS[i % 3]} />
               <Text style={{ flex: 1, fontFamily: font.bodySemi, fontSize: 15, lineHeight: 19.5, color: palette.ink, opacity: p.skipped ? 0.5 : 1 }}>{p.title}</Text>
               <Text style={{ fontFamily: font.body, fontSize: 13, color: palette.muted }}>
                 {p.completed || p.verdict ? "✓ " : ""}

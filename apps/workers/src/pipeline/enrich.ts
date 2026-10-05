@@ -94,7 +94,7 @@ async function applyBatch(deps: PipelineDeps, enricher: Enricher, batchId: strin
       continue;
     }
 
-    const { tags, language, depth, quality } = result.enrichment;
+    const { tags, language, depth, quality, icon } = result.enrichment;
     const embedding = await enricher.embedder.embed(embeddingText({ title: item.title, tags, text: await loadItemText(deps, item.id) }));
     await db
       .update(contentItem)
@@ -104,6 +104,7 @@ async function applyBatch(deps: PipelineDeps, enricher: Enricher, batchId: strin
         language: sql`coalesce(${contentItem.language}, ${language})`,
         depth,
         qualityLabel: quality,
+        icon,
         embedding,
         status: "enriched",
         enrichedAt: new Date(),

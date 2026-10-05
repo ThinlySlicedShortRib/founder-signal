@@ -26,3 +26,6 @@ android/
 google-services.json
 GoogleService-Info.plist
 .data/
+
+# Agent worktrees (local only)
+.claude/worktrees/

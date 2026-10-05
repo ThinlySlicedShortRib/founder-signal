@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/servedev/servedev/main/schema/servedev.schema.json",
+  "profiles": {
+    "Founder signal": {
+      "servers": ["api", "mobile", "studio", "workers", "mobile-web"]
+    }
+  }
+}

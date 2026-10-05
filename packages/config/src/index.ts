@@ -96,6 +96,23 @@ const envSchema = z.object({
   // Enrichment: "anthropic" (Message Batches + Bedrock embeddings) or "none" to skip it locally.
   ENRICHMENT: z.enum(["anthropic", "none"]).default("none"),
   EMBEDDING_MODEL_ID: z.string().default("amazon.titan-embed-text-v2:0"),
+
+  // Podcast experiment: a piece as a short audio episode. The voice is "kokoro" (Kokoro-82M on this
+  // machine, free; set up with apps/workers/tts) by default locally and "polly" (Amazon Polly neural)
+  // on AWS; "none" turns episodes off. The script uses the LETTER_WRITER switch.
+  PODCAST_TTS: z.enum(["kokoro", "polly", "none"]).optional(),
+  // "conversation" (two hosts) or "narration" (one voice).
+  PODCAST_FORMAT: z.enum(["conversation", "narration"]).default("conversation"),
+  // Where episodes are written (under podcast/): a directory locally (a relative path is under apps/workers; the local
+  // API serves it at /podcast/audio), or on AWS a bucket served at PODCAST_BASE_URL/<key>.
+  PODCAST_DIR: z.string().default(".data/audio"),
+  PODCAST_BUCKET: z.string().optional(),
+  PODCAST_BASE_URL: z.url().optional(),
+  QUEUE_URL_PODCAST: z.string().optional(),
+  // Local voice: how the workers start the Kokoro server (apps/workers/tts), and an optional ffmpeg
+  // for encoding (otherwise macOS's afconvert, otherwise WAV).
+  UV_PATH: z.string().default("uv"),
+  FFMPEG_PATH: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -209,6 +226,16 @@ export function letterWriterMode(env: Env): "claude-cli" | "anthropic" | "none" 
 /** Which backend runs discovery's queries and searches: the CLI locally, the API on AWS, unless DISCOVERY says otherwise. */
 export function discoveryMode(env: Env): "claude-cli" | "anthropic" | "none" {
   return env.DISCOVERY ?? (env.APP_ENV === "local" ? "claude-cli" : "anthropic");
+}
+
+/** Which voice makes podcast episodes: Kokoro locally, Polly on AWS, unless PODCAST_TTS says otherwise. */
+export function podcastTtsMode(env: Env): "kokoro" | "polly" | "none" {
+  return env.PODCAST_TTS ?? (env.APP_ENV === "local" ? "kokoro" : "polly");
+}
+
+/** The local episode directory; a relative PODCAST_DIR is under apps/workers, like CONTENT_DIR. */
+export function resolvePodcastDir(env: Env): string {
+  return isAbsolute(env.PODCAST_DIR) ? env.PODCAST_DIR : join(import.meta.dirname, "..", "..", "..", "apps", "workers", env.PODCAST_DIR);
 }
 
 /**

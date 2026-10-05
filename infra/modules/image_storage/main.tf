@@ -85,7 +85,7 @@ data "aws_iam_policy_document" "images" {
   statement {
     sid       = "CloudFrontReadsImages"
     actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.images.arn}/images/*"]
+    resources = [for p in var.public_prefixes : "${aws_s3_bucket.images.arn}/${p}/*"]
     principals {
       type        = "Service"
       identifiers = ["cloudfront.amazonaws.com"]

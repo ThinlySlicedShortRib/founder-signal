@@ -18,7 +18,9 @@ export type PagerIconName =
   | "play"
   | "check"
   | "arrow-right"
-  | "plus";
+  | "plus"
+  | "headphones"
+  | "pause";
 
 const PATHS: Record<Exclude<PagerIconName, "dots" | "play">, string[]> = {
   up: ["M12 19V5M6 11l6-6 6 6"],
@@ -35,6 +37,8 @@ const PATHS: Record<Exclude<PagerIconName, "dots" | "play">, string[]> = {
   check: ["M5 12l5 5L20 7"],
   "arrow-right": ["M5 12h14M13 6l6 6-6 6"],
   plus: ["M12 5v14M5 12h14"],
+  headphones: ["M4 16v-4a8 8 0 0 1 16 0v4", "M4 15h3v5H5a1 1 0 0 1-1-1zM20 15h-3v5h2a1 1 0 0 0 1-1z"],
+  pause: ["M8 5v14M16 5v14"],
 };
 
 export function PagerIcon({

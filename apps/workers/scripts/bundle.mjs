@@ -10,6 +10,6 @@ await bundleLambda({
   copy: [{ from: "../../packages/db/migrations", to: "migrations" }],
 });
 
-for (const name of ["sweep", "fetch-source", "extract", "enrich", "letter-step", "author", "discover", "newsletter-inbound"]) {
+for (const name of ["sweep", "fetch-source", "extract", "enrich", "letter-step", "author", "discover", "newsletter-inbound", "podcast"]) {
   await bundleLambda({ name, entry: `src/handlers/${name}.ts`, cwd });
 }

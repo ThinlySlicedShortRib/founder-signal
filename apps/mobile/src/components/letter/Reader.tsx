@@ -26,11 +26,13 @@ import { AgentLine, Display, Mono } from "@/components/pager/PagerScreen";
 import { Sheet } from "@/components/pager/Sheet";
 import { timestamp } from "@/lib/format";
 import { DISLIKE_LABELS, LIKE_LABELS, setPieceState, track, usePieceState, useItem, useSectionSummary, useToggleSave } from "@/lib/letters";
+import { useRequestEpisode } from "@/lib/podcast";
 import { useReview } from "@/lib/profile";
 import { DRAWER_ROW, DrawerHeader, useArticleDrawer } from "./ArticleDrawer";
 import { AuthorCardView, AuthorChip, SheetButton } from "./Author";
 import { BlockView, TEXT_SIZES, type TextSize } from "./BlockRenderer";
 import { FOCUS_STYLE_LABEL, FocusBlock, FocusProvider, nextFocusSetting, useFocusSetting, useFocusTracker } from "./Focus";
+import { ListenCard } from "./Listen";
 import { PhotoBackdrop, TINTS } from "./Photo";
 
 /** What the reader knows about a piece before (or without) the item itself. */
@@ -68,6 +70,8 @@ export type ReaderLead = {
   onRead: () => void;
   /** Opens the video on YouTube. */
   onPlay: () => void;
+  /** Articles: asks for the piece as an episode and opens the drawer, whose article starts with its player. */
+  onListen?: () => void;
 };
 
 const HEAD_MAX = 200;
@@ -121,6 +125,7 @@ export function Reader({
   const toggleSave = useToggleSave();
   const review = useReview();
   const summarize = useSectionSummary(meta.itemId);
+  const requestEpisode = useRequestEpisode(meta.itemId);
 
   const data = item.data;
   const kind = data?.kind ?? meta.kind;
@@ -454,6 +459,7 @@ export function Reader({
               </Pressable>
             )}
           </View>
+          {!video && <ListenCard itemId={meta.itemId} />}
           {meta.image?.credit && (
             <Pressable accessibilityRole="link" disabled={!meta.image.creditUrl} onPress={() => meta.image?.creditUrl && void Linking.openURL(meta.image.creditUrl)} style={{ marginTop: -10 }}>
               <Text style={{ fontFamily: font.body, fontSize: 12.5, color: palette.offText }}>
@@ -561,7 +567,18 @@ export function Reader({
               importantForAccessibility={compact ? "no-hide-descendants" : "auto"}
               style={[StyleSheet.absoluteFill, { transformOrigin: "top" }, drawer.coverStyle]}
             >
-              {lead({ height: viewport, progress: drawer.openness, onRead: read, onPlay })}
+              {lead({
+                height: viewport,
+                progress: drawer.openness,
+                onRead: read,
+                onPlay,
+                onListen: video
+                  ? undefined
+                  : () => {
+                      requestEpisode.mutate();
+                      read();
+                    },
+              })}
             </Animated.View>
           </GestureDetector>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "#000000", pointerEvents: "none" }, drawer.dimStyle]} />

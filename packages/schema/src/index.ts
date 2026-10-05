@@ -788,6 +788,24 @@ export const sectionSummarySchema = z.object({
 });
 export type SectionSummary = z.infer<typeof sectionSummarySchema>;
 
+/**
+ * The podcast experiment: a piece as a short audio episode, made once and
+ * shared. The app asks for one, then polls while it's `queued`, `scripting`
+ * or `voicing`.
+ */
+export const episodeStatuses = ["queued", "scripting", "voicing", "ready", "failed"] as const;
+export const episodeViewSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(episodeStatuses),
+  /** `conversation` (two hosts), `narration` (one voice) or `reading` (the piece's own opening, when the script failed its checks). */
+  format: z.enum(["conversation", "narration", "reading"]),
+  /** Absolute, or a path on the API (local development) that the app prefixes with the API's URL. Set when ready. */
+  audioUrl: z.string().nullable(),
+  durationSeconds: z.number().nullable(),
+  chapters: z.array(z.object({ title: z.string(), startSeconds: z.number() })),
+});
+export type EpisodeView = z.infer<typeof episodeViewSchema>;
+
 /** Reading events (§6.6). `localDay` is set on the device when it happens and never recomputed. */
 export const interactionTypes = ["open", "complete", "uncomplete", "save", "unsave", "summary_expand", "skip"] as const;
 export const interactionSchema = z.object({

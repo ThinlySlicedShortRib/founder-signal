@@ -118,7 +118,8 @@ export function quotesIn(text: string): string[] {
   return out;
 }
 
-function containsQuote(source: string, quote: string): boolean {
+/** The quote appears in the source, ignoring case, quote marks and punctuation. */
+export function containsQuote(source: string, quote: string): boolean {
   const norm = (s: string) => normalizeText(s).replace(/[.,;:!?…"]/g, "").replace(/\s+/g, " ");
   return norm(source).includes(norm(quote));
 }

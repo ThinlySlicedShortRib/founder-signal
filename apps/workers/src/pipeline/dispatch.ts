@@ -1,6 +1,7 @@
 import { discover } from "../discovery/discover.ts";
 import { enrichAuthor } from "../letters/authors.ts";
 import { letterStep } from "../letters/steps.ts";
+import { generateEpisode } from "../podcast/generate.ts";
 import type { PipelineDeps } from "./deps.ts";
 import { enrich } from "./enrich.ts";
 import { extract } from "./extract.ts";
@@ -22,5 +23,7 @@ export async function dispatch(deps: PipelineDeps, queue: QueueName, body: unkno
       return enrichAuthor(deps, messageSchemas.author.parse(body));
     case "discover":
       return discover(deps, messageSchemas.discover.parse(body));
+    case "podcast":
+      return generateEpisode(deps, messageSchemas.podcast.parse(body));
   }
 }

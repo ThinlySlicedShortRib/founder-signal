@@ -14,9 +14,10 @@
     "auth:schema": "auth generate --config ./auth.generate.ts --output ./src/schema/auth.ts --yes"
   },
   "dependencies": {
+    "@fs/config": "workspace:*",
+    "@fs/core": "workspace:*",
     "drizzle-orm": "^0.45.3",
-    "pg": "^8.23.0",
-    "@fs/config": "workspace:*"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@better-auth/drizzle-adapter": "^1.7.6",

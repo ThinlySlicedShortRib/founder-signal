@@ -23,16 +23,23 @@ import {
   LETTER_WRITER_MODEL,
   type LetterWriter,
   AUTHOR_ENRICHMENT_MODEL,
+  anthropicScriptWriter,
+  claudeCliScriptWriter,
+  type EpisodeScriptWriter,
+  PODCAST_SCRIPT_MODEL,
+  PODCAST_SCRIPT_PROMPT_VERSION,
 } from "@fs/ai";
 import {
   discoveryMode,
   type Env,
   inboundEmailDomain,
   letterWriterMode,
+  podcastTtsMode,
   resolveAnthropicApiKey,
   resolveContentDir,
   resolveDatabaseConfig,
   resolveInboundMailDir,
+  resolvePodcastDir,
   resolveSupadataApiKey,
   resolveUnsplashAccessKey,
   resolveYouTubeApiKey,
@@ -42,6 +49,10 @@ import { createSafeFetcher, fsRawMailStore, s3RawMailStore, supadataProvider, yo
 import { copyingImageStore, s3ImageObjects } from "../letters/image-store.ts";
 import { unsplashStockPhotos } from "../letters/images.ts";
 import type { Discovery, PipelineDeps } from "../pipeline/deps.ts";
+import { fsAudioStore, s3AudioStore } from "../podcast/audio-store.ts";
+import { pickEncoder } from "../podcast/encode.ts";
+import type { Podcast } from "../podcast/generate.ts";
+import { kokoroSynth, pollySynth } from "../podcast/synth.ts";
 import { fsContentStore, s3ContentStore } from "./content-store.ts";
 import type { Queues } from "./queues.ts";
 
@@ -62,6 +73,7 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
 
   const mode = letterWriterMode(env);
   const fetch = createSafeFetcher();
+  const podcast = await buildPodcast(env);
   return {
     db,
     queues,
@@ -81,7 +93,11 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
         : null,
     discovery: buildDiscovery(env),
     inbound: buildInbound(env),
-    close: () => pool.end(),
+    podcast,
+    close: async () => {
+      await podcast?.synth.close();
+      await pool.end();
+    },
   };
 }
 
@@ -133,6 +149,34 @@ function buildInbound(env: Env) {
   const domain = inboundEmailDomain(env);
   if (!domain) return null;
   return { domain, mail: env.INBOUND_MAIL_BUCKET ? s3RawMailStore(env.INBOUND_MAIL_BUCKET) : fsRawMailStore(resolveInboundMailDir(env)) };
+}
+
+/**
+ * The podcast experiment: Kokoro on this machine and the Claude Code CLI
+ * locally, Polly and the API on AWS (PODCAST_TTS and LETTER_WRITER override
+ * them). With LETTER_WRITER=none episodes read the piece's own opening.
+ */
+async function buildPodcast(env: Env): Promise<Podcast | null> {
+  const tts = podcastTtsMode(env);
+  if (tts === "none") return null;
+  const mode = letterWriterMode(env);
+  let scriptWriter: EpisodeScriptWriter | null = null;
+  if (mode === "claude-cli") scriptWriter = claudeCliScriptWriter({ command: env.CLAUDE_CLI_PATH });
+  else if (mode === "anthropic") {
+    const client = lazyClient(env);
+    scriptWriter = {
+      method: "anthropic",
+      model: PODCAST_SCRIPT_MODEL,
+      promptVersion: PODCAST_SCRIPT_PROMPT_VERSION,
+      write: async (input) => anthropicScriptWriter(await client()).write(input),
+    };
+  }
+  return {
+    scriptWriter,
+    synth: tts === "kokoro" ? kokoroSynth({ uv: env.UV_PATH }) : pollySynth(),
+    audio: env.PODCAST_BUCKET ? s3AudioStore(env.PODCAST_BUCKET) : fsAudioStore(resolvePodcastDir(env)),
+    encoder: await pickEncoder({ ffmpegPath: env.FFMPEG_PATH }),
+  };
 }
 
 /** Discovery's query generator and web searcher: the CLI locally, the API on AWS, or none (§6.3a). */

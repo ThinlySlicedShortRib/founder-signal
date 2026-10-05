@@ -20,6 +20,7 @@ export function lambdaDeps(): Promise<PipelineDeps> {
         "letter-step": env.QUEUE_URL_LETTER_STEP,
         author: env.QUEUE_URL_AUTHOR,
         discover: env.QUEUE_URL_DISCOVER,
+        podcast: env.QUEUE_URL_PODCAST,
       }),
     );
     depsPromise.catch(() => (depsPromise = undefined));

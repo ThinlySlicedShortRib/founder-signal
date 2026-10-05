@@ -6,6 +6,7 @@ import { buildPipelineDeps } from "./lib/build-deps.ts";
 import { runDevRequests } from "./lib/dev-requests.ts";
 import { drain } from "./lib/local.ts";
 import { memoryQueues } from "./lib/queues.ts";
+import { runQueuedEpisodes } from "./podcast/local.ts";
 import { sweepLetters } from "./letters/sweep.ts";
 import { sweep } from "./pipeline/sweep.ts";
 
@@ -15,6 +16,14 @@ const LETTER_INTERVAL_MS = 5_000;
 const mq = memoryQueues();
 const deps = await buildPipelineDeps(readEnv(), mq.queues);
 console.log(`Workers running locally; sweeping every ${SWEEP_INTERVAL_MS / 1000}s, letters every ${LETTER_INTERVAL_MS / 1000}s. Ctrl+C to stop.`);
+
+// Podcast episodes take a minute or two each, so they're made beside the main loop rather than holding letters up.
+void (async () => {
+  for (;;) {
+    await runQueuedEpisodes(deps).catch((err: Error) => console.error(`✗ podcast: ${err.message}`));
+    await new Promise((r) => setTimeout(r, 3_000));
+  }
+})();
 
 let lastSweep = 0;
 for (;;) {

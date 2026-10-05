@@ -27,6 +27,7 @@ export function PiecePage({
   progress,
   onRead,
   onPlay,
+  onListen,
   onSkip,
   onAuthor,
 }: {
@@ -41,6 +42,8 @@ export function PiecePage({
   progress: SharedValue<number>;
   onRead: () => void;
   onPlay: () => void;
+  /** Articles: hear it as a short episode instead. */
+  onListen?: () => void;
   onSkip: () => void;
   onAuthor: () => void;
 }) {
@@ -116,6 +119,17 @@ export function PiecePage({
             <RisingDot />
             <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: palette.ink }}>{label}</Text>
           </Pressable>
+          {onListen && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Listen"
+              accessibilityHint="Makes a short two-host episode of the piece"
+              onPress={onListen}
+              style={({ pressed }) => ({ width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.18)", borderWidth: 1, borderColor: "rgba(255,255,255,0.35)", opacity: pressed ? 0.8 : 1 })}
+            >
+              <PagerIcon name="headphones" size={22} color="#FFFFFF" />
+            </Pressable>
+          )}
           <Pressable accessibilityRole="button" onPress={onSkip} style={{ marginLeft: "auto", minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.body, fontSize: 14, color: "rgba(255,255,255,0.75)", textDecorationLine: "underline" }}>Skip this one</Text>
           </Pressable>

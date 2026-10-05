@@ -102,6 +102,12 @@ variable "discovery_enabled" {
   default     = true
 }
 
+variable "podcast_enabled" {
+  description = "Podcast experiment: pieces as short audio episodes (script by Claude, voices by Amazon Polly neural). Needs the Anthropic key set."
+  type        = bool
+  default     = false
+}
+
 variable "embedding_model_id" {
   type    = string
   default = "amazon.titan-embed-text-v2:0"

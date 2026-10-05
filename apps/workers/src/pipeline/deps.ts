@@ -4,6 +4,7 @@ import type { Fetcher, TranscriptProvider, YouTubeClient } from "@fs/ingest";
 import type { ContentStore } from "../lib/content-store.ts";
 import type { Queues } from "../lib/queues.ts";
 import type { ImageStore } from "../letters/image-store.ts";
+import type { Podcast } from "../podcast/generate.ts";
 import type { StockPhotos } from "../letters/images.ts";
 import type { InboundDeps } from "../newsletters/receive.ts";
 import type { Enricher } from "./enrich.ts";
@@ -36,6 +37,8 @@ export interface PipelineDeps {
   discovery: Discovery | null;
   /** Newsletter forwarding: the inbound domain and the raw-mail store. Null: off (no domain configured). */
   inbound?: InboundDeps | null;
+  /** The podcast experiment's script writer, voice and audio store. Null or absent: no episodes. */
+  podcast?: Podcast | null;
   /** Minimum gap between requests to one host; defaults to PER_HOST_INTERVAL_MS. */
   politenessMs?: number;
   now?: () => Date;

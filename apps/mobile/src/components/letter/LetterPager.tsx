@@ -130,7 +130,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
               onMenu={() => setMenuOpen(true)}
               onAuthor={() => piece.author && setAuthor(piece.author)}
               onReadingChange={setReading}
-              lead={({ height, progress, onRead, onPlay }) => (
+              lead={({ height, progress, onRead, onPlay, onListen }) => (
                 <PiecePage
                   piece={piece}
                   letterNumber={letter.number}
@@ -141,6 +141,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
                   progress={progress}
                   onRead={onRead}
                   onPlay={onPlay}
+                  onListen={onListen}
                   onSkip={() => skip(piece)}
                   onAuthor={() => piece.author && setAuthor(piece.author)}
                 />

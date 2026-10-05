@@ -7,12 +7,14 @@ import { cors } from "hono/cors";
 import type { Auth } from "./auth.ts";
 import type { ClientLogSink } from "./lib/client-log-sink.ts";
 import { apiError } from "./lib/errors.ts";
+import { localAudioRoutes, type PodcastConfig } from "./lib/podcast.ts";
 import { createRateLimiter } from "./lib/rate-limit.ts";
 import { type AppEnv, requireUser } from "./lib/session.ts";
 import { devRoutes, devToolRoutes, type OtpRecorder } from "./routes/dev.ts";
 import { onboardingRoutes, preferenceRoutes, type ProfileRouteDeps } from "./routes/profile.ts";
 import { itemRoutes, type LetterRouteDeps, letterRoutes, readingRoutes } from "./routes/letters.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
+import { episodeRoutes } from "./routes/podcast.ts";
 import { publisherRoutes } from "./routes/publishers.ts";
 import { connectionRoutes, type ImportRouteDeps, importRoutes, youTubeCallbackRoutes } from "./routes/imports.ts";
 import { newsletterRoutes } from "./routes/newsletters.ts";
@@ -36,6 +38,10 @@ export interface AppDeps
    * store the local dev route writes to (null on AWS, where SES writes it).
    */
   newsletters?: { domain: string | null; mail: RawMailStore | null };
+  /** The podcast experiment; null turns episodes off. */
+  podcast?: PodcastConfig | null;
+  /** Local only: the dev runner's episode directory, served at /podcast/audio. */
+  podcastDir?: string;
 }
 
 export function createApp({
@@ -54,6 +60,8 @@ export function createApp({
   youtubeConnect,
   allowReturnTo,
   newsletters = { domain: null, mail: null },
+  podcast = null,
+  podcastDir,
 }: AppDeps) {
   const app = new Hono<AppEnv>();
 
@@ -68,6 +76,8 @@ export function createApp({
   app.notFound((c) => apiError(c, 404, "NOT_FOUND", "Not found"));
 
   if (devOtps) app.route("/dev", devRoutes({ auth, otps: devOtps, db }));
+  // On AWS episodes are served by CloudFront; locally the API serves the dev runner's files.
+  if (podcastDir) app.route("/podcast", localAudioRoutes(podcastDir));
 
   // Better Auth owns everything under /api/auth (sign-in, sessions, sign-out).
   app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
@@ -129,6 +139,7 @@ export function createApp({
     .route("/me/onboarding", onboardingRoutes({ ...onDemand, profileImporter }))
     .route("/items", reviewRoutes({ db }))
     .route("/items", itemRoutes({ db, store, reader }))
+    .route("/items", episodeRoutes({ db, podcast }))
     .route("/letters", letterRoutes({ db, reader }))
     .route("/", readingRoutes({ ...onDemand, detect }))
     .route("/dev", devTools);

@@ -1,0 +1,12 @@
+[project]
+name = "fs-podcast-tts"
+version = "0.1.0"
+description = "Founder Signal podcast prototype: local text-to-speech with Kokoro-82M (ONNX)."
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "kokoro-onnx>=0.4.9",
+  "soundfile>=0.12",
+]
+
+[tool.uv]
+package = false

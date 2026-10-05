@@ -29,3 +29,7 @@ GoogleService-Info.plist
 
 # Agent worktrees (local only)
 .claude/worktrees/
+# Podcast experiment: the local TTS venv, model weights and generated audio
+apps/workers/tts/.venv/
+apps/workers/tts/models/
+__pycache__/

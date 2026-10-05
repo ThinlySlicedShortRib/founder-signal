@@ -6,6 +6,7 @@ import {
   claudeCliReaderWriter,
   PROFILE_IMPORT_MODEL,
   PROFILE_IMPORT_PROMPT_VERSION,
+  PODCAST_SCRIPT_PROMPT_VERSION,
   type ProfileImporter,
   READER_MODEL,
   type ReaderWriter,
@@ -15,14 +16,17 @@ import {
   type Env,
   inboundEmailDomain,
   letterWriterMode,
+  podcastTtsMode,
   resolveAnthropicApiKey,
   resolveBetterAuthSecret,
   resolveContentDir,
   resolveDatabaseConfig,
   resolveGoogleOAuth,
   resolveInboundMailDir,
+  resolvePodcastDir,
   resolveYouTubeApiKey,
 } from "@fs/config";
+import { episodeVoiceKey } from "@fs/core";
 import { createDb } from "@fs/db";
 import { createSafeFetcher, fsContentStore, fsRawMailStore, s3ContentStore, youTubeDataClient } from "@fs/ingest";
 import { createApp } from "./app.ts";
@@ -31,6 +35,7 @@ import { createOtpRecorder } from "./routes/dev.ts";
 import { cloudWatchClientLogSink, consoleClientLogSink } from "./lib/client-log-sink.ts";
 import { consoleEmailSender, sesEmailSender } from "./lib/email.ts";
 import { sqsDiscoverQueue, sqsLetterQueue } from "./lib/letter-queue.ts";
+import { type PodcastConfig, sqsPodcastQueue } from "./lib/podcast.ts";
 
 /** Wires real dependencies from the environment. Shared by the Lambda and local entry points. */
 export async function buildApp(env: Env) {
@@ -82,7 +87,35 @@ export async function buildApp(env: Env) {
     allowReturnTo: (url) => allowReturnTo(url, { allowDevOrigins: env.APP_ENV !== "prod" }),
     // Only a local API stores raw mail (the dev route); on AWS, SES writes it to the mail bucket.
     newsletters: { domain: inboundEmailDomain(env), mail: devOtps ? fsRawMailStore(resolveInboundMailDir(env)) : null },
+    podcast: podcastConfig(env),
+    podcastDir: env.PODCAST_BUCKET ? undefined : resolvePodcastDir(env),
   });
+}
+
+/**
+ * The podcast experiment: which episode the app gets (format, prompt and the
+ * workers' voice, so both sides agree on its identity) and where its file is
+ * served. Off with PODCAST_TTS=none, and on AWS until the bucket's URL is set.
+ */
+function podcastConfig(env: Env): PodcastConfig | null {
+  const tts = podcastTtsMode(env);
+  if (tts === "none") return null;
+  let audioUrl: (key: string) => string;
+  if (env.PODCAST_BUCKET) {
+    if (!env.PODCAST_BASE_URL) return null;
+    const base = env.PODCAST_BASE_URL.replace(/\/+$/, "");
+    audioUrl = (key) => `${base}/${key}`;
+  } else {
+    // A path on this API: the app prefixes it with whatever URL it reaches the API at.
+    audioUrl = (key) => `/podcast/audio/${key.split("/").map(encodeURIComponent).join("/")}`;
+  }
+  return {
+    format: env.PODCAST_FORMAT,
+    promptVersion: PODCAST_SCRIPT_PROMPT_VERSION,
+    voiceKey: episodeVoiceKey(tts, env.PODCAST_FORMAT),
+    queue: env.QUEUE_URL_PODCAST ? sqsPodcastQueue(env.QUEUE_URL_PODCAST) : null,
+    audioUrl,
+  };
 }
 
 /**

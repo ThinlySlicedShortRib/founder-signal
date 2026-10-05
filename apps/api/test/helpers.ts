@@ -7,6 +7,7 @@ import type { YouTubeConnect } from "../src/routes/imports.ts";
 import { createOtpRecorder } from "../src/routes/dev.ts";
 import type { ClientLogRecord, ClientLogSink } from "../src/lib/client-log-sink.ts";
 import type { EmailMessage, EmailSender } from "../src/lib/email.ts";
+import type { PodcastConfig } from "../src/lib/podcast.ts";
 
 export const BASE_URL = "http://localhost:8787";
 
@@ -27,6 +28,8 @@ export function createTestApp({
   discovery = false,
   youtubeConnect = null,
   inboundDomain = "in.test",
+  podcast = null,
+  podcastDir,
 }: {
   corsOrigins?: string[];
   devSignIn?: boolean;
@@ -39,6 +42,10 @@ export function createTestApp({
   youtubeConnect?: YouTubeConnect | null;
   /** Newsletter forwarding's domain; null = not set up. */
   inboundDomain?: string | null;
+  /** The podcast experiment's settings; null turns episodes off. */
+  podcast?: PodcastConfig | null;
+  /** Serves episode files at /podcast/audio, as a local API does. */
+  podcastDir?: string;
 } = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
@@ -112,6 +119,8 @@ export function createTestApp({
     youtubeConnect,
     allowReturnTo: (url) => allowReturnTo(url, { allowDevOrigins: true }),
     newsletters: { domain: inboundDomain, mail },
+    podcast,
+    podcastDir,
   });
 
   return { app, db, pool, sentEmails, clientLogRecords, web, store, objects, startedLetters, startedRuns, mailObjects };

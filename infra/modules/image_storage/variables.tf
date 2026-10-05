@@ -7,3 +7,9 @@ variable "force_destroy" {
   type        = bool
   default     = false
 }
+
+variable "public_prefixes" {
+  description = "Key prefixes CloudFront may read: piece images, and podcast episodes when that experiment is on."
+  type        = list(string)
+  default     = ["images"]
+}

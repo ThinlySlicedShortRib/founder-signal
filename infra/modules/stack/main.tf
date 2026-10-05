@@ -125,6 +125,16 @@ data "aws_iam_policy_document" "api" {
     actions   = ["sqs:SendMessage"]
     resources = [module.queues.arns["discover"]]
   }
+
+  # Podcast experiment: "Listen" asks the workers for an episode.
+  dynamic "statement" {
+    for_each = var.podcast_enabled ? [1] : []
+    content {
+      sid       = "StartEpisodes"
+      actions   = ["sqs:SendMessage"]
+      resources = [module.queues.arns["podcast"]]
+    }
+  }
 }
 
 module "api" {
@@ -147,7 +157,7 @@ module "api" {
     GOOGLE_OAUTH_CLIENT_SECRET_ARN = module.secrets.google_oauth_client_secret_arn
     # Newsletters by email: shows users their address. Empty turns /me/newsletters off.
     INBOUND_EMAIL_DOMAIN = var.inbound_email_domain
-  })
+  }, local.podcast_env)
 
   log_retention_days = var.log_retention_days
   domain_name        = var.api_domain_name
@@ -192,6 +202,8 @@ module "images" {
   source        = "../image_storage"
   bucket_name   = "${local.name}-images-${data.aws_caller_identity.current.account_id}"
   force_destroy = var.content_force_destroy
+  # Podcast episodes share the bucket and distribution, under podcast/.
+  public_prefixes = var.podcast_enabled ? ["images", "podcast"] : ["images"]
 }
 
 locals {
@@ -308,7 +320,38 @@ locals {
     }
   }
 
-  queued_workers = { for k, w in local.workers : k => w if w.queue != null }
+  # Podcast experiment: one episode per message. Claude writes the script (Sonnet 5.5, ~$0.04) and
+  # Polly neural voices it chunk by chunk (~$0.06-0.15 an episode). A zip Lambda has no encoder,
+  # so episodes are stored as WAV until an ffmpeg layer is added (docs/podcast/README.md).
+  podcast_workers = {
+    for k, w in {
+      podcast = {
+        description = "Makes a piece's podcast episode: script (Claude), voices (Polly), stitched and stored"
+        timeout     = 900
+        memory      = 1024
+        queue       = "podcast"
+        batch_size  = 1
+        concurrency = 2
+        sends_to    = []
+        secrets     = [module.database.master_secret_arn, module.secrets.anthropic_api_key_secret_arn]
+        content     = ["s3:GetObject"]
+        bedrock     = false
+        images      = false
+        podcast     = true
+      }
+    } : k => w if var.podcast_enabled
+  }
+
+  all_workers    = merge(local.workers, local.podcast_workers)
+  queued_workers = { for k, w in local.all_workers : k => w if w.queue != null }
+
+  # Read by the API and the workers. Episodes go in the images bucket under podcast/.
+  podcast_env = {
+    PODCAST_TTS       = var.podcast_enabled ? "polly" : "none"
+    PODCAST_BUCKET    = module.images.bucket_name
+    PODCAST_BASE_URL  = module.images.base_url
+    QUEUE_URL_PODCAST = lookup(module.queues.urls, "podcast", "")
+  }
 
   embedding_model_arn = "arn:aws:bedrock:${data.aws_region.current.region}::foundation-model/${var.embedding_model_id}"
 
@@ -327,7 +370,7 @@ locals {
     ENRICHMENT                     = var.enrichment_enabled ? "anthropic" : "none"
     DISCOVERY                      = var.discovery_enabled ? "anthropic" : "none"
     EMBEDDING_MODEL_ID             = var.embedding_model_id
-  })
+  }, local.podcast_env)
 }
 
 module "queues" {
@@ -341,7 +384,7 @@ module "queues" {
 }
 
 data "aws_iam_policy_document" "worker" {
-  for_each = local.workers
+  for_each = local.all_workers
 
   statement {
     sid       = "ReadSecrets"
@@ -400,6 +443,25 @@ data "aws_iam_policy_document" "worker" {
     }
   }
 
+  # Podcast episodes: written under podcast/ in the images bucket, voiced by Polly in this Region.
+  dynamic "statement" {
+    for_each = try(each.value.podcast, false) ? [1] : []
+    content {
+      sid       = "WriteEpisodes"
+      actions   = ["s3:PutObject"]
+      resources = ["${module.images.bucket_arn}/podcast/*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = try(each.value.podcast, false) ? [1] : []
+    content {
+      sid       = "SpeakWithPolly"
+      actions   = ["polly:SynthesizeSpeech"]
+      resources = ["*"]
+    }
+  }
+
   # Only the embedding model (build plan §9).
   dynamic "statement" {
     for_each = each.value.bedrock ? [1] : []
@@ -413,7 +475,7 @@ data "aws_iam_policy_document" "worker" {
 
 module "worker" {
   source   = "../lambda_fn"
-  for_each = local.workers
+  for_each = local.all_workers
 
   name             = "${local.name}-${each.key}"
   description      = each.value.description

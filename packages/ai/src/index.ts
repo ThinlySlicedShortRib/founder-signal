@@ -4,6 +4,7 @@ export * from "./discovery.ts";
 export * from "./embeddings.ts";
 export * from "./enrichment.ts";
 export * from "./letter-writer.ts";
+export * from "./podcast-script.ts";
 export * from "./profile-import.ts";
 export * from "./profile-import-cli.ts";
 export * from "./reader.ts";

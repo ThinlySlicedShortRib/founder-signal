@@ -1,11 +1,11 @@
 /**
- * Writes every cover art style to docs/design/backgrounds as SVG, two seeds
- * each, on a 390×844 phone with sample cover text laid out like CoverPage
+ * Writes every cover art style to docs/design/backgrounds as SVG, three seeds
+ * each (so the variants show), on a 390×844 phone with sample cover text laid out like CoverPage
  * (approximately: the text is wrapped by an estimate, not measured).
  *
  *   pnpm --filter @fs/mobile backgrounds
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { C } from "../src/components/art/colors.ts";
@@ -19,6 +19,7 @@ const HERO_H = Math.round(H * HERO.share);
 const SAMPLES = [
   { seed: "sample-1", date: "2026-10-05", number: 12, headline: "Price it before you build it" },
   { seed: "sample-2", date: "2026-10-06", number: 128, headline: "The quiet weeks are the work" },
+  { seed: "sample-3", date: "2026-10-07", number: 7, headline: "Ship the boring version first" },
 ];
 const PIECES = ["What a first price tells you", "Selling to the first ten", "Founders on saying no", "A teardown of one onboarding"];
 const FONTS = { display: "Bricolage Grotesque", displayWeight: 700, mono: "JetBrains Mono", monoWeight: 500 };
@@ -87,6 +88,8 @@ function cover(scene: Scene, style: StyleId, s: (typeof SAMPLES)[number]): strin
 }
 
 mkdirSync(OUT, { recursive: true });
+// Clear the old samples (styles come and go).
+for (const f of readdirSync(OUT)) if (/^[a-z]+-\d\.svg$/.test(f)) unlinkSync(resolve(OUT, f));
 for (const style of STYLE_ORDER) {
   SAMPLES.forEach((s, i) => {
     const scene = drawArt(style, { width: W, height: HERO_H, seed: s.seed, date: s.date, number: s.number });

@@ -49,11 +49,16 @@ darker at every stop, `piece` variant: 0.44 / 0.54 / 0.86 / 0.97 at
 
 **Cover art.** Today's cover, the empty Today and the letter-being-made page
 have a generative art band at the top (at least 60% of the screen) instead of
-plain ground: one of eight styles a day (mesh, routes, postmark, halftone,
-riso, contour, stamp, airmail), seeded by the letter's id, with the masthead,
-"Letter No. N", the headline (now 38/40, was 52/54; the empty and preparing
-pages match) and "greeting · date" on scrims over it. The intro is two lines
-until "More", which also shows why this mix. See
+plain ground: one of fourteen quiet styles (mesh, routes, postmark, halftone,
+riso, contour, stamp, airmail, letterhead, sketch, sky, wash, dots, ruled),
+all pale tints and hairlines on near-white paper, picked at random per letter
+from its id (never the previous letter's style) and seeded by it for the
+details and variant, with the masthead, "Letter No. N", the headline (now
+38/40, was 52/54; the empty and preparing pages match) and "greeting · date"
+on light scrims (0.15–0.25) over it. The intro (a personal hook, up to ~200
+characters) shows in full in the orange card; when there's a "why this mix",
+a small "Why this mix ▾" control at the card's bottom right (44pt target,
+expanded state announced) opens it inside the same card. See
 `docs/design/backgrounds/README.md`.
 
 **The cover intro is a personal hook.** The post office's line on the cover

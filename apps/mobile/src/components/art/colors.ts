@@ -18,11 +18,24 @@ export const C = {
   orange: "#FF5A1F",
   peach: "#FFE3D6",
   orangeTint: "#FFF1EC",
-  /** Art only: a warm uncoated stock for the riso and airmail styles. */
+  /** Art only: a warm uncoated stock (riso, airmail, letterhead and others). */
   paper: "#F6F2EA",
-  /** Art only: text on the dark styles. */
+  /** Art only: a cool, faintly blue stock. */
+  fog: "#F4F6FB",
+  /** Art only: a soft graphite for line work, light enough that text over it keeps 4.5:1. */
+  pencil: "#A6AAB3",
+  /** Art only: text on dark art (no style is dark today; kept for one that is). */
   mist: "#D5DAEA",
 } as const;
+
+/** The grounds the art is drawn on: all near-white, so the cover stays airy. */
+export const GROUNDS = [C.ground, C.paper, C.fog] as const;
+
+/**
+ * Line work is drawn in these tints (not ink at a low opacity), so a hairline
+ * can be crisp and still sit far below the text in contrast.
+ */
+export const LINES = [C.blueMid, C.pencil] as const;
 
 export type Rgb = [number, number, number];
 

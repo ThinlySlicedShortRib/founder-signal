@@ -1,11 +1,11 @@
 // Run with `pnpm --filter @fs/mobile test` (node's own test runner; this folder's art code is pure TypeScript).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { hex } from "./colors.ts";
+import { contrast, hex, LINES } from "./colors.ts";
 import { minScrim, worstContrast } from "./contrast.ts";
 import { rng } from "./random.ts";
 import { type ArtNode, elementCount, type Scene, toSvg } from "./scene.ts";
-import { drawArt, STYLE_ORDER, STYLES, styleForDay } from "./styles.ts";
+import { drawArt, pickStyle, STYLE_ORDER, STYLES, type StyleId, styleSet } from "./styles.ts";
 
 const FONTS = { display: "D", mono: "M" };
 const SIZES = [
@@ -48,8 +48,8 @@ test("scenes stay small: few elements, short SVG", () => {
     for (const size of SIZES)
       for (const seed of SEEDS.slice(0, 10)) {
         const scene = drawArt(style, input(seed, size));
-        assert.ok(elementCount(scene) <= 60, `${style} draws ${elementCount(scene)} elements`);
-        assert.ok(toSvg(scene, FONTS).length < 60_000, `${style} is ${toSvg(scene, FONTS).length} characters`);
+        assert.ok(elementCount(scene) <= 40, `${style} draws ${elementCount(scene)} elements`);
+        assert.ok(toSvg(scene, FONTS).length < 30_000, `${style} is ${toSvg(scene, FONTS).length} characters`);
       }
 });
 
@@ -71,12 +71,50 @@ test("text on the art keeps 4.5:1 under each style's scrim, whatever it draws", 
   }
 });
 
-test("the day picks the style, and two days running never share one", () => {
-  assert.equal(styleForDay("2026-10-05"), styleForDay("2026-10-05"));
-  let prev = styleForDay("2026-09-30");
-  for (let d = 1; d <= 31; d++) {
-    const day = styleForDay(`2026-10-${String(d).padStart(2, "0")}`);
-    assert.notEqual(day, prev);
-    prev = day;
+test("every style is quiet: a pale ground, a light scrim and light line tints", () => {
+  for (const style of STYLE_ORDER) {
+    assert.equal(STYLES[style].tone, "light", style);
+    // Scrims are light now that the art is (the old ones were 0.35 to 0.85).
+    assert.ok(STYLES[style].scrim <= 0.3, `${style} scrim ${STYLES[style].scrim}`);
+    for (const seed of SEEDS.slice(0, 10)) {
+      const scene = drawArt(style, input(seed, SIZES[1]));
+      // The ground is near-white (or a pale brand tint).
+      assert.ok(contrast(hex(scene.background), hex("#FFFFFF")) < 1.3, `${style} ${seed}: ground ${scene.background}`);
+    }
   }
+  // Line tints stay light enough to sit under blue ink text.
+  for (const c of LINES) assert.ok(contrast(hex(c), hex(STYLES.mesh.text.accent)) >= 4.5, c);
+});
+
+test("variants: a style looks different across seeds (more than one ground or palette)", () => {
+  for (const style of STYLE_ORDER) {
+    const looks = new Set(SEEDS.map((seed) => colours(drawArt(style, input(seed, SIZES[0]))).sort().join()));
+    assert.ok(looks.size >= 2, `${style} has ${looks.size} palette`);
+  }
+});
+
+test("the pick is random but stable for a seed, and every style is reachable", () => {
+  assert.equal(pickStyle({ seed: "letter-a", date: "2026-10-05", sequence: 12 }), pickStyle({ seed: "letter-a", date: "2026-10-05", sequence: 12 }));
+  const counts = new Map<StyleId, number>();
+  const N = 4000;
+  for (let i = 0; i < N; i++) {
+    const style = pickStyle({ seed: `letter-${i}`, date: "2026-10-05", sequence: i });
+    counts.set(style, (counts.get(style) ?? 0) + 1);
+  }
+  assert.equal(counts.size, STYLE_ORDER.length, "every style is picked");
+  // Roughly even: each within ±35% of its share.
+  for (const [style, c] of counts) assert.ok(Math.abs(c / N - 1 / STYLE_ORDER.length) < 0.35 / STYLE_ORDER.length, `${style}: ${c}`);
+  // Different letters on the same place in the sequence get different styles.
+  assert.ok(new Set(SEEDS.map((seed) => pickStyle({ seed, date: "2026-10-05", sequence: 4 }))).size >= 4);
+});
+
+test("consecutive letters, and consecutive days, never share a style", () => {
+  assert.deepEqual([...styleSet(0), ...styleSet(1)].sort(), [...STYLE_ORDER].sort());
+  for (let n = 1; n < 200; n++) assert.notEqual(pickStyle({ seed: `id-${n}`, date: "2026-10-05", sequence: n }), pickStyle({ seed: `id-${n + 1}`, date: "2026-10-05", sequence: n + 1 }));
+  for (let d = 1; d < 31; d++) {
+    const [a, b] = [`2026-10-${String(d).padStart(2, "0")}`, `2026-10-${String(d + 1).padStart(2, "0")}`];
+    assert.notEqual(pickStyle({ seed: a, date: a }), pickStyle({ seed: b, date: b }));
+  }
+  // Over the month boundary too.
+  assert.notEqual(pickStyle({ seed: "2026-09-30", date: "2026-09-30" }), pickStyle({ seed: "2026-10-01", date: "2026-10-01" }));
 });

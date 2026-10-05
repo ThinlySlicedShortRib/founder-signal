@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArtSwatch } from "@/components/art/ArtSwatch";
-import { STYLE_ORDER, STYLES, styleForDay } from "@/components/art/styles";
+import { STYLE_ORDER, STYLES } from "@/components/art/styles";
 import { setForcedStyle, useForcedStyle } from "@/components/art/useArt";
 import { Chip, Chips, font, InlineError, OButton, palette } from "@/components/onboarding/kit";
 import { PagerIcon } from "@/components/pager/icons";
@@ -25,7 +25,7 @@ import {
   useRestartOnboarding,
   useSwitchAccount,
 } from "@/lib/dev";
-import { clock, localDay, plural } from "@/lib/format";
+import { clock, plural } from "@/lib/format";
 import { LETTER_KEYS } from "@/lib/letters";
 import { queryClient } from "@/lib/query";
 
@@ -443,13 +443,12 @@ function SourcesSection({ state: s }: { state: DevState }) {
 /** Today's cover art: every style with a few seeds, and one forced on Today until the app reloads. */
 function BackgroundsSection() {
   const forced = useForcedStyle();
-  const daily = STYLES[styleForDay(localDay())].name;
   const swatch = Math.floor((Math.min(useWindowDimensions().width, 520) - 40 - 16) / 3);
   return (
     <Section kicker="Backgrounds" title="Cover art">
-      <Hint>The day picks the style and the letter’s id the details (docs/design/backgrounds). Tap a style to force it on Today; it lasts until the app reloads.</Hint>
+      <Hint>Each letter’s id picks a style at random (never the previous letter’s) and its details (docs/design/backgrounds). Tap a style to force it on Today; it lasts until the app reloads.</Hint>
       <Chips>
-        <Chip label={`Daily (${daily})`} on={!forced} onPress={() => setForcedStyle(null)} />
+        <Chip label="Random per letter" on={!forced} onPress={() => setForcedStyle(null)} />
       </Chips>
       {STYLE_ORDER.map((id) => (
         <Pressable

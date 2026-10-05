@@ -7,7 +7,7 @@ import { STYLES } from "@/components/art/styles";
 import { useArt } from "@/components/art/useArt";
 import { font, palette } from "@/components/onboarding/kit";
 import { usePillSpace } from "@/components/pager/Pill";
-import { AgentLine, Display, Mono } from "@/components/pager/PagerScreen";
+import { Display, Mono } from "@/components/pager/PagerScreen";
 import { dayAndTime, greeting, longDate } from "@/lib/format";
 import { PieceIcon } from "./PieceIcon";
 import { ProgressBars } from "./ProgressBars";
@@ -15,11 +15,11 @@ import { ProgressBars } from "./ProgressBars";
 /**
  * Page 1 of a letter, like a magazine cover: the day's art with the masthead,
  * "Letter No. N", the headline and the greeting on it; below, the post
- * office's note (two lines until "More") and the contents.
+ * office's note (in full, with "why this mix" opening inside it) and the contents.
  */
 export function CoverPage({ letter, pageCount, onPiece }: { letter: LetterView; pageCount: number; onPiece: (position: number) => void }) {
   const { space } = usePillSpace();
-  const art = useArt({ seed: letter.id, date: letter.localDate, number: letter.isTest ? null : letter.number });
+  const art = useArt({ seed: letter.id, date: letter.localDate, number: letter.isTest ? null : letter.number, sequence: letter.isTest ? null : letter.number });
   const text = STYLES[art.style].text;
   const bar = useHeroStatusBar(art);
   return (
@@ -83,26 +83,33 @@ export function CoverPage({ letter, pageCount, onPiece }: { letter: LetterView; 
   );
 }
 
-/** The intro, two lines until "More", which opens it and why this mix. */
+/**
+ * The intro (a personal hook, up to ~200 characters) in full, in the
+ * post office's orange card. When there's a "why this mix", a small control
+ * at the card's bottom right opens it inside the same card, below the intro.
+ */
 function Brief({ intro, why }: { intro: string; why: string | null }) {
   const [open, setOpen] = useState(false);
-  const more = !!why || intro.length > 90;
+  const text = { flexShrink: 1, fontFamily: font.body, fontSize: 15, lineHeight: 21.75, color: palette.noteInk } as const;
   return (
-    <View style={{ gap: 8 }}>
-      <AgentLine numberOfLines={open ? undefined : 2}>{intro}</AgentLine>
-      {open && why && <AgentLine>{why}</AgentLine>}
-      {more && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={open ? "Less" : why ? "More, and why this mix" : "More"}
-          onPress={() => setOpen((o) => !o)}
-          hitSlop={8}
-          style={{ alignSelf: "flex-start", minHeight: 32, justifyContent: "center", paddingHorizontal: 4 }}
-        >
-          <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>{open ? "Less" : why ? "More · why this mix" : "More"}</Text>
-        </Pressable>
-      )}
+    <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: palette.noteBg, borderRadius: 16, paddingTop: 13, paddingBottom: why ? 2 : 13, paddingHorizontal: 14 }}>
+      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: palette.orange, marginTop: 2 }} />
+      <View style={{ flex: 1, gap: 8 }}>
+        <Text style={text}>{intro}</Text>
+        {open && !!why && <Text style={text}>{why}</Text>}
+        {!!why && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Why this mix"
+            accessibilityState={{ expanded: open }}
+            onPress={() => setOpen((o) => !o)}
+            hitSlop={4}
+            style={({ pressed }) => ({ alignSelf: "flex-end", minHeight: 44, minWidth: 44, justifyContent: "center", paddingHorizontal: 4, marginTop: -8, opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.noteInk }}>{open ? "Less ▴" : "Why this mix ▾"}</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }

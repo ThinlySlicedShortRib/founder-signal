@@ -1,7 +1,7 @@
 // Run with `pnpm --filter @fs/mobile test` (node's own test runner; this folder's art code is pure TypeScript).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { contrast, hex, LINES } from "./colors.ts";
+import { contrast, GROUNDS, hex, LINES } from "./colors.ts";
 import { minScrim, worstContrast } from "./contrast.ts";
 import { rng } from "./random.ts";
 import { type ArtNode, elementCount, type Scene, toSvg } from "./scene.ts";
@@ -82,8 +82,8 @@ test("every style is quiet: a pale ground, a light scrim and light line tints", 
       assert.ok(contrast(hex(scene.background), hex("#FFFFFF")) < 1.3, `${style} ${seed}: ground ${scene.background}`);
     }
   }
-  // Line tints stay light enough to sit under blue ink text.
-  for (const c of LINES) assert.ok(contrast(hex(c), hex(STYLES.mesh.text.accent)) >= 4.5, c);
+  // Line tints are visible on every ground (text over them is checked with each style's scrim above).
+  for (const c of LINES) for (const g of GROUNDS) assert.ok(contrast(hex(c), hex(g)) >= 2.5, `${c} on ${g}`);
 });
 
 test("variants: a style looks different across seeds (more than one ground or palette)", () => {

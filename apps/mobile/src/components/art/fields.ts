@@ -25,7 +25,7 @@ export function mesh(r: Rng, { width: w, height: h }: ArtInput): Scene {
     [c, 0.6],
   ];
   // Now and then a breath of blue, very faint.
-  if (r.chance(0.5)) blobs.push([C.blueMid, 0.12]);
+  if (r.chance(0.5)) blobs.push([C.lineBlue, 0.12]);
   const defs: ArtDef[] = [];
   const nodes: ArtNode[] = [];
   blobs.forEach(([color, alpha], i) => {
@@ -98,7 +98,7 @@ export function halftone(r: Rng, { width: w, height: h }: ArtInput): Scene {
     [1, 0.45],
   ]);
   const sun = { x: (corner[0] + r.range(-0.08, 0.08)) * w, y: (corner[1] + r.range(-0.05, 0.05)) * h, r: big * r.range(0.42, 0.58) };
-  const ink = r.pick([C.blueMid, C.blueMid, C.orange]);
+  const ink = r.pick([C.lineBlue, C.lineBlue, C.orange]);
   const alpha = ink === C.orange ? 0.22 : 0.32;
   const s = r.pick([13, 15]);
   const angle = (r.range(0, 30) * Math.PI) / 180;
@@ -204,7 +204,7 @@ export function sky(r: Rng, { width: w, height: h }: ArtInput): Scene {
       kind: "path",
       d: `M${n(body.x)} ${n(body.y - body.r)}A${n(body.r)} ${n(body.r)} 0 1 0 ${n(body.x)} ${n(body.y + body.r)}A${n(k + body.r * 0.2)} ${n(body.r)} 0 1 1 ${n(body.x)} ${n(body.y - body.r)}Z`,
       fill: C.white,
-      stroke: C.blueMid,
+      stroke: C.lineBlue,
       strokeWidth: 0.6,
       opacity: 0.9,
     });

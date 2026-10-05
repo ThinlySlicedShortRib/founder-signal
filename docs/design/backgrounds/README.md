@@ -33,7 +33,7 @@ Code: `apps/mobile/src/components/art/`. The generators are pure TypeScript
 Quiet and editorial: a near-white ground (ground #FBFBFA, warm paper #F6F2EA
 or cool fog #F4F6FB; the sky uses a pale brand tint), brand colours only as
 tints (blue card, blue tint, peach, orange tint), line work in hairlines of a
-light blue (#8FA1FF) or graphite (#A6AAB3) rather than ink, orange only as a
+blue (#7A8FF6) or graphite (#9599A2) rather than ink (a step darker than at first, so they read clearly), orange only as a
 tiny accent (a seal, a pin, a margin rule), little or no grain, and a lot of
 open paper. Elements keep clear of the masthead (top ~110pt) and mostly of the
 text block at the bottom. Every style is light now (`tone: "light"`); the
@@ -66,7 +66,7 @@ Text on the art is the same on every style: ink, the prompt grey (#3A3D44)
 and blue ink (#1E2F99) (the app's muted grey and blue are a shade too light
 on art). The masthead row and the text block sit on a scrim of the art's own
 background colour at the style's scrim opacity, with a 72px soft edge. The
-scrims went from 0.35–0.85 to 0.15–0.25: the art is quiet enough that the
+scrims went from 0.35–0.85 to 0.15–0.3: the art is quiet enough that the
 scrim is mostly a softening, not a shield.
 
 The scrim values are checked, not guessed: `contrast.ts` takes every colour a
@@ -74,11 +74,12 @@ scene can paint (fills, strokes, gradient stops, grain, at their strongest
 opacity), layers them up to two deep over the background, puts the scrim on
 top and takes the worst case. `art.test.ts` asserts every text colour keeps
 **4.5:1** over 30 seeds × 4 screen sizes for every style, and that no scrim
-is lower than needed. With the tinted hairlines most styles would pass with
-no scrim at all; routes and line drawing need 0.25 (an orange accent over a
-blue line, two deep). A floor of 0.15 is kept everywhere so the art softens
-under the text. The tests also check the grounds stay pale, the scrims stay
-at or under 0.3, and the line tints keep 4.5:1 against blue ink.
+is lower than needed. With the darker hairlines, styles whose lines can run
+under the text need more: postmark and contour 0.2, stamp, letterhead and sky
+0.25, routes, airmail and line drawing 0.3; the rest keep the 0.15 floor so the
+art softens under the text. The tests also check the grounds stay pale, the
+scrims stay at or under 0.3, and the line tints stay visible (≥ 2.5:1) on every
+ground.
 
 The status bar is dark over every style now (all light), and stays dark once
 the page has scrolled past the art.

@@ -22,8 +22,10 @@ export const C = {
   paper: "#F6F2EA",
   /** Art only: a cool, faintly blue stock. */
   fog: "#F4F6FB",
-  /** Art only: a soft graphite for line work, light enough that text over it keeps 4.5:1. */
-  pencil: "#A6AAB3",
+  /** Art only: a soft graphite for line work; text over it keeps 4.5:1 behind each style's scrim. */
+  pencil: "#9599A2",
+  /** Art only: the blue line work, a step darker than `blueMid` so hairlines read clearly. */
+  lineBlue: "#7A8FF6",
   /** Art only: text on dark art (no style is dark today; kept for one that is). */
   mist: "#D5DAEA",
 } as const;
@@ -35,7 +37,7 @@ export const GROUNDS = [C.ground, C.paper, C.fog] as const;
  * Line work is drawn in these tints (not ink at a low opacity), so a hairline
  * can be crisp and still sit far below the text in contrast.
  */
-export const LINES = [C.blueMid, C.pencil] as const;
+export const LINES = [C.lineBlue, C.pencil] as const;
 
 export type Rgb = [number, number, number];
 

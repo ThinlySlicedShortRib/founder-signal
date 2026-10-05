@@ -178,7 +178,7 @@ export function airmail(r: Rng, input: ArtInput): Scene {
     if ((k / 2) % 2) blue += d;
     else warm += d;
   }
-  const ink = r.pick([C.blueMid, C.blueMid, C.pencil]);
+  const ink = r.pick([C.lineBlue, C.lineBlue, C.pencil]);
   const lx = w * r.range(0.1, 0.28);
   const ly = h * r.range(0.24, 0.34);
   // A dotted route looping across the page, ending at a paper plane.
@@ -207,7 +207,7 @@ export function airmail(r: Rng, input: ArtInput): Scene {
       // The stripes, then the page over them inside the border (a multi-shape clip doesn't render everywhere).
       ...(border
         ? ([
-            { kind: "path", d: blue, fill: C.blueMid, opacity: 0.4 },
+            { kind: "path", d: blue, fill: C.lineBlue, opacity: 0.4 },
             { kind: "path", d: warm, fill: C.orange, opacity: 0.25 },
             { kind: "rect", x: band, y: band, w: w - band * 2, h: h - band * 2, fill: ground },
           ] as ArtNode[])
@@ -283,7 +283,7 @@ export function ruled(r: Rng, { width: w, height: h }: ArtInput): Scene {
   for (let y = top; y < h; y += gap) lines += `M0 ${n(y + 0.5)}H${w}`;
   if (squared) for (let x = gap / 2; x < w; x += gap) lines += `M${n(x + 0.5)} 0V${h}`;
   const nodes: ArtNode[] = [
-    { kind: "path", d: lines, stroke: C.blueMid, strokeWidth: 0.7, opacity: squared ? 0.2 : 0.3 },
+    { kind: "path", d: lines, stroke: C.lineBlue, strokeWidth: 0.7, opacity: squared ? 0.2 : 0.3 },
     { kind: "path", d: `M${n(margin)} 0V${h}` + (double ? `M${n(margin + (margin < w / 2 ? -4 : 4))} 0V${h}` : ""), stroke: C.orange, strokeWidth: 0.7, opacity: 0.3 },
   ];
   return { width: w, height: h, background: ground, defs: [grain(r, "grain", C.ink, 40)], nodes: [...nodes, { kind: "rect", x: 0, y: 0, w, h, fill: "url(#grain)", opacity: 0.04 }] };

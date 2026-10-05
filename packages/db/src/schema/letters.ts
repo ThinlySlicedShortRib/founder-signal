@@ -114,6 +114,12 @@ export interface LetterItemSnapshot {
   sourceName: string;
   originalUrl: string;
   image: { url: string; source: "article" | "stock"; credit: string | null; creditUrl: string | null } | null;
+  /**
+   * The contents-list icon, a `pieceIconKeys` key (@fs/schema): enrichment's
+   * pick, else the fallback from tags, topic and title. Absent on letters
+   * locked before icons; those are resolved on read.
+   */
+  icon?: string;
   /** Who wrote it, as known at delivery. The card's details are read live from `author`. */
   author: { key: string; name: string } | null;
   evidenceIds: string[];

@@ -218,10 +218,12 @@ describe("/letters", () => {
     });
     const first = await seedArticle({ title: "The fee is the product" });
     current = await seedLetter(userId, [
-      { itemId: first.item.id, snap: snapshot({ title: "The fee is the product" }) },
+      { itemId: first.item.id, snap: snapshot({ title: "The fee is the product", icon: "brand" }) },
       { itemId: priya.item.id, snap: snapshot({ title: "How we priced our first contract", whyPicked: null, tag: "New source", author: { key: "priya.test:priya-raman", name: "Priya Raman" }, image: null }) },
       { itemId: video.item.id, snap: snapshot({ title: "Hiring your first engineer", kind: "video", topic: "Hiring", minutes: 18 }) },
     ], { number: 4 });
+    // Enrichment picked an icon after the letter was locked without one.
+    await ctx.db.update(contentItem).set({ icon: "story" }).where(eq(contentItem.id, priya.item.id));
     // The user read and saved an older piece by the same author.
     await call("POST", "/events", { events: [event("open", older.item.id, "2026-10-02T08:00:00Z"), event("complete", older.item.id, "2026-10-02T08:05:00Z")] });
   });
@@ -271,6 +273,8 @@ describe("/letters", () => {
     ]);
     expect(l.pieces[1]).toMatchObject({ verdict: "not_interested", skipped: true, completed: false, saved: false, tag: "New source", image: null });
     expect(l.pieces[2]).toMatchObject({ verdict: null, skipped: false, completed: true, saved: true });
+    // The snapshotted icon; for older snapshots the item's own, else one from the topic.
+    expect(l.pieces.map((p) => p.icon)).toEqual(["brand", "story", "hiring"]);
     // A verdict (here a dislike) means the P.S. is the recap written from the feedback.
     expect(l.postscript).toEqual({
       recap: "You weighed in on “How we priced our first contract”.",
@@ -562,8 +566,8 @@ describe("/events, /me/saved, /me/activity", () => {
     const parsed = saved.map((s) => savedPieceSchema.parse(s));
     const mine = parsed.filter((p) => [a.item.id, b.item.id, c.item.id].includes(p.itemId));
     expect(mine.map((p) => p.title)).toEqual(["Saved C", "Saved A"]);
-    expect(mine[0]).toMatchObject({ topic: "Sales", minutes: 9, offline: true, savedAt: "2026-09-12T08:00:00.000Z", image: { source: "stock" } });
-    expect(mine[1]).toMatchObject({ topic: null, minutes: 6, image: { source: "article" } });
+    expect(mine[0]).toMatchObject({ topic: "Sales", icon: "sales", minutes: 9, offline: true, savedAt: "2026-09-12T08:00:00.000Z", image: { source: "stock" } });
+    expect(mine[1]).toMatchObject({ topic: null, icon: "article", minutes: 6, image: { source: "article" } });
   });
 
   it("counts distinct items read (open + complete) or reviewed per local day", async () => {

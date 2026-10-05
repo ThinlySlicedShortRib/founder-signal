@@ -526,6 +526,25 @@ describe("lock", () => {
     expect(used).toEqual(["Hiring"]);
   });
 
+  it("snapshots enrichment's icon, else one from the tags, topic and title", async () => {
+    const w = createWorld();
+    const userId = await newUser();
+    const picked = await seedArticle(w, userId, "icon-a.test", { title: "Pricing that sticks" });
+    await db.update(contentItem).set({ icon: "design" }).where(eq(contentItem.id, picked.id));
+    const unpicked = await seedArticle(w, userId, "icon-b.test", { title: "Hiring your first engineer", topic: "hiring" });
+    // An icon that's no longer on the allowlist falls back too.
+    const stale = await seedArticle(w, userId, "icon-c.test", { title: "Sales calls", topic: "sales" });
+    await db.update(contentItem).set({ icon: "retired-icon" }).where(eq(contentItem.id, stale.id));
+    await insertTestLetter(userId);
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+    const [l] = await lettersOf(userId);
+    const icons = new Map((await itemsOf(l!.id)).map((i) => [i.itemId, i.snapshot.icon]));
+    expect(icons.get(picked.id)).toBe("design");
+    expect(icons.get(unpicked.id)).toBe("hiring");
+    expect(icons.get(stale.id)).toBe("sales");
+  });
+
   it("uses our copy of the lead image when the image store has one", async () => {
     const images = { async copy(itemId: string, sourceUrl: string) { return sourceUrl.endsWith("/broken.jpg") ? null : `https://images.example.com/${itemId}.jpg`; } };
     const w = createWorld({ images });

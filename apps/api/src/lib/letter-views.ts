@@ -1,5 +1,5 @@
 import { RECAP_PROMPT_VERSION, type ReaderWriter } from "@fs/ai";
-import { checkPostscript, fallbackPostscript, fallbackRecap, initialsFor, verdictSignature } from "@fs/core";
+import { checkPostscript, fallbackPostscript, fallbackRecap, initialsFor, resolvePieceIcon, verdictSignature } from "@fs/core";
 import { type Db, schema } from "@fs/db";
 import type { RecapMeta } from "@fs/db/schema";
 import type { AuthorCard, LetterPiece, LetterStatus, LetterView, Postscript, ReviewVote } from "@fs/schema";
@@ -183,8 +183,17 @@ export async function postscriptFor(db: Db, l: LetterRow, recap: string | null):
 
 export async function buildLetterView(db: Db, reader: ReaderWriter | null, l: LetterRow): Promise<LetterView> {
   const items = await db
-    .select({ itemId: letterItem.itemId, position: letterItem.position, feedbackCode: letterItem.feedbackCode, snapshot: letterItem.snapshot })
+    .select({
+      itemId: letterItem.itemId,
+      position: letterItem.position,
+      feedbackCode: letterItem.feedbackCode,
+      snapshot: letterItem.snapshot,
+      // For letters locked before icons were snapshotted.
+      itemIcon: contentItem.icon,
+      itemTags: contentItem.tags,
+    })
     .from(letterItem)
+    .innerJoin(contentItem, eq(contentItem.id, letterItem.itemId))
     .where(eq(letterItem.letterId, l.id))
     .orderBy(letterItem.position);
   const ids = items.map((i) => i.itemId);
@@ -213,6 +222,7 @@ export async function buildLetterView(db: Db, reader: ReaderWriter | null, l: Le
       sourceName: s.sourceName,
       originalUrl: s.originalUrl,
       image: s.image,
+      icon: resolvePieceIcon(s.icon ?? i.itemIcon, { kind: s.kind, tags: i.itemTags, topic: s.topic, title: s.title }),
       author: s.author ? (cards.get(`${s.author.key}|${i.itemId}`) ?? null) : null,
       feedbackCode: i.feedbackCode,
       verdict: state.verdict,

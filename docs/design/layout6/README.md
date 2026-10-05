@@ -47,6 +47,15 @@ darker at every stop, `piece` variant: 0.44 / 0.54 / 0.86 / 0.97 at
 0.45 at the top → 0.85 at 30% → full from 55%, at blur intensity 90 (was 55). The P.S. keeps the board's
 `page` gradient and its bottom-rising blur.
 
+**Icons instead of numbers in the contents.** Each row of the cover's contents
+leads with an icon for what the piece is about (pricing tag, person-plus for
+hiring, sparkles for AI, …) in the same 28×28 tinted square (radius 8, the
+three tints in turn) where the boards had "01", "02", "03". The icon is picked
+by the enrichment model from a fixed list (`pieceIconKeys`); items it hasn't
+picked for get one from their tags, topic and title, else a document (article)
+or play (video) glyph. Ionicons outline glyphs, ink at 16px; decorative, so
+screen readers still hear "Piece N: title, M minutes".
+
 Not on the boards: while a letter is being made now (the first letter right
 after onboarding, or a test letter), Today shows it being put together in the
 empty Today's style ("Searching the web for you" → "Reading what I found" →

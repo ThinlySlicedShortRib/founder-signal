@@ -64,6 +64,13 @@
       "when": 1791117872530,
       "tag": "0008_postscript_default",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791178997225,
+      "tag": "0010_piece_icon",
+      "breakpoints": true
     }
   ]
 }

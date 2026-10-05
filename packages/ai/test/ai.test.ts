@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
+import { pieceIconKeys } from "@fs/schema";
 import { buildEnrichmentRequest, embeddingText, parseBatchResult } from "../src/index.ts";
 
 type BatchResponse = Anthropic.Messages.Batches.MessageBatchIndividualResponse;
@@ -10,7 +11,7 @@ const succeeded = (text: string, stop_reason: string = "end_turn"): BatchRespons
     result: { type: "succeeded", message: { stop_reason, content: [{ type: "text", text }] } },
   }) as unknown as BatchResponse;
 
-const valid = { tags: ["Pricing", "pricing", " Productized Services ", "consulting", "sales"], language: "EN", depth: "intermediate", quality: "substantive", quality_reason: "First-hand numbers." };
+const valid = { tags: ["Pricing", "pricing", " Productized Services ", "consulting", "sales"], language: "EN", depth: "intermediate", quality: "substantive", quality_reason: "First-hand numbers.", icon: "pricing" };
 
 describe("buildEnrichmentRequest", () => {
   const req = buildEnrichmentRequest({ itemId: "i", title: "A <b> title", publisher: 'Pub "x"', type: "article", text: "body & more" });
@@ -19,8 +20,14 @@ describe("buildEnrichmentRequest", () => {
     expect(req.model).toBe("claude-haiku-4-5");
     const schema = req.output_config?.format?.schema as Record<string, unknown>;
     expect(schema).toMatchObject({ type: "object", additionalProperties: false });
-    expect(schema.required).toEqual(["tags", "language", "depth", "quality", "quality_reason"]);
+    expect(schema.required).toEqual(["tags", "language", "depth", "quality", "quality_reason", "icon"]);
     expect(schema).not.toHaveProperty("$schema");
+  });
+
+  it("constrains the icon to the allowlist and explains each key", () => {
+    const schema = req.output_config?.format?.schema as { properties: { icon: { enum: string[] } } };
+    expect(schema.properties.icon.enum).toEqual([...pieceIconKeys]);
+    expect(req.system).toContain("- pricing: pricing, packaging, plans and discounts");
   });
 
   it("escapes the item so its text can't break out of the data tags", () => {
@@ -43,6 +50,17 @@ describe("parseBatchResult", () => {
       ok: true,
       enrichment: { ...valid, tags: ["pricing", "productized services", "consulting", "sales"], language: "en" },
     });
+  });
+
+  it("keeps a valid icon (any case) and turns one off the allowlist into null", () => {
+    const icon = (value: unknown) => {
+      const r = parseBatchResult(succeeded(JSON.stringify({ ...valid, icon: value })));
+      return r.ok ? r.enrichment.icon : "failed";
+    };
+    expect(icon(" Hiring ")).toBe("hiring");
+    expect(icon("rocket-outline")).toBeNull();
+    expect(icon(42)).toBeNull();
+    expect(icon(undefined)).toBeNull();
   });
 
   it("classifies failures as retryable or not", () => {

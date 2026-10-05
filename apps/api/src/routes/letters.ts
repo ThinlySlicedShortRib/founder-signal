@@ -1,5 +1,5 @@
 import type { ReaderBrief, ReaderWriter } from "@fs/ai";
-import { activityMonth, localDateOf, numbersIn, phraseMatches, splitChapters, stemSet } from "@fs/core";
+import { activityMonth, localDateOf, numbersIn, phraseMatches, resolvePieceIcon, splitChapters, stemSet } from "@fs/core";
 import { addUserSource, type Db, schema } from "@fs/db";
 import { blocksToText, type ContentStore, type DetectDeps, detectSource, type TranscriptSegment } from "@fs/ingest";
 import {
@@ -425,12 +425,14 @@ export function readingRoutes({ detect, ...letters }: Pick<LetterRouteDeps, keyo
         read_time_minutes: number | null;
         duration_seconds: number | null;
         lead_image_url: string | null;
+        icon: string | null;
+        tags: string[] | null;
         publisher_name: string;
-        snapshot: { topic?: string; minutes?: number; image?: SavedPiece["image"]; sourceName?: string } | null;
+        snapshot: { topic?: string; minutes?: number; image?: SavedPiece["image"]; sourceName?: string; icon?: string } | null;
         offline: boolean | null;
       }>(sql`
         select s.item_id, s.occurred_at as saved_at, ci.type, ci.title, ci.canonical_url, ci.read_time_minutes, ci.duration_seconds,
-               ci.lead_image_url, p.name as publisher_name,
+               ci.lead_image_url, ci.icon, ci.tags, p.name as publisher_name,
                (select li.snapshot from ${letterItem} li join ${letter} l on l.id = li.letter_id
                  where li.item_id = s.item_id and l.user_id = ${userId} order by li.created_at desc limit 1) as snapshot,
                (select (cv.rights_snapshot->>'offlineAllowed')::boolean and (cv.blocks_key is not null or exists(select 1 from ${transcript} t where t.item_version_id = cv.id))
@@ -453,6 +455,7 @@ export function readingRoutes({ detect, ...letters }: Pick<LetterRouteDeps, keyo
         minutes: r.snapshot?.minutes ?? (r.type === "video" && r.duration_seconds ? Math.max(1, Math.round(r.duration_seconds / 60)) : r.read_time_minutes),
         sourceName: r.snapshot?.sourceName ?? r.publisher_name,
         image: r.snapshot?.image ?? (r.lead_image_url ? { url: r.lead_image_url, source: "article", credit: null, creditUrl: null } : null),
+        icon: resolvePieceIcon(r.snapshot?.icon ?? r.icon, { kind: r.type, tags: r.tags, topic: r.snapshot?.topic, title: r.title }),
         savedAt: new Date(r.saved_at).toISOString(),
         offline: !!r.offline,
       }));

@@ -401,7 +401,7 @@ describe("enrichment", () => {
 
     const [a, b] = mine;
     w.batchResults.set(batch!.providerBatchId, [
-      { itemId: a!.id, ok: true, enrichment: { tags: ["pricing", "services"], language: "en", depth: "intermediate", quality: "substantive", quality_reason: "x" } },
+      { itemId: a!.id, ok: true, enrichment: { tags: ["pricing", "services"], language: "en", depth: "intermediate", quality: "substantive", quality_reason: "x", icon: "pricing" } },
       { itemId: b!.id, ok: false, retryable: true, error: "overloaded_error" },
     ]);
     expect(await dispatch(w.deps, "enrich", { kind: "poll", batchId: batch!.id })).toEqual({ status: "applied", enriched: 1, failed: 1 });
@@ -409,7 +409,7 @@ describe("enrichment", () => {
     expect(await dispatch(w.deps, "enrich", { kind: "poll", batchId: batch!.id })).toEqual({ status: "skipped" });
 
     const after = await db.select().from(contentItem).where(inArray(contentItem.id, [a!.id, b!.id])).orderBy(contentItem.canonicalUrl);
-    expect(after[0]).toMatchObject({ status: "enriched", tags: ["pricing", "services"], depth: "intermediate", qualityLabel: "substantive" });
+    expect(after[0]).toMatchObject({ status: "enriched", tags: ["pricing", "services"], depth: "intermediate", qualityLabel: "substantive", icon: "pricing" });
     expect(after[0]!.embedding).toHaveLength(1024);
     // The retryable failure goes back in the queue for the next batch.
     expect(after[1]).toMatchObject({ status: "extracted", enrichmentBatchId: null, enrichmentAttempts: 1 });

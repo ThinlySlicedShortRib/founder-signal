@@ -24,6 +24,7 @@ export default function ImportSources() {
         <ImportOptions
           initialError={connectErrorMessage(importError)}
           onImported={(id) => router.push({ pathname: "/sources/import/[id]", params: { id } })}
+          onNewsletters={() => router.push("/sources/import/newsletters")}
         />
       </Screen>
     </KeyboardAvoidingView>

@@ -2,7 +2,7 @@ import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "d
 import { user } from "./auth.ts";
 
 /** Where an import's list came from (docs/imports/README.md). */
-export const sourceImportMethod = pgEnum("source_import_method", ["opml", "youtube", "substack", "bluesky", "mastodon"]);
+export const sourceImportMethod = pgEnum("source_import_method", ["opml", "youtube", "substack", "bluesky", "mastodon", "newsletter"]);
 
 /**
  * One "import what I already follow" run: what was found (the checklist) and

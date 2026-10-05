@@ -27,16 +27,18 @@ import {
 import {
   discoveryMode,
   type Env,
+  inboundEmailDomain,
   letterWriterMode,
   resolveAnthropicApiKey,
   resolveContentDir,
   resolveDatabaseConfig,
+  resolveInboundMailDir,
   resolveSupadataApiKey,
   resolveUnsplashAccessKey,
   resolveYouTubeApiKey,
 } from "@fs/config";
 import { createDb } from "@fs/db";
-import { createSafeFetcher, supadataProvider, youTubeDataClient } from "@fs/ingest";
+import { createSafeFetcher, fsRawMailStore, s3RawMailStore, supadataProvider, youTubeDataClient } from "@fs/ingest";
 import { copyingImageStore, s3ImageObjects } from "../letters/image-store.ts";
 import { unsplashStockPhotos } from "../letters/images.ts";
 import type { Discovery, PipelineDeps } from "../pipeline/deps.ts";
@@ -78,6 +80,7 @@ export async function buildPipelineDeps(env: Env, queues: Queues): Promise<Pipel
         ? copyingImageStore({ objects: s3ImageObjects(env.IMAGES_BUCKET), baseUrl: env.IMAGES_BASE_URL, fetch })
         : null,
     discovery: buildDiscovery(env),
+    inbound: buildInbound(env),
     close: () => pool.end(),
   };
 }
@@ -123,6 +126,13 @@ function lazyAuthorEnricher(env: Env): AuthorEnricher {
     model: AUTHOR_ENRICHMENT_MODEL,
     enrich: async (query) => anthropicAuthorEnricher(await client()).enrich(query),
   };
+}
+
+/** Newsletter forwarding: SES's mail bucket on AWS, a local directory otherwise; off without a domain. */
+function buildInbound(env: Env) {
+  const domain = inboundEmailDomain(env);
+  if (!domain) return null;
+  return { domain, mail: env.INBOUND_MAIL_BUCKET ? s3RawMailStore(env.INBOUND_MAIL_BUCKET) : fsRawMailStore(resolveInboundMailDir(env)) };
 }
 
 /** Discovery's query generator and web searcher: the CLI locally, the API on AWS, or none (§6.3a). */

@@ -3,6 +3,7 @@ module "stack" {
 
   env                    = "prod"
   google_oauth_client_id = var.google_oauth_client_id
+  inbound_email_domain   = var.inbound_email_domain
   release                = var.release
   artifacts_bucket       = var.artifacts_bucket
   email_from             = var.email_from

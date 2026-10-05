@@ -16,16 +16,18 @@ Each environment is `envs/<env>` → `modules/stack`, which wires the modules be
 | `modules/queues` | One SQS queue + DLQ per pipeline step (`fetch-source`, `extract`, `enrich`, `letter-step`, `author`, `discover`), DLQ-depth alarms → alerts topic | Cloud Tasks queues / Pub/Sub + dead-letter topics |
 | `modules/content_storage` | Private, KMS-encrypted, TLS-only bucket for extracted blocks and transcripts | GCS bucket with CMEK |
 | `modules/image_storage` | Private bucket for copies of articles' lead images, served by a CloudFront distribution through origin access control; only `letter-step` writes `images/*` | GCS bucket behind Cloud CDN |
+| `modules/inbound_email` | Newsletters by email, only when `inbound_email_domain` is set: SES domain identity (Easy DKIM), the active receipt rule set and a rule for the domain (spam/virus scan, TLS required), a private mail bucket (customer-managed KMS key, TLS only, 7-day expiry; only SES may write `inbound/*`, pinned to the rule by `aws:SourceArn`), an encrypted SNS topic for SES's notifications, subscribed to the `newsletter-inbound` queue. Outputs the DNS records to add | Cloud Run + an inbound email service (GCP has no native receiving) |
 | `modules/scheduler` | EventBridge Scheduler `rate(5 minutes)` → `sweep` | Cloud Scheduler |
-| `modules/stack` | Wires all of the above for one environment, plus the `migrate` Lambda, the ingestion workers (`sweep`, `fetch-source`, `extract`, `enrich`), the letter engine (`letter-step`, `author`) and open web discovery (`discover`) | — |
+| `modules/stack` | Wires all of the above for one environment, plus the `migrate` Lambda, the ingestion workers (`sweep`, `fetch-source`, `extract`, `enrich`), the letter engine (`letter-step`, `author`) open web discovery (`discover`) and, with an inbound domain, newsletter forwarding (`inbound_email` + the `newsletter-inbound` worker) | — |
 
 **NAT:** dev uses the community module [`RaJiska/fck-nat/aws`](https://registry.terraform.io/modules/RaJiska/fck-nat/aws) (a `t4g.nano` in an auto-scaling group of one, with a static ENI so routes survive a replacement; SSM Session Manager access, no SSH). Prod uses a managed NAT gateway (`nat_gateway_count` = 1, or 2 for one per AZ).
 
 ## Lambda contract
 
-- Zips live at `s3://<artifacts_bucket>/<release>/<name>.zip` for `api`, `migrate`, `sweep`, `fetch-source`, `extract`, `enrich`, `letter-step`, `author` and `discover`. Each contains `index.js` (or `index.mjs`) exporting `handler`. Runtime `nodejs24.x`, `arm64`.
+- Zips live at `s3://<artifacts_bucket>/<release>/<name>.zip` for `api`, `migrate`, `sweep`, `fetch-source`, `extract`, `enrich`, `letter-step`, `author`, `discover` and `newsletter-inbound` (only deployed with an inbound domain). Each contains `index.js` (or `index.mjs`) exporting `handler`. Runtime `nodejs24.x`, `arm64`.
 - Workers additionally get `QUEUE_URL_FETCH_SOURCE`, `QUEUE_URL_EXTRACT`, `QUEUE_URL_ENRICH`, `QUEUE_URL_LETTER_STEP`, `QUEUE_URL_AUTHOR`, `QUEUE_URL_DISCOVER`, `UNSPLASH_ACCESS_KEY_SECRET_ARN`, `CONTENT_BUCKET`, `SUPADATA_API_KEY_SECRET_ARN`, `ENRICHMENT` (`anthropic` or `none`), `DISCOVERY` (`anthropic` or `none`) and `EMBEDDING_MODEL_ID`. Queue consumers report partial batch failures, so only failed messages are retried (3 receives, then the DLQ).
-- Each worker's role can read only the secrets it needs and send only to the queues it feeds. Only `enrich`, `letter-step`, `author` and `discover` can read the Anthropic key; only `enrich` can call Bedrock, and only on the embedding model. The API additionally gets `CONTENT_BUCKET` (read-only, for the reader), `QUEUE_URL_LETTER_STEP` (send-only, for test letters and the first letter) and `QUEUE_URL_DISCOVER` (send-only, for the discovery run the first letter waits on), plus the same `DISCOVERY` switch as the workers.
+- Each worker's role can read only the secrets it needs and send only to the queues it feeds. Only `enrich`, `letter-step`, `author` and `discover` can read the Anthropic key; only `enrich` can call Bedrock, and only on the embedding model. The API additionally gets `CONTENT_BUCKET` (read-only, for the reader), `QUEUE_URL_LETTER_STEP` (send-only, for test letters and the first letter) and `QUEUE_URL_DISCOVER` (send-only, for the discovery run the first letter waits on), plus the same `DISCOVERY` switch as the workers, and `INBOUND_EMAIL_DOMAIN` (empty: `/me/newsletters` answers `NOT_CONFIGURED`).
+- `newsletter-inbound` (with an inbound domain) consumes SES's notifications from its queue (raw SNS delivery; 3 receives, then its DLQ, alarmed), reads and deletes `inbound/*` in the mail bucket (`s3:GetObject`, `s3:DeleteObject`, `kms:Decrypt` on the mail key), writes blocks to the content bucket (`items/*`) and reads only the database secret. It gets the worker env plus `INBOUND_EMAIL_DOMAIN` and `INBOUND_MAIL_BUCKET`.
 - Both functions get: `NODE_ENV`, `APP_ENV`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SECRET_ARN` (RDS-managed JSON `{username,password}`), `BETTER_AUTH_SECRET_ARN`, `BETTER_AUTH_URL`, `ANTHROPIC_API_KEY_SECRET_ARN`, `EMAIL_TRANSPORT=ses`, `EMAIL_FROM`, `CLIENT_LOG_SINK=cloudwatch`, `CLIENT_LOG_GROUP`.
 - `BETTER_AUTH_URL` is the custom domain if set, otherwise the execute-api URL. There's no dependency cycle, because the API resource is created before the function and the integration after it.
 - The database requires TLS (`rds.force_ssl=1`). Connect with SSL on, using the RDS CA bundle or `rejectUnauthorized: false` inside the VPC.
@@ -51,7 +53,7 @@ cp terraform.tfvars.example terraform.tfvars    # fill in artifacts bucket, emai
 RELEASE=$(git rev-parse --short HEAD)
 pnpm bundle                                      # produces apps/api/dist/api.zip and apps/workers/dist/<worker>.zip
 aws s3 cp apps/api/dist/api.zip s3://<artifacts_bucket>/$RELEASE/api.zip
-for w in migrate sweep fetch-source extract enrich letter-step author discover; do
+for w in migrate sweep fetch-source extract enrich letter-step author discover newsletter-inbound; do
   aws s3 cp apps/workers/dist/$w.zip s3://<artifacts_bucket>/$RELEASE/$w.zip
 done
 
@@ -89,6 +91,16 @@ aws lambda invoke --function-name founder-signal-dev-migrate \
 
 Later deploys repeat steps 3, 4 (with the new `RELEASE`) and 6.
 
+### Newsletters by email (optional)
+
+Needs a domain or subdomain whose DNS you control (e.g. `in.example.com`; there's none yet, so it's off by default).
+
+1. Set `inbound_email_domain = "in.example.com"` in `envs/dev/terraform.tfvars` and apply (with `newsletter-inbound.zip` uploaded).
+2. Add the records from `terraform output inbound_email_dns_records` at your DNS provider: an **MX** `10 inbound-smtp.ap-southeast-2.amazonaws.com` for the domain, and three Easy DKIM **CNAMEs** `<token>._domainkey.<domain>` → `<token>.dkim.amazonses.com`.
+3. Wait for the identity to show Verified in the SES console (`ap-southeast-2`). Then mail to `n-…@<domain>` reaches the app; see `docs/imports/README.md` for the Gmail/Outlook side.
+
+The receipt rule set is made **active**; a region has only one active rule set, so this replaces any other in the project's region.
+
 ## Rough dev cost
 
 | Item | Per month |
@@ -96,6 +108,7 @@ Later deploys repeat steps 3, 4 (with the new `RELEASE`) and 6.
 | fck-nat (`t4g.nano` + EBS + public IPv4) | ~$7 |
 | RDS `db.t4g.micro` single-AZ + 20 GB gp3 | ~$12–15 + ~$2.30 |
 | Secrets Manager (5 secrets × $0.40) | ~$2.00 |
+| Newsletters by email (only with a domain): KMS key $1, SES receiving $0.10 per 1,000 emails (+ per 1,000 chunks of 256 KB) | ~$1 |
 | Lambda, API Gateway, SQS, EventBridge Scheduler, CloudWatch, S3, SNS | pennies at personal volume |
 
 Prod adds Multi-AZ RDS (~2× the DB) and a managed NAT gateway (~$37 each).

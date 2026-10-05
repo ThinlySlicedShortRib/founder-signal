@@ -24,6 +24,7 @@ export default function SourceDetail() {
   }
 
   const health = fetchHealth(source);
+  const newsletter = source.type === "newsletter";
 
   async function removeSource() {
     const ok = await confirm({
@@ -72,11 +73,11 @@ export default function SourceDetail() {
         <Card>
           <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, minHeight: TAP }}>
             <View style={{ flex: 1, gap: 2 }}>
-              <Body style={{ fontFamily: font.bodySemi }}>Pause this source</Body>
-              <Small>Stop using it in letters without removing it.</Small>
+              <Body style={{ fontFamily: font.bodySemi }}>{newsletter ? "Stop following" : "Pause this source"}</Body>
+              <Small>{newsletter ? "Its emails are ignored and it's left out of letters." : "Stop using it in letters without removing it."}</Small>
             </View>
             <Switch
-              accessibilityLabel="Pause this source"
+              accessibilityLabel={newsletter ? "Stop following this newsletter" : "Pause this source"}
               value={source.blocked}
               onValueChange={(blocked) => update.mutate({ blocked })}
               trackColor={{ true: palette.blue, false: palette.lineSoft }}
@@ -86,11 +87,15 @@ export default function SourceDetail() {
 
         <Card>
           <Heading>Details</Heading>
-          <Row icon="link-outline" label="Link" detail={source.url} onPress={() => void Linking.openURL(/^https?:/i.test(source.url) ? source.url : `https://${source.url}`)} />
+          {newsletter ? (
+            <Row icon="mail-outline" label="From" detail={source.url.replace(/^mailto:/, "")} />
+          ) : (
+            <Row icon="link-outline" label="Link" detail={source.url} onPress={() => void Linking.openURL(/^https?:/i.test(source.url) ? source.url : `https://${source.url}`)} />
+          )}
           <Divider />
           <Row icon="document-lock-outline" label="What we keep" detail={rightsDetail(source.rights)} trailing={<Badge label={rightsLabel(source.rights)} />} />
           <Divider />
-          <Row icon="refresh-outline" label="Last checked" detail={source.lastFetchedAt ? timeAgo(source.lastFetchedAt) : "Not yet"} />
+          <Row icon="refresh-outline" label={newsletter ? "Last email" : "Last checked"} detail={source.lastFetchedAt ? timeAgo(source.lastFetchedAt) : "Not yet"} />
         </Card>
 
         <Button title="Remove source" variant="danger" icon="trash-outline" onPress={removeSource} loading={remove.isPending} />

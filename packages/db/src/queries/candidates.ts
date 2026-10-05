@@ -36,7 +36,9 @@ export interface CandidateWindow {
 /**
  * The user's own candidates, newest first (a discovered page counts as new
  * when it was found):
- * - items from their followed, non-blocked sources;
+ * - items from their followed, non-blocked sources, including newsletters
+ *   they forwarded to their inbound address (linked through `inbound_message`
+ *   when the item already existed, e.g. from the same post's RSS feed);
  * - pages discovery found for them (a found page that turned out to be a
  *   duplicate counts as the original);
  * - items from trusted discovered publishers' feeds, for users discovery has
@@ -51,6 +53,9 @@ export async function ownCandidateIds(
     select ci.id from content_item ci join publisher p on p.id = ci.publisher_id
     where (
         (${recent} and exists (select 1 from user_source us where us.source_id = ci.source_id and us.user_id = ${userId} and not us.blocked))
+        -- A newsletter that arrived by email for this user, even when its item came from elsewhere first (same URL or text).
+        or (${recent} and exists (select 1 from inbound_message im join user_source us on us.source_id = im.source_id and us.user_id = im.user_id
+          where im.item_id = ci.id and im.user_id = ${userId} and im.status = 'newsletter' and not us.blocked))
         or exists (select 1 from user_discovery ud join content_item found on found.id = ud.item_id
           where ud.user_id = ${userId} and (found.id = ci.id or found.duplicate_of_id = ci.id)
             and ud.found_at > now() - make_interval(days => ${window.discoveredDays}))
@@ -83,7 +88,8 @@ export interface PoolCandidateRow {
 
 /**
  * The shared pool (§6.2): good items found for someone else. Pages other
- * users' discovery found, and items from trusted publishers, published or
+ * users' discovery found, and items from trusted publishers (never one that
+ * arrived by email: newsletter items stay with their reader), published or
  * found within `windowDays`; only substantive or not-yet-labelled ones, and
  * everything `usable` asks of the user's own candidates. Newest first, not
  * yet matched to the user's brief (that's @fs/core `sharedPoolMatches`).
@@ -118,6 +124,8 @@ export async function sharedPoolRows(
         or exists (select 1 from user_discovery ud join content_item found on found.id = ud.item_id
           where ud.user_id <> ${userId} and (found.id = ci.id or found.duplicate_of_id = ci.id)
             and ud.found_at > now() - make_interval(days => ${windowDays})))
+      -- What arrived by email is that user's own copy (possibly a paid post): never shared.
+      and not exists (select 1 from source ns where ns.id = ci.source_id and ns.type = 'newsletter')
       and ${usable(userId, letterId)}
       ${excluded}
     order by coalesce(ci.published_at, ci.created_at) desc, ci.id

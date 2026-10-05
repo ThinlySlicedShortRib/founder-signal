@@ -68,9 +68,10 @@ export const TYPE_LABEL: Record<SourceType, string> = {
   feed: "Feed",
   url: "Single page",
   youtube_channel: "YouTube channel",
+  newsletter: "Newsletter by email",
 };
 
-export const TYPE_ICON = { feed: "newspaper-outline", url: "document-text-outline", youtube_channel: "logo-youtube" } as const;
+export const TYPE_ICON = { feed: "newspaper-outline", url: "document-text-outline", youtube_channel: "logo-youtube", newsletter: "mail-outline" } as const;
 
 export function rightsLabel(rights: SourceView["rights"]): string {
   if (rights.display === "link_only") return "Link only";
@@ -81,6 +82,10 @@ export function rightsLabel(rights: SourceView["rights"]): string {
 export type FetchHealth = { tone: "neutral" | "accent" | "warning"; label: string };
 
 export function fetchHealth(source: SourceView): FetchHealth {
+  // Newsletters aren't checked: they arrive by email.
+  if (source.type === "newsletter") {
+    return source.lastFetchedAt ? { tone: "accent", label: `Last email ${timeAgo(source.lastFetchedAt)}` } : { tone: "neutral", label: "Waiting for its first email" };
+  }
   const status = source.lastFetchStatus;
   if (!status) return { tone: "neutral", label: source.type === "url" ? "Waiting to be read" : "Waiting for first check" };
   if (status === "ok" || status === "not_modified") {

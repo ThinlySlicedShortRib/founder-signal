@@ -1,0 +1,41 @@
+Return-Path: <3xYzAAAAAAA-forwarding-noreply=google.com@accounts.google.com>
+Received: by mail-sor-f69.google.com with SMTP id 4fb4d7f45d1cf-5f1a2b3c4d5so123456a12.2
+        for <n-placeholder0@inbound.localhost>; Mon, 05 Oct 2026 02:14:07 -0700 (PDT)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=20230601; h=to:from:subject:date:message-id; bh=CCCC; b=DDDD
+MIME-Version: 1.0
+Date: Mon, 05 Oct 2026 02:14:07 -0700
+Message-ID: <0000000000001a2b3c05f1forwarding@google.com>
+Subject: (#284716395) Gmail Forwarding Confirmation - Receive Mail from sam.reader@example.com
+From: Gmail Team <forwarding-noreply@google.com>
+To: n-placeholder0@inbound.localhost
+Content-Type: text/plain; charset="UTF-8"; format=flowed; delsp=yes
+
+sam.reader@example.com has requested to automatically forward mail to your
+email address n-placeholder0@inbound.localhost.
+Confirmation code: 284716395
+
+To allow sam.reader@example.com to automatically forward mail to your
+address, please click the link below to confirm the request:
+
+https://mail-settings.google.com/mail/vf-%5BANGjdJ8x1Qe7example%5D-Zm9yd2FyZGluZ2NvbmZpcm1hdGlvbg
+
+If you click the link and it appears to be broken, please copy and paste it
+into a new browser window. If you aren't able to access the link, you can
+send the confirmation code 284716395 to sam.reader@example.com.
+
+Thanks for using Gmail!
+
+Sincerely,
+
+The Gmail Team
+
+If you do not approve of this request, no further action is required.
+sam.reader@example.com cannot automatically forward messages to your email
+address unless you confirm the request by clicking the link above. If you
+accidentally clicked the link, but you do not want to allow
+sam.reader@example.com to automatically forward messages to your address,
+click this link to cancel this verification:
+https://mail-settings.google.com/mail/uf-%5BANGjdJ8x1Qe7example%5D-Zm9yd2FyZGluZ2NvbmZpcm1hdGlvbg
+
+To learn more about why you might have received this message, please visit:
+http://support.google.com/mail/bin/answer.py?answer=184973.

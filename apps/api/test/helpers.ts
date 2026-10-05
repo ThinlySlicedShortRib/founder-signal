@@ -1,6 +1,6 @@
 import type { ProfileImporter, ReaderWriter } from "@fs/ai";
 import { createDb } from "@fs/db";
-import { type FetchResult, memoryContentStore, type YouTubeClient } from "@fs/ingest";
+import { type FetchResult, memoryContentStore, memoryRawMailStore, type YouTubeClient } from "@fs/ingest";
 import { createApp } from "../src/app.ts";
 import { allowReturnTo, createAuth } from "../src/auth.ts";
 import type { YouTubeConnect } from "../src/routes/imports.ts";
@@ -26,6 +26,7 @@ export function createTestApp({
   withQueue = false,
   discovery = false,
   youtubeConnect = null,
+  inboundDomain = "in.test",
 }: {
   corsOrigins?: string[];
   devSignIn?: boolean;
@@ -36,6 +37,8 @@ export function createTestApp({
   discovery?: boolean;
   /** Connect YouTube's config, with fake Google endpoints; null = not configured. */
   youtubeConnect?: YouTubeConnect | null;
+  /** Newsletter forwarding's domain; null = not set up. */
+  inboundDomain?: string | null;
 } = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
@@ -90,6 +93,9 @@ export function createTestApp({
   const startedRuns: string[] = [];
   const discoverQueue = withQueue ? { start: async (id: string) => void startedRuns.push(id) } : null;
 
+  // Raw mail the dev route stores for the workers.
+  const { store: mail, objects: mailObjects } = memoryRawMailStore();
+
   const app = createApp({
     auth,
     clientLogs,
@@ -105,9 +111,10 @@ export function createTestApp({
     devOtps,
     youtubeConnect,
     allowReturnTo: (url) => allowReturnTo(url, { allowDevOrigins: true }),
+    newsletters: { domain: inboundDomain, mail },
   });
 
-  return { app, db, pool, sentEmails, clientLogRecords, web, store, objects, startedLetters, startedRuns };
+  return { app, db, pool, sentEmails, clientLogRecords, web, store, objects, startedLetters, startedRuns, mailObjects };
 }
 
 /** Signs in through the real email-OTP flow and returns the session cookie header. */

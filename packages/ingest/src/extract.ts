@@ -112,7 +112,8 @@ export function hashBlocks(blocks: readonly Block[]): string {
   return createHash("sha256").update(JSON.stringify(blocks)).digest("hex");
 }
 
-function makeExcerpt(blocks: readonly Block[], maxChars = 320): string | null {
+/** The first paragraphs, cut at a word near `maxChars`. */
+export function makeExcerpt(blocks: readonly Block[], maxChars = 320): string | null {
   const text = blocks
     .filter((b) => b.type === "paragraph")
     .map((b) => (b as { text: string }).text)

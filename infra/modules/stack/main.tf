@@ -145,6 +145,8 @@ module "api" {
     # Connect YouTube. The redirect URL defaults to BETTER_AUTH_URL + /connections/youtube/callback.
     GOOGLE_OAUTH_CLIENT_ID         = var.google_oauth_client_id
     GOOGLE_OAUTH_CLIENT_SECRET_ARN = module.secrets.google_oauth_client_secret_arn
+    # Newsletters by email: shows users their address. Empty turns /me/newsletters off.
+    INBOUND_EMAIL_DOMAIN = var.inbound_email_domain
   })
 
   log_retention_days = var.log_retention_days
@@ -332,9 +334,10 @@ module "queues" {
   source           = "../queues"
   name             = local.name
   alerts_topic_arn = module.observability.alerts_topic_arn
-  queues = {
-    for k, w in local.queued_workers : w.queue => { visibility_timeout_seconds = 6 * w.timeout }
-  }
+  queues = merge(
+    { for k, w in local.queued_workers : w.queue => { visibility_timeout_seconds = 6 * w.timeout } },
+    local.inbound_enabled ? { "newsletter-inbound" = { visibility_timeout_seconds = 6 * local.inbound_timeout } } : {},
+  )
 }
 
 data "aws_iam_policy_document" "worker" {
@@ -445,4 +448,96 @@ module "sweep_schedule" {
   name                = "${local.name}-sweep"
   target_function_arn = module.worker["sweep"].function_arn
   enabled             = var.sweep_enabled
+}
+
+# --- Newsletters by email (docs/imports/README.md) ----------------------------------------
+# Only with inbound_email_domain set: SES receives mail for the domain into a private bucket and
+# notifies (SNS → SQS) the newsletter-inbound worker, which turns each newsletter into an item.
+
+locals {
+  inbound_enabled = var.inbound_email_domain != ""
+  inbound_timeout = 60
+}
+
+module "inbound_email" {
+  source = "../inbound_email"
+  count  = local.inbound_enabled ? 1 : 0
+
+  name          = local.name
+  domain        = var.inbound_email_domain
+  bucket_name   = "${local.name}-inbound-mail-${data.aws_caller_identity.current.account_id}"
+  queue_arn     = module.queues.arns["newsletter-inbound"]
+  queue_url     = module.queues.urls["newsletter-inbound"]
+  force_destroy = var.content_force_destroy
+}
+
+data "aws_iam_policy_document" "newsletter_inbound" {
+  count = local.inbound_enabled ? 1 : 0
+
+  statement {
+    sid       = "ReadSecrets"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [module.database.master_secret_arn]
+  }
+
+  statement {
+    sid       = "ConsumeOwnQueue"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"]
+    resources = [module.queues.arns["newsletter-inbound"]]
+  }
+
+  # Reads each raw message once and deletes it when it's settled.
+  statement {
+    sid       = "RawMail"
+    actions   = ["s3:GetObject", "s3:DeleteObject"]
+    resources = ["${module.inbound_email[0].bucket_arn}/${module.inbound_email[0].object_prefix}*"]
+  }
+
+  statement {
+    sid       = "DecryptRawMail"
+    actions   = ["kms:Decrypt"]
+    resources = [module.inbound_email[0].kms_key_arn]
+  }
+
+  # The newsletter's blocks, like extract's.
+  statement {
+    sid       = "ContentBucket"
+    actions   = ["s3:PutObject"]
+    resources = ["${module.content.bucket_arn}/items/*"]
+  }
+}
+
+module "newsletter_inbound" {
+  source = "../lambda_fn"
+  count  = local.inbound_enabled ? 1 : 0
+
+  name             = "${local.name}-newsletter-inbound"
+  description      = "Files a received newsletter (or a forwarding confirmation) for the user whose address it was sent to"
+  artifact_name    = "newsletter-inbound"
+  artifacts_bucket = var.artifacts_bucket
+  release          = var.release
+  runtime          = var.lambda_runtime
+  timeout_seconds  = local.inbound_timeout
+  memory_mb        = 1024
+  vpc_config       = local.vpc_config
+  policy_json      = data.aws_iam_policy_document.newsletter_inbound[0].json
+  environment = merge(local.worker_env, {
+    INBOUND_EMAIL_DOMAIN = var.inbound_email_domain
+    INBOUND_MAIL_BUCKET  = module.inbound_email[0].bucket_name
+  })
+
+  log_retention_days = var.log_retention_days
+}
+
+resource "aws_lambda_event_source_mapping" "newsletter_inbound" {
+  count = local.inbound_enabled ? 1 : 0
+
+  event_source_arn        = module.queues.arns["newsletter-inbound"]
+  function_name           = module.newsletter_inbound[0].function_arn
+  batch_size              = 5
+  function_response_types = ["ReportBatchItemFailures"]
+
+  scaling_config {
+    maximum_concurrency = 2
+  }
 }

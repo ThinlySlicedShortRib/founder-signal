@@ -1,0 +1,90 @@
+Return-Path: <bounce-thebootstrappedoperator-99887@mg1.substack.com>
+Received: from mg1.substack.com (mg1.substack.com [198.51.100.24])
+        by mx.google.com with ESMTPS id x12si1234567qkx.311.2026.10.05.01.02.03
+        for <sam.reader@example.com>;
+        Mon, 05 Oct 2026 01:02:03 -0700 (PDT)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=substack.com; s=mg; h=from:to:subject; bh=AAAA; b=BBBB
+From: The Bootstrapped Operator <thebootstrappedoperator@substack.com>
+Reply-To: The Bootstrapped Operator <reply+abc123@substack.com>
+To: sam.reader@example.com
+Subject: Pricing your first productized service
+Date: Mon, 05 Oct 2026 08:02:00 +0000
+Message-ID: <20261005080200.3.a1b2c3d4e5f6@mg1.substack.com>
+List-Id: The Bootstrapped Operator <thebootstrappedoperator.substack.com>
+List-Unsubscribe: <https://thebootstrappedoperator.substack.com/action/disable_email?token=abc>, <mailto:unsubscribe@substack.com>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+X-Forwarded-For: sam.reader@example.com
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="=-substack-b1"
+
+--=-substack-b1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+View this post on the web at https://thebootstrappedoperator.substack.com/p/pricing-your-first-productized-service
+
+Three steps from day rates to a price customers understand
+
+Most consultants who turn their work into a product make the same first mistake: they price the new offer the way they priced their hours. A productized service is not a bundle of hours. It is a promise about an outcome, delivered the same way every time, and the price has to describe that promise.
+
+When I moved my own practice from day rates to a fixed monthly service, I spent three weeks building a spreadsheet of my costs. It was useful, but it answered the wrong question. Customers never asked what it cost me. They asked what they would stop worrying about.
+
+Start with the problem your best clients already pay to make disappear. Write it down in their words, not yours. Then list what you will deliver every month, what you will never deliver, and how quickly you will respond. That page is your product.
+
+Write the promise before the price
+
+Price anchors come next. Look at what the client spends today on the same problem: an internal hire, an agency retainer, the hours their founder loses each week. Your price should sit comfortably below the cheapest serious alternative while still leaving you a healthy margin.
+
+Finally, publish the price. Founders who hide prices behind a call are optimizing for the deals they lose, not the ones they win. A visible price filters out the wrong customers before they ever book time with you, and it tells the right ones that you have done this before.
+
+I raised my price twice in the first year. Both times, the number of new customers barely moved, and churn went down. The customers who stayed were the ones who valued the outcome, which is exactly who a productized service is for.
+
+Unsubscribe https://thebootstrappedoperator.substack.com/action/disable_email?token=abc
+
+--=-substack-b1
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Pricing your first productized service</title>
+<style>body{margin:0} .body p{color:#363737}</style></head>
+<body>
+<div class="preview" style="display:none;max-height:0;overflow:hidden;">Three steps from day rates to a price customers understand&#8199;&#847;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table role="presentation" width="550" cellpadding="0" cellspacing="0"><tr><td>
+  <p style="text-align:center;font-size:13px;"><a href="https://substack.com/redirect/2/eyJlIjoiaHR0cHM6Ly90aGVib290c3RyYXBwZWQifQ.abc123">Forwarded this email? Subscribe here for more</a></p>
+  <h1 class="post-title"><a href="https://thebootstrappedoperator.substack.com/p/pricing-your-first-productized-service?utm_source=substack&amp;utm_medium=email&amp;utm_campaign=email-post-title">Pricing your first productized service</a></h1>
+  <h3 class="subtitle">Three steps from day rates to a price customers understand</h3>
+  <table role="presentation"><tr>
+    <td><img src="https://substackcdn.example/image/fetch/w_80,h_80/avatar.png" width="40" height="40" alt=""></td>
+    <td><a href="https://substack.com/@morganlee">Morgan Lee</a><br>Oct 5, 2026</td>
+  </tr></table>
+  <table role="presentation"><tr>
+    <td><a href="https://substack.com/app-link/post?publication_id=1234&amp;post_id=99887&amp;utm_source=substack&amp;isFreemail=true&amp;submitLike=true">Like</a></td>
+    <td><a href="https://substack.com/app-link/post?publication_id=1234&amp;post_id=99887&amp;action=comment">Comment</a></td>
+    <td><a href="https://substack.com/app-link/post?publication_id=1234&amp;post_id=99887&amp;action=restack">Restack</a></td>
+  </tr></table>
+  <div class="body markup">
+<p style="margin:0 0 20px;font-size:17px;line-height:1.6;">Most consultants who turn their work into a product make the same first mistake: they price the new offer the way they priced their hours. A productized service is not a bundle of hours. It is a promise about an outcome, delivered the same way every time, and the price has to describe that promise.</p>
+<p style="margin:0 0 20px;font-size:17px;line-height:1.6;">When I moved my own practice from day rates to a fixed monthly service, I spent three weeks building a spreadsheet of my costs. It was useful, but it answered the wrong question. Customers never asked what it cost me. They asked what they would stop worrying about.</p>
+<p style="margin:0 0 20px;font-size:17px;line-height:1.6;">Start with the problem your best clients already pay to make disappear. Write it down in their words, not yours. Then list what you will deliver every month, what you will never deliver, and how quickly you will respond. That page is your product.</p>
+<h2>Write the promise before the price</h2>
+<blockquote><p>A productized service is a promise about an outcome, delivered the same way every time.</p></blockquote>
+<ul><li>The problem, in your customer&#8217;s words</li><li>What you deliver every month</li><li>What you never deliver</li><li>How fast you respond</li></ul>
+<div class="captioned-image-container"><figure><img src="https://substack-post-media.example/public/images/pricing-ladder.png" width="550" height="300" alt="A pricing ladder from day rates to a monthly plan"><figcaption>From day rates to a monthly plan.</figcaption></figure></div>
+<h2>Anchor it, then publish it</h2>
+<p style="margin:0 0 20px;font-size:17px;line-height:1.6;">Price anchors come next. Look at what the client spends today on the same problem: an internal hire, an agency retainer, the hours their founder loses each week. Your price should sit comfortably below the cheapest serious alternative while still leaving you a healthy margin.</p>
+<p style="margin:0 0 20px;font-size:17px;line-height:1.6;">Finally, publish the price. Founders who hide prices behind a call are optimizing for the deals they lose, not the ones they win. A visible price filters out the wrong customers before they ever book time with you, and it tells the right ones that you have done this before.</p>
+<p style="margin:0 0 20px;font-size:17px;line-height:1.6;">I raised my price twice in the first year. Both times, the number of new customers barely moved, and churn went down. The customers who stayed were the ones who valued the outcome, which is exactly who a productized service is for.</p>
+  </div>
+  <p><a href="https://thebootstrappedoperator.substack.com/p/pricing-your-first-productized-service?utm_source=substack&amp;utm_medium=email&amp;utm_content=share&amp;action=share">Share</a></p>
+  <div class="footer" style="font-size:12px;color:#777;">
+    <p>&#169; 2026 Morgan Lee<br>548 Market Street PMB 72296, San Francisco, CA 94104</p>
+    <p><a href="https://thebootstrappedoperator.substack.com/action/disable_email?token=abc">Unsubscribe</a></p>
+    <p><a href="https://substack.com/app">Get the app</a> <a href="https://substack.com/signup">Start writing</a></p>
+  </div>
+</td></tr></table>
+</td></tr></table>
+<img src="https://eotrx.substackcdn.example/open?token=eyJtIjoiOTk4ODciLCJ1IjoxfQ" width="1" height="1" alt="" style="height:1px!important;width:1px!important">
+</body></html>
+--=-substack-b1--

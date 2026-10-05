@@ -124,3 +124,9 @@ variable "google_oauth_client_id" {
   type        = string
   default     = ""
 }
+
+variable "inbound_email_domain" {
+  description = "Newsletters by email: the domain users' forwarding addresses are on (e.g. in.example.com; its MX points at SES in this region). Empty creates nothing and turns the feature off (docs/imports/README.md)."
+  type        = string
+  default     = ""
+}

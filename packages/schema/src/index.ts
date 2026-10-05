@@ -102,7 +102,7 @@ export type UnavailableReason = (typeof unavailableReasons)[number];
 export const sourceModes = ["more_like_this", "follow_closely", "occasional"] as const;
 export type SourceMode = (typeof sourceModes)[number];
 
-export const sourceTypes = ["feed", "url", "youtube_channel"] as const;
+export const sourceTypes = ["feed", "url", "youtube_channel", "newsletter"] as const;
 export type SourceType = (typeof sourceTypes)[number];
 
 export const addSourceInputSchema = z.object({
@@ -136,7 +136,7 @@ export type SourceView = z.infer<typeof sourceViewSchema>;
 // ── Imports (docs/imports/README.md: /me/imports) ───────────────────────────
 
 /** Where an import's list came from. */
-export const importMethods = ["opml", "youtube", "substack", "bluesky", "mastodon"] as const;
+export const importMethods = ["opml", "youtube", "substack", "bluesky", "mastodon", "newsletter"] as const;
 export type ImportMethod = (typeof importMethods)[number];
 
 /** The platforms imported from a handle (no sign-in). */
@@ -212,6 +212,56 @@ export type ConfirmImportResult = z.infer<typeof confirmImportResultSchema>;
 
 /** Where Connect YouTube sends the browser back to once it's done. */
 export const youTubeConnectInputSchema = z.object({ returnTo: z.string().url().max(500) });
+
+// ── Newsletters by email (docs/imports/README.md: /me/newsletters) ──────────
+
+/** Raw messages above this are refused (bytes of MIME, headers included). */
+export const MAX_INBOUND_EMAIL_BYTES = 5 * 1024 * 1024;
+
+export const newsletterAddressSchema = z.object({
+  /** The full address to forward to, e.g. `n-k3j9…@in.example.com`. */
+  email: z.string(),
+  createdAt: z.iso.datetime(),
+});
+export type NewsletterAddress = z.infer<typeof newsletterAddressSchema>;
+
+/** A Gmail or Outlook "confirm forwarding" message that arrived at the address. */
+export const forwardingConfirmationSchema = z.object({
+  id: z.uuid(),
+  provider: z.enum(["gmail", "outlook"]),
+  /** Gmail's confirmation code, to paste into Gmail's settings. */
+  code: z.string().nullable(),
+  /** The provider's confirmation link (https, on its own host). */
+  url: z.string().nullable(),
+  /** The mailbox that asked to forward here. */
+  requestedBy: z.string().nullable(),
+  receivedAt: z.iso.datetime(),
+});
+export type ForwardingConfirmation = z.infer<typeof forwardingConfirmationSchema>;
+
+/** A sender whose newsletters arrived: one `newsletter` source. */
+export const newsletterSenderSchema = z.object({
+  sourceId: z.uuid(),
+  title: z.string(),
+  /** The sender's address or list. */
+  sender: z.string(),
+  publisher: z.string(),
+  itemCount: z.number().int(),
+  lastReceivedAt: z.iso.datetime().nullable(),
+  /** False once the user stopped following it (its emails are then ignored). */
+  following: z.boolean(),
+});
+export type NewsletterSender = z.infer<typeof newsletterSenderSchema>;
+
+export const newslettersViewSchema = z.object({
+  address: newsletterAddressSchema,
+  /** Recent forwarding confirmations (last 7 days), newest first. */
+  confirmations: z.array(forwardingConfirmationSchema),
+  senders: z.array(newsletterSenderSchema),
+  /** Messages received in the last 30 days that didn't become pieces (no content, stopped following, …). */
+  skipped: z.number().int(),
+});
+export type NewslettersView = z.infer<typeof newslettersViewSchema>;
 
 // ── Publishers (build plan §6.3a, §7: /me/publishers) ───────────────────────
 
@@ -616,7 +666,8 @@ export const letterPieceSchema = z.object({
   /** One or two sentences under the title on the piece page. */
   summary: z.string(),
   sourceName: z.string(),
-  originalUrl: z.url(),
+  /** Null for a newsletter that arrived by email with no web version. */
+  originalUrl: z.url().nullable(),
   image: pieceImageSchema.nullable(),
   /** The icon in the contents list: the one picked at enrichment, else one from the topic and title. */
   icon: pieceIconSchema,
@@ -713,7 +764,8 @@ export const itemViewSchema = z.object({
   kind: z.enum(["article", "video"]),
   title: z.string(),
   sourceName: z.string(),
-  originalUrl: z.url(),
+  /** Null for a newsletter that arrived by email with no web version. */
+  originalUrl: z.url().nullable(),
   minutes: z.number().int().nullable(),
   rights: rightsSchema,
   /** Null when the rights rule doesn't allow showing the text (then `digest` is used) or it couldn't be extracted. */

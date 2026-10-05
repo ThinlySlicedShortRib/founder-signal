@@ -23,7 +23,7 @@ export const EMBEDDING_DIMENSIONS = 1024;
 
 export const publisherStatus = pgEnum("publisher_status", ["candidate", "trial", "trusted", "blocked"]);
 export const publisherOrigin = pgEnum("publisher_origin", ["user_added", "discovered"]);
-export const sourceType = pgEnum("source_type", ["feed", "url", "youtube_channel"]);
+export const sourceType = pgEnum("source_type", ["feed", "url", "youtube_channel", "newsletter"]);
 export const userSourceMode = pgEnum("user_source_mode", ["more_like_this", "follow_closely", "occasional"]);
 export const rightsScope = pgEnum("rights_scope", ["domain", "source"]);
 export const rightsDisplay = pgEnum("rights_display", ["full_text", "excerpt_only", "link_only"]);
@@ -104,7 +104,11 @@ export const source = pgTable(
   "source",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    /** Feed URL, `youtube:<channelId>`, or the canonical URL of a single page. */
+    /**
+     * Feed URL, `youtube:<channelId>`, or the canonical URL of a single page. A
+     * newsletter is `newsletter:<userId>:<sender key>`: one per user and sender,
+     * because what arrives by email is that user's own copy.
+     */
     canonicalKey: text("canonical_key").notNull().unique(),
     type: sourceType("type").notNull(),
     publisherId: uuid("publisher_id")
@@ -114,7 +118,7 @@ export const source = pgTable(
     creator: text("creator"),
     /** What the user pasted. */
     inputUrl: text("input_url").notNull(),
-    /** Where entries are listed from: the feed URL, the page URL, or the uploads playlist ID. */
+    /** Where entries are listed from: the feed URL, the page URL, the uploads playlist ID, or `mailto:<sender>` for a newsletter (never polled). */
     fetchUrl: text("fetch_url").notNull(),
     /** Null for one-off URL sources once ingested. */
     nextFetchAt: timestamp("next_fetch_at", { withTimezone: true }),

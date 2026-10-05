@@ -45,7 +45,7 @@ export default function Sources() {
               <Row
                 icon="download-outline"
                 label="Import what you follow"
-                detail="OPML, YouTube, Substack, Bluesky or Mastodon"
+                detail="OPML, YouTube, Substack, Bluesky, Mastodon or newsletters by email"
                 onPress={() => router.push("/sources/import")}
               />
             </Card>

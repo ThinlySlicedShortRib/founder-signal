@@ -1,5 +1,6 @@
 import { FIRST_LETTER_OCCURRENCE, localDateOf } from "@fs/core";
-import { type Db, schema } from "@fs/db";
+import { type Db, getOrCreateInboundAddress, schema } from "@fs/db";
+import { newInboundLocalPart, type RawMailStore } from "@fs/ingest";
 import {
   DEV_ACCOUNT_DOMAIN,
   type DevAccount,
@@ -13,8 +14,9 @@ import {
   TEST_LETTER_PREFIX,
 } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import type { Auth } from "../auth.ts";
 import { apiError } from "../lib/errors.ts";
 import { type AuthedEnv, requireUser } from "../lib/session.ts";
@@ -23,6 +25,8 @@ import { loadProfileView } from "./profile.ts";
 const {
   contentItem,
   discoveryQuery,
+  inboundAddress,
+  inboundMessage,
   discoveryRun,
   interaction,
   letter,
@@ -108,7 +112,7 @@ const iso = (d: Date | null) => d?.toISOString() ?? null;
  * workers can't be reached from here, so work is asked for through the
  * database and the dev runner (apps/workers/src/dev.ts) picks it up.
  */
-export function devToolRoutes({ db }: { db: Db }) {
+export function devToolRoutes({ db, inbound }: { db: Db; inbound?: { domain: string; mail: RawMailStore } | null }) {
   return new Hono<AuthedEnv>()
     .use(requireUser)
 
@@ -223,6 +227,64 @@ export function devToolRoutes({ db }: { db: Db }) {
         return c.json(counts);
       },
     )
+
+    // There's no SES locally: a raw email (the body, or an .eml uploaded as `file`) is stored like SES
+    // would store it, addressed to the signed-in user's inbound address (or `?to=`), and the dev runner
+    // processes it within a few seconds (docs/imports/README.md, "Newsletters by email").
+    .post(
+      "/newsletters/inbound",
+      // Above the worker's 5 MB cap, so oversized mail reaches it and is refused there, as on AWS.
+      bodyLimit({ maxSize: 12 * 1024 * 1024, onError: (c) => apiError(c, 413, "VALIDATION_FAILED", "That message is too large") }),
+      async (c) => {
+        if (!inbound) return apiError(c, 503, "NOT_CONFIGURED", "Newsletter forwarding is off (no INBOUND_EMAIL_DOMAIN)");
+        let raw: Uint8Array;
+        if (c.req.header("content-type")?.includes("multipart/form-data")) {
+          const file = (await c.req.parseBody())["file"];
+          if (!(file instanceof File)) return apiError(c, 400, "VALIDATION_FAILED", "Upload the .eml as `file`");
+          raw = new Uint8Array(await file.arrayBuffer());
+        } else {
+          raw = new Uint8Array(await c.req.arrayBuffer());
+        }
+        if (!raw.byteLength) return apiError(c, 400, "VALIDATION_FAILED", "Send the raw email (RFC 822) as the body");
+        const to =
+          c.req.query("to")?.trim().toLowerCase() ||
+          `${(await getOrCreateInboundAddress(db, c.get("user").id, () => newInboundLocalPart())).localPart}@${inbound.domain}`;
+        const rawKey = `inbound/dev-${crypto.randomUUID()}.eml`;
+        await inbound.mail.put(rawKey, raw);
+        const [row] = await db.insert(inboundMessage).values({ rawKey, envelopeTo: [to] }).returning({ id: inboundMessage.id });
+        return c.json({ id: row!.id, rawKey, to }, 202);
+      },
+    )
+
+    // What happened to recent inbound mail for the signed-in user (including mail refused before it was matched to them).
+    .get("/newsletters/inbound", async (c) => {
+      const userId = c.get("user").id;
+      const domain = inbound?.domain ?? "";
+      const mine = db
+        .select({ email: sql<string>`${inboundAddress.localPart} || '@' || ${domain}` })
+        .from(inboundAddress)
+        .where(eq(inboundAddress.userId, userId));
+      const rows = await db
+        .select({
+          id: inboundMessage.id,
+          status: inboundMessage.status,
+          reason: inboundMessage.reason,
+          from: inboundMessage.fromAddress,
+          subject: inboundMessage.subject,
+          itemId: inboundMessage.itemId,
+          sourceId: inboundMessage.sourceId,
+          spam: inboundMessage.spam,
+          receivedAt: inboundMessage.receivedAt,
+          processedAt: inboundMessage.processedAt,
+        })
+        .from(inboundMessage)
+        .where(or(eq(inboundMessage.userId, userId), sql`${inboundMessage.envelopeTo} && array(${mine})`))
+        .orderBy(desc(inboundMessage.receivedAt))
+        .limit(20);
+      return c.json({
+        messages: rows.map((r) => ({ ...r, receivedAt: r.receivedAt.toISOString(), processedAt: iso(r.processedAt) })),
+      });
+    })
 
     // Due now: the dev runner sweeps as soon as a followed source is due, rather than at its next minute.
     .post("/sources/refresh", async (c) => {

@@ -13,16 +13,18 @@ import {
 import {
   discoveryMode,
   type Env,
+  inboundEmailDomain,
   letterWriterMode,
   resolveAnthropicApiKey,
   resolveBetterAuthSecret,
   resolveContentDir,
   resolveDatabaseConfig,
   resolveGoogleOAuth,
+  resolveInboundMailDir,
   resolveYouTubeApiKey,
 } from "@fs/config";
 import { createDb } from "@fs/db";
-import { createSafeFetcher, fsContentStore, s3ContentStore, youTubeDataClient } from "@fs/ingest";
+import { createSafeFetcher, fsContentStore, fsRawMailStore, s3ContentStore, youTubeDataClient } from "@fs/ingest";
 import { createApp } from "./app.ts";
 import { allowReturnTo, createAuth, DEV_WEB_ORIGINS } from "./auth.ts";
 import { createOtpRecorder } from "./routes/dev.ts";
@@ -78,6 +80,8 @@ export async function buildApp(env: Env) {
     devOtps,
     youtubeConnect: googleOAuth ? { config: googleOAuth } : null,
     allowReturnTo: (url) => allowReturnTo(url, { allowDevOrigins: env.APP_ENV !== "prod" }),
+    // Only a local API stores raw mail (the dev route); on AWS, SES writes it to the mail bucket.
+    newsletters: { domain: inboundEmailDomain(env), mail: devOtps ? fsRawMailStore(resolveInboundMailDir(env)) : null },
   });
 }
 

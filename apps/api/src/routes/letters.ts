@@ -1,5 +1,5 @@
 import type { ReaderBrief, ReaderWriter } from "@fs/ai";
-import { activityMonth, localDateOf, numbersIn, phraseMatches, resolvePieceIcon, splitChapters, stemSet } from "@fs/core";
+import { activityMonth, localDateOf, numbersIn, originalUrlOf, phraseMatches, resolvePieceIcon, splitChapters, stemSet } from "@fs/core";
 import { addUserSource, type Db, schema } from "@fs/db";
 import { blocksToText, type ContentStore, type DetectDeps, detectSource, type TranscriptSegment } from "@fs/ingest";
 import {
@@ -223,7 +223,7 @@ async function itemView(store: ContentStore, row: LoadedItem): Promise<ItemView>
     kind: row.item.type,
     title: row.item.title ?? row.item.canonicalUrl,
     sourceName: row.publisherName,
-    originalUrl: row.item.canonicalUrl,
+    originalUrl: originalUrlOf(row.item.canonicalUrl),
     minutes: minutesOf(row.item),
     rights: { display: r.display, retainText: r.retainText, offlineAllowed: r.offlineAllowed, licenseNote: r.licenseNote ?? null },
     unavailableReason: reason,

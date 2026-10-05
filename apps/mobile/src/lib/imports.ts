@@ -117,6 +117,7 @@ export const METHOD_LABEL: Record<ImportMethod, string> = {
   substack: "Substack",
   bluesky: "Bluesky",
   mastodon: "Mastodon",
+  newsletter: "Newsletters by email",
 };
 
 export const HANDLE_FORMS: Record<HandlePlatform, { label: string; placeholder: string; hint: string }> = {

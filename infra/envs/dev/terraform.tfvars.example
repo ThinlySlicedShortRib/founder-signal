@@ -8,3 +8,8 @@ email_from       = "letters@example.com"
 # Connect YouTube (docs/imports/README.md): the Google OAuth web client ID. The secret goes in
 # Secrets Manager (founder-signal/dev/google-oauth-client-secret). Empty turns it off.
 # google_oauth_client_id = "1234-abc.apps.googleusercontent.com"
+
+# Newsletters by email (docs/imports/README.md): a domain or subdomain you control, e.g. "in.example.com".
+# Applying creates the SES identity, receipt rule, mail bucket and worker; then add the records from
+# `terraform output inbound_email_dns_records`. Leave empty to keep it off.
+inbound_email_domain = ""

@@ -7,7 +7,8 @@ import { canonicalizeUrl, parseYouTubeUrl, publisherKeyForUrl, youTubeVideoUrl }
 import type { YouTubeClient } from "./youtube.ts";
 
 export interface DetectedSource {
-  type: SourceType;
+  /** Detection finds feeds, pages and channels; newsletters only arrive by email. */
+  type: Exclude<SourceType, "newsletter">;
   canonicalKey: string;
   inputUrl: string;
   /** Feed URL, page URL, or the YouTube uploads playlist ID. */

@@ -2,6 +2,7 @@ import { schema } from "@fs/db";
 import { DEV_RUN_PREFIX, TEST_LETTER_PREFIX } from "@fs/schema";
 import { and, eq, like, sql } from "drizzle-orm";
 import { discover } from "../discovery/discover.ts";
+import { processPendingInbound } from "../newsletters/receive.ts";
 import { logger, type PipelineDeps } from "../pipeline/deps.ts";
 
 const { discoveryRun, letter } = schema;
@@ -12,9 +13,11 @@ const { discoveryRun, letter } = schema;
  * - discovery runs it started (`dev#<id>`, pending, never queued) run here;
  * - a test letter waiting on one (`test#<same id>`, no watchdog time) is
  *   released once that run has ended, and the letter sweep starts it;
- * - followed sources it made due ask for a sweep now rather than at the next minute.
+ * - followed sources it made due ask for a sweep now rather than at the next minute;
+ * - newsletters posted to /dev/newsletters/inbound (there's no SES locally) are processed.
  */
 export async function runDevRequests(deps: PipelineDeps): Promise<{ sweepNow: boolean }> {
+  await processPendingInbound(deps);
   await releaseWaitingLetters(deps);
   await runRequestedDiscovery(deps);
   return { sweepNow: await followedSourceDue(deps) };

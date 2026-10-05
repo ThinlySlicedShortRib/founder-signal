@@ -134,7 +134,8 @@ export interface LetterItemSnapshot {
   summary: string;
   tag: string | null;
   sourceName: string;
-  originalUrl: string;
+  /** Null for a newsletter that arrived by email with no web version. */
+  originalUrl: string | null;
   image: { url: string; source: "article" | "stock"; credit: string | null; creditUrl: string | null } | null;
   /**
    * The contents-list icon, a `pieceIconKeys` key (@fs/schema): enrichment's

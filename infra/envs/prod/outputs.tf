@@ -65,3 +65,8 @@ output "images_bucket" {
 output "images_base_url" {
   value = module.stack.images_base_url
 }
+
+output "inbound_email_dns_records" {
+  description = "Newsletters by email: add these at your DNS provider."
+  value       = module.stack.inbound_email_dns_records
+}

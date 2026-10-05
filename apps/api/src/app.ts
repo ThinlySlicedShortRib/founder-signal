@@ -1,3 +1,4 @@
+import type { RawMailStore } from "@fs/ingest";
 import { clientLogBatchSchema } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
@@ -14,6 +15,7 @@ import { itemRoutes, type LetterRouteDeps, letterRoutes, readingRoutes } from ".
 import { reviewRoutes } from "./routes/reviews.ts";
 import { publisherRoutes } from "./routes/publishers.ts";
 import { connectionRoutes, type ImportRouteDeps, importRoutes, youTubeCallbackRoutes } from "./routes/imports.ts";
+import { newsletterRoutes } from "./routes/newsletters.ts";
 import { type SourceRouteDeps, sourceRoutes } from "./routes/sources.ts";
 
 export type { AppEnv };
@@ -29,6 +31,11 @@ export interface AppDeps
   corsOrigins?: string[];
   /** Set only for a local API: enables /dev (the sign-in shortcut and the Dev tools screen's routes). */
   devOtps?: OtpRecorder;
+  /**
+   * Newsletter forwarding: the inbound domain (null: off), and the raw-mail
+   * store the local dev route writes to (null on AWS, where SES writes it).
+   */
+  newsletters?: { domain: string | null; mail: RawMailStore | null };
 }
 
 export function createApp({
@@ -46,6 +53,7 @@ export function createApp({
   devOtps,
   youtubeConnect,
   allowReturnTo,
+  newsletters = { domain: null, mail: null },
 }: AppDeps) {
   const app = new Hono<AppEnv>();
 
@@ -74,7 +82,8 @@ export function createApp({
 
   const clientLogLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
   // Local only, like /dev/sign-in-code. Elsewhere nothing is mounted; the empty router keeps the client's type.
-  const devTools = devOtps ? devToolRoutes({ db }) : (new Hono() as ReturnType<typeof devToolRoutes>);
+  const devInbound = newsletters.domain && newsletters.mail ? { domain: newsletters.domain, mail: newsletters.mail } : null;
+  const devTools = devOtps ? devToolRoutes({ db, inbound: devInbound }) : (new Hono() as ReturnType<typeof devToolRoutes>);
   // The first letter (onboarding) and test letters are made on demand, sometimes after a discovery run.
   const onDemand = { db, letterQueue, discoverQueue, discovery };
 
@@ -111,6 +120,7 @@ export function createApp({
 
     .route("/me/sources", sourceRoutes({ db, detect }))
     .route("/me/imports", importRoutes({ db, detect, youtubeConnect }))
+    .route("/me/newsletters", newsletterRoutes({ db, inboundDomain: newsletters.domain }))
     .route("/me/connections", connectionRoutes({ db, youtubeConnect, allowReturnTo }))
     // Google sends the browser here; the single-use state identifies the user.
     .route("/connections", youTubeCallbackRoutes({ db, youtubeConnect }))

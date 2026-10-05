@@ -6,7 +6,7 @@ import { font, palette } from "@/components/onboarding/kit";
 import { Body, Button, Card, ErrorBanner, type IconName, Small, space, TAP, TextField } from "@/components/ui";
 import { connectYouTube, HANDLE_FORMS, pickOpmlFile, useImportHandle, useImportOpml, useImportOptions } from "@/lib/imports";
 
-type Option = "opml" | "youtube" | HandlePlatform;
+type Option = "opml" | "youtube" | HandlePlatform | "newsletters";
 
 const OPTIONS: readonly { value: Option; icon: IconName; title: string; detail: string }[] = [
   { value: "opml", icon: "document-attach-outline", title: "Upload an OPML file", detail: "From Feedly, Inoreader, Readwise Reader, NetNewsWire, Overcast or Apple Podcasts" },
@@ -14,31 +14,43 @@ const OPTIONS: readonly { value: Option; icon: IconName; title: string; detail: 
   { value: "substack", icon: "mail-outline", title: "Substack", detail: "The newsletters your profile shows you subscribe to" },
   { value: "bluesky", icon: "at-outline", title: "Bluesky", detail: "The people you follow, and their websites" },
   { value: "mastodon", icon: "chatbubbles-outline", title: "Mastodon", detail: "The people you follow, and their websites" },
+  { value: "newsletters", icon: "mail-unread-outline", title: "Newsletters (email)", detail: "Forward newsletters from Gmail or Outlook to your own address" },
 ];
 
 /**
- * "Import what you follow": the five ways in. Each one ends on the
- * checklist (`onImported`); nothing is added from here. Reusable from
- * onboarding later: it has no screen chrome of its own.
+ * "Import what you follow": the ways in. Each import ends on the checklist
+ * (`onImported`); nothing is added from here. Newsletters by email has its
+ * own screen (`onNewsletters`; the option is hidden without it). Reusable
+ * from onboarding later: it has no screen chrome of its own.
  */
-export function ImportOptions({ onImported, initialError }: { onImported: (importId: string) => void; initialError?: string | null }) {
+export function ImportOptions({
+  onImported,
+  onNewsletters,
+  initialError,
+}: {
+  onImported: (importId: string) => void;
+  onNewsletters?: () => void;
+  initialError?: string | null;
+}) {
   const [open, setOpen] = useState<Option | null>(null);
   const [error, setError] = useState<string | null>(initialError ?? null);
 
   return (
     <View style={{ gap: space.md }}>
       {error && <ErrorBanner message={error} />}
-      {OPTIONS.map((o) => {
+      {OPTIONS.filter((o) => o.value !== "newsletters" || onNewsletters).map((o) => {
         const expanded = open === o.value;
+        const opensScreen = o.value === "newsletters";
         return (
           <Card key={o.value} style={{ padding: 0, gap: 0, borderColor: expanded ? palette.blue : palette.rule, borderWidth: expanded ? 1.5 : 1 }}>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ expanded }}
+              accessibilityState={opensScreen ? undefined : { expanded }}
               accessibilityLabel={`${o.title}. ${o.detail}`}
               onPress={() => {
                 setError(null);
-                setOpen(expanded ? null : o.value);
+                if (opensScreen) onNewsletters?.();
+                else setOpen(expanded ? null : o.value);
               }}
               style={({ pressed }) => ({ minHeight: 64, flexDirection: "row", alignItems: "center", gap: space.md, padding: 16, opacity: pressed ? 0.7 : 1 })}
             >
@@ -49,7 +61,7 @@ export function ImportOptions({ onImported, initialError }: { onImported: (impor
                 <Body style={{ fontFamily: font.bodySemi }}>{o.title}</Body>
                 <Small>{o.detail}</Small>
               </View>
-              <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={palette.muted} />
+              <Ionicons name={opensScreen ? "chevron-forward" : expanded ? "chevron-up" : "chevron-down"} size={18} color={palette.muted} />
             </Pressable>
             {expanded && (
               <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: space.md }}>
@@ -57,9 +69,9 @@ export function ImportOptions({ onImported, initialError }: { onImported: (impor
                   <OpmlForm onImported={onImported} />
                 ) : o.value === "youtube" ? (
                   <YouTubeForm onImported={onImported} />
-                ) : (
+                ) : o.value !== "newsletters" ? (
                   <HandleForm platform={o.value} onImported={onImported} />
-                )}
+                ) : null}
               </View>
             )}
           </Card>

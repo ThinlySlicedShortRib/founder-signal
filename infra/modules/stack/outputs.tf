@@ -65,3 +65,12 @@ output "images_bucket" {
 output "images_base_url" {
   value = module.images.base_url
 }
+
+output "inbound_mail_bucket" {
+  value = local.inbound_enabled ? module.inbound_email[0].bucket_name : null
+}
+
+output "inbound_email_dns_records" {
+  description = "Newsletters by email: the records to add at your DNS provider (empty when inbound_email_domain isn't set)."
+  value       = local.inbound_enabled ? module.inbound_email[0].dns_records : []
+}

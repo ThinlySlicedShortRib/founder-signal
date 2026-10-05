@@ -49,3 +49,9 @@ variable "google_oauth_client_id" {
   type        = string
   default     = ""
 }
+
+variable "inbound_email_domain" {
+  description = "Newsletters by email: the receiving domain (e.g. in.example.com). Empty turns it off; see docs/imports/README.md for the DNS records."
+  type        = string
+  default     = ""
+}

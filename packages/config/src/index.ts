@@ -58,6 +58,14 @@ const envSchema = z.object({
   IMAGES_BUCKET: z.string().optional(),
   IMAGES_BASE_URL: z.url().optional(),
 
+  // Newsletters by email (docs/imports/README.md). The domain users' addresses are on, e.g.
+  // in.example.com (its MX points at SES). Unset turns the feature off on AWS; locally it's
+  // inbound.localhost, where mail arrives through POST /dev/newsletters/inbound or the CLI.
+  INBOUND_EMAIL_DOMAIN: z.string().optional(),
+  // Raw messages: the SES mail bucket on AWS, a directory locally (relative paths as CONTENT_DIR).
+  INBOUND_MAIL_BUCKET: z.string().optional(),
+  INBOUND_MAIL_DIR: z.string().default(".data/inbound"),
+
   // SQS queue URLs on AWS. Unset locally, where the dev runner uses in-memory queues.
   QUEUE_URL_FETCH_SOURCE: z.string().optional(),
   QUEUE_URL_EXTRACT: z.string().optional(),
@@ -210,6 +218,18 @@ export function discoveryMode(env: Env): "claude-cli" | "anthropic" | "none" {
  */
 export function resolveContentDir(env: Env): string {
   return isAbsolute(env.CONTENT_DIR) ? env.CONTENT_DIR : join(import.meta.dirname, "..", "..", "..", "apps", "workers", env.CONTENT_DIR);
+}
+
+/** The inbound email domain, or null when newsletter forwarding is off (on AWS without a domain). */
+export function inboundEmailDomain(env: Env): string | null {
+  const domain = env.INBOUND_EMAIL_DOMAIN?.trim().toLowerCase();
+  if (domain) return domain;
+  return env.APP_ENV === "local" || env.APP_ENV === "test" ? "inbound.localhost" : null;
+}
+
+/** The local raw-mail directory, resolved like CONTENT_DIR (against apps/workers). */
+export function resolveInboundMailDir(env: Env): string {
+  return isAbsolute(env.INBOUND_MAIL_DIR) ? env.INBOUND_MAIL_DIR : join(import.meta.dirname, "..", "..", "..", "apps", "workers", env.INBOUND_MAIL_DIR);
 }
 
 export function resolveAnthropicApiKey(env: Env): Promise<string> {

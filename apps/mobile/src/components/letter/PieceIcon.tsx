@@ -69,19 +69,19 @@ const GLYPHS: Record<PieceIconKey, ComponentProps<typeof Ionicons>["name"]> = {
 };
 
 /**
- * The tinted tile beside a piece in the letter's contents. Decorative: the
- * row's own label names the piece and its position.
+ * The glyph beside a piece in the letter's contents, on the page with no tile
+ * behind it. Decorative: the row's own label names the piece and its position.
  */
-export function PieceIcon({ icon, tint, size = 28 }: { icon: PieceIconKey | undefined; tint?: string; size?: number }) {
+export function PieceIcon({ icon, size = 28 }: { icon: PieceIconKey | undefined; size?: number }) {
   // A letter cached on the device before icons has none; an unknown key is from a newer API.
   const glyph = (icon && GLYPHS[icon]) || GLYPHS.article;
   return (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={{ width: size, height: size, borderRadius: 8, backgroundColor: tint, alignItems: "center", justifyContent: "center" }}
+      style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}
     >
-      <Ionicons name={glyph} size={Math.round(size * 0.57)} color={palette.ink} />
+      <Ionicons name={glyph} size={Math.round(size * 0.82)} color={palette.ink} />
     </View>
   );
 }

@@ -13,11 +13,16 @@ import { onboardingRoutes, preferenceRoutes, type ProfileRouteDeps } from "./rou
 import { itemRoutes, type LetterRouteDeps, letterRoutes, readingRoutes } from "./routes/letters.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
 import { publisherRoutes } from "./routes/publishers.ts";
+import { connectionRoutes, type ImportRouteDeps, importRoutes, youTubeCallbackRoutes } from "./routes/imports.ts";
 import { type SourceRouteDeps, sourceRoutes } from "./routes/sources.ts";
 
 export type { AppEnv };
 
-export interface AppDeps extends SourceRouteDeps, ProfileRouteDeps, Omit<LetterRouteDeps, "detect"> {
+export interface AppDeps
+  extends SourceRouteDeps,
+    ProfileRouteDeps,
+    Omit<LetterRouteDeps, "detect">,
+    Pick<ImportRouteDeps, "youtubeConnect" | "allowReturnTo"> {
   auth: Auth;
   clientLogs: ClientLogSink;
   /** Browser origins allowed to call the API with cookies (the Expo web dev server). Native apps don't need CORS. */
@@ -26,7 +31,22 @@ export interface AppDeps extends SourceRouteDeps, ProfileRouteDeps, Omit<LetterR
   devOtps?: OtpRecorder;
 }
 
-export function createApp({ auth, clientLogs, db, detect, profileImporter, store, letterQueue, discoverQueue, discovery, reader, corsOrigins = [], devOtps }: AppDeps) {
+export function createApp({
+  auth,
+  clientLogs,
+  db,
+  detect,
+  profileImporter,
+  store,
+  letterQueue,
+  discoverQueue,
+  discovery,
+  reader,
+  corsOrigins = [],
+  devOtps,
+  youtubeConnect,
+  allowReturnTo,
+}: AppDeps) {
   const app = new Hono<AppEnv>();
 
   if (corsOrigins.length) {
@@ -90,6 +110,10 @@ export function createApp({ auth, clientLogs, db, detect, profileImporter, store
     )
 
     .route("/me/sources", sourceRoutes({ db, detect }))
+    .route("/me/imports", importRoutes({ db, detect, youtubeConnect }))
+    .route("/me/connections", connectionRoutes({ db, youtubeConnect, allowReturnTo }))
+    // Google sends the browser here; the single-use state identifies the user.
+    .route("/connections", youTubeCallbackRoutes({ db, youtubeConnect }))
     .route("/me/publishers", publisherRoutes({ db }))
     .route("/me", preferenceRoutes({ db }))
     .route("/me/onboarding", onboardingRoutes({ ...onDemand, profileImporter }))

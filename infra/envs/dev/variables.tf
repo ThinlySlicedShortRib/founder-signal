@@ -32,3 +32,9 @@ variable "api_certificate_arn" {
   type    = string
   default = null
 }
+
+variable "google_oauth_client_id" {
+  description = "Connect YouTube: the Google OAuth web client ID. Empty turns it off (docs/imports/README.md)."
+  type        = string
+  default     = ""
+}

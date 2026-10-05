@@ -44,3 +44,13 @@ resource "aws_secretsmanager_secret" "unsplash" {
   description             = "Unsplash API access key (set manually)"
   recovery_window_in_days = var.recovery_window_days
 }
+
+# Connect YouTube (docs/imports/README.md): the Google OAuth web client's secret. Set by hand:
+#   aws secretsmanager put-secret-value \
+#     --secret-id founder-signal/<env>/google-oauth-client-secret --secret-string '<client secret>'
+# Until it's set (and google_oauth_client_id is given), the app says Connect YouTube isn't set up.
+resource "aws_secretsmanager_secret" "google_oauth" {
+  name                    = "founder-signal/${var.env}/google-oauth-client-secret"
+  description             = "Google OAuth client secret for Connect YouTube (set manually)"
+  recovery_window_in_days = var.recovery_window_days
+}

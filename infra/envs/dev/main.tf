@@ -1,11 +1,12 @@
 module "stack" {
   source = "../../modules/stack"
 
-  env              = "dev"
-  release          = var.release
-  artifacts_bucket = var.artifacts_bucket
-  email_from       = var.email_from
-  alert_email      = var.alert_email
+  env                    = "dev"
+  google_oauth_client_id = var.google_oauth_client_id
+  release                = var.release
+  artifacts_bucket       = var.artifacts_bucket
+  email_from             = var.email_from
+  alert_email            = var.alert_email
 
   # Cheap NAT instance (~$7/mo) instead of a managed NAT gateway (~$37/mo).
   nat_mode = "fck-nat"

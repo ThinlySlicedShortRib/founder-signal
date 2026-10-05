@@ -18,12 +18,13 @@ import {
   resolveBetterAuthSecret,
   resolveContentDir,
   resolveDatabaseConfig,
+  resolveGoogleOAuth,
   resolveYouTubeApiKey,
 } from "@fs/config";
 import { createDb } from "@fs/db";
 import { createSafeFetcher, fsContentStore, s3ContentStore, youTubeDataClient } from "@fs/ingest";
 import { createApp } from "./app.ts";
-import { createAuth, DEV_WEB_ORIGINS } from "./auth.ts";
+import { allowReturnTo, createAuth, DEV_WEB_ORIGINS } from "./auth.ts";
 import { createOtpRecorder } from "./routes/dev.ts";
 import { cloudWatchClientLogSink, consoleClientLogSink } from "./lib/client-log-sink.ts";
 import { consoleEmailSender, sesEmailSender } from "./lib/email.ts";
@@ -31,10 +32,11 @@ import { sqsDiscoverQueue, sqsLetterQueue } from "./lib/letter-queue.ts";
 
 /** Wires real dependencies from the environment. Shared by the Lambda and local entry points. */
 export async function buildApp(env: Env) {
-  const [dbConfig, secret, youTubeKey] = await Promise.all([
+  const [dbConfig, secret, youTubeKey, googleOAuth] = await Promise.all([
     resolveDatabaseConfig(env),
     resolveBetterAuthSecret(env),
     resolveYouTubeApiKey(env),
+    resolveGoogleOAuth(env),
   ]);
   const { db } = createDb(dbConfig);
 
@@ -74,6 +76,8 @@ export async function buildApp(env: Env) {
     reader: readerWriter(env),
     corsOrigins: env.APP_ENV === "prod" ? [] : DEV_WEB_ORIGINS,
     devOtps,
+    youtubeConnect: googleOAuth ? { config: googleOAuth } : null,
+    allowReturnTo: (url) => allowReturnTo(url, { allowDevOrigins: env.APP_ENV !== "prod" }),
   });
 }
 

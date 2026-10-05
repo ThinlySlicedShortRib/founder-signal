@@ -9,7 +9,7 @@ Each environment is `envs/<env>` → `modules/stack`, which wires the modules be
 | `bootstrap/` | State bucket, Lambda artifacts bucket, optional GitHub OIDC deploy role | GCS state bucket + Artifact Registry + Workload Identity Federation |
 | `modules/network` | VPC, 2 public + 2 private subnets, S3 gateway endpoint, NAT (fck-nat or managed gateway), `lambda` and `db` security groups | VPC + Cloud NAT + firewall rules |
 | `modules/database` | RDS PostgreSQL 17 (TLS enforced, encrypted, RDS-managed password secret), optional RDS Proxy | Cloud SQL for PostgreSQL (+ managed connection pooling) |
-| `modules/secrets` | Better Auth secret (generated); Anthropic, YouTube, Supadata and Unsplash key secrets (values set by hand) | Secret Manager |
+| `modules/secrets` | Better Auth secret (generated); Anthropic, YouTube, Supadata and Unsplash key secrets and the Google OAuth client secret for Connect YouTube (values set by hand) | Secret Manager |
 | `modules/lambda_fn` | One Lambda from `s3://<artifacts>/<release>/<name>.zip`, its IAM role, its log group | Cloud Run function + service account |
 | `modules/api` | HTTP API → `$default` route → Hono Lambda, access logs, throttling, optional custom domain | API Gateway / Cloud Run URL + domain mapping |
 | `modules/observability` | `/founder-signal/<env>/mobile` log group, `MobileErrors` metric + alarm, alerts SNS topic | Cloud Logging bucket + log-based metric + alerting policy |
@@ -71,6 +71,11 @@ aws secretsmanager put-secret-value \
 #    Optional: stock photos for pieces without their own image.
 aws secretsmanager put-secret-value \
   --secret-id founder-signal/dev/unsplash-access-key --secret-string '...'
+#    Optional: Connect YouTube (import subscriptions). Set google_oauth_client_id in
+#    terraform.tfvars and the client secret here; see docs/imports/README.md. Only the
+#    API can read it.
+aws secretsmanager put-secret-value \
+  --secret-id founder-signal/dev/google-oauth-client-secret --secret-string 'GOCSPX-...'
 #    Enrichment also needs Bedrock access to the embedding model
 #    (Titan Text Embeddings V2) in the Bedrock console → Model access.
 #    Without it, set enrichment_enabled = false in the stack.

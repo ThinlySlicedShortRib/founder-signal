@@ -85,6 +85,8 @@ function AppStack() {
           <Stack.Screen name="sources/index" options={{ title: "Sources" }} />
           <Stack.Screen name="sources/add" options={{ title: "Add a source", presentation: "modal" }} />
           <Stack.Screen name="sources/[id]" options={{ title: "Source" }} />
+          <Stack.Screen name="sources/import/index" options={{ title: "Import what you follow" }} />
+          <Stack.Screen name="sources/import/[id]" options={{ title: "Choose what to add" }} />
           <Stack.Screen name="dev" options={PAGER} />
         </Stack.Protected>
         <Stack.Protected guard={signedIn && !onboarded}>

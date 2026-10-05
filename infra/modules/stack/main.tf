@@ -90,6 +90,13 @@ data "aws_iam_policy_document" "api" {
     resources = ["${module.observability.mobile_log_group_arn}:*"]
   }
 
+  # Connect YouTube exchanges Google OAuth codes (docs/imports/README.md). The API only.
+  statement {
+    sid       = "ReadGoogleOAuthSecret"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [module.secrets.google_oauth_client_secret_arn]
+  }
+
   # TODO(M5): scope to the SES identity ARN once the domain is verified.
   statement {
     sid       = "SendEmail"
@@ -135,6 +142,9 @@ module "api" {
     QUEUE_URL_DISCOVER    = module.queues.urls["discover"]
     # Same switch as the workers: with "none", on-demand letters don't wait for a discovery run.
     DISCOVERY = var.discovery_enabled ? "anthropic" : "none"
+    # Connect YouTube. The redirect URL defaults to BETTER_AUTH_URL + /connections/youtube/callback.
+    GOOGLE_OAUTH_CLIENT_ID         = var.google_oauth_client_id
+    GOOGLE_OAUTH_CLIENT_SECRET_ARN = module.secrets.google_oauth_client_secret_arn
   })
 
   log_retention_days = var.log_retention_days

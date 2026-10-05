@@ -4,3 +4,7 @@ email_from       = "letters@example.com"
 # alert_email      = "you@example.com"
 # api_domain_name     = "api.example.com"
 # api_certificate_arn = "arn:aws:acm:ap-southeast-2:<account-id>:certificate/<id>"
+
+# Connect YouTube (docs/imports/README.md): the Google OAuth web client ID. The secret goes in
+# Secrets Manager (founder-signal/dev/google-oauth-client-secret). Empty turns it off.
+# google_oauth_client_id = "1234-abc.apps.googleusercontent.com"

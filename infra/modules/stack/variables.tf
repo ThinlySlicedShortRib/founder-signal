@@ -118,3 +118,9 @@ variable "content_force_destroy" {
   type        = bool
   default     = false
 }
+
+variable "google_oauth_client_id" {
+  description = "Connect YouTube: the Google OAuth web client ID (not secret). Empty turns Connect YouTube off. Its redirect URI must be <api url>/connections/youtube/callback."
+  type        = string
+  default     = ""
+}

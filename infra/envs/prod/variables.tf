@@ -43,3 +43,9 @@ variable "db_enable_proxy" {
   type    = bool
   default = false
 }
+
+variable "google_oauth_client_id" {
+  description = "Connect YouTube: the Google OAuth web client ID. Empty turns it off (docs/imports/README.md)."
+  type        = string
+  default     = ""
+}

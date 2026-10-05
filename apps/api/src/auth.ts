@@ -12,6 +12,23 @@ export const APP_SCHEME = "foundersignal";
 /** The Expo dev server, when the app runs in a browser during development. */
 export const DEV_WEB_ORIGINS = ["http://localhost:8081"];
 
+/**
+ * Where an OAuth connection (Connect YouTube) may send the browser back to:
+ * the app's own scheme, and outside prod Expo Go and the web dev server.
+ * Anything else would make the callback an open redirect.
+ */
+export function allowReturnTo(url: string, { allowDevOrigins }: { allowDevOrigins: boolean }): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol === `${APP_SCHEME}:`) return true;
+  if (!allowDevOrigins) return false;
+  return u.protocol === "exp:" || DEV_WEB_ORIGINS.includes(u.origin);
+}
+
 export interface CreateAuthOptions {
   db: Db;
   secret: string;

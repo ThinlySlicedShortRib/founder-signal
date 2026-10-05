@@ -2,7 +2,8 @@ import type { ProfileImporter, ReaderWriter } from "@fs/ai";
 import { createDb } from "@fs/db";
 import { type FetchResult, memoryContentStore, type YouTubeClient } from "@fs/ingest";
 import { createApp } from "../src/app.ts";
-import { createAuth } from "../src/auth.ts";
+import { allowReturnTo, createAuth } from "../src/auth.ts";
+import type { YouTubeConnect } from "../src/routes/imports.ts";
 import { createOtpRecorder } from "../src/routes/dev.ts";
 import type { ClientLogRecord, ClientLogSink } from "../src/lib/client-log-sink.ts";
 import type { EmailMessage, EmailSender } from "../src/lib/email.ts";
@@ -13,6 +14,7 @@ export interface FakePage {
   status?: number;
   contentType?: string;
   body: string;
+  headers?: Record<string, string>;
 }
 
 /** Builds the real app against the test database, with in-memory email and log sinks and a fake web. */
@@ -23,6 +25,7 @@ export function createTestApp({
   reader = null,
   withQueue = false,
   discovery = false,
+  youtubeConnect = null,
 }: {
   corsOrigins?: string[];
   devSignIn?: boolean;
@@ -31,6 +34,8 @@ export function createTestApp({
   withQueue?: boolean;
   /** Discovery switched on (off by default, like DISCOVERY=none): on-demand letters may wait for a run. */
   discovery?: boolean;
+  /** Connect YouTube's config, with fake Google endpoints; null = not configured. */
+  youtubeConnect?: YouTubeConnect | null;
 } = {}) {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error("TEST_DATABASE_URL not set (global setup didn't run)");
@@ -58,7 +63,7 @@ export function createTestApp({
       status: page ? (page.status ?? 200) : 404,
       url,
       contentType: page?.contentType ?? "text/html; charset=utf-8",
-      headers: new Headers(),
+      headers: new Headers(page?.headers),
       body: page?.body ?? "",
     };
   };
@@ -98,6 +103,8 @@ export function createTestApp({
     reader,
     corsOrigins,
     devOtps,
+    youtubeConnect,
+    allowReturnTo: (url) => allowReturnTo(url, { allowDevOrigins: true }),
   });
 
   return { app, db, pool, sentEmails, clientLogRecords, web, store, objects, startedLetters, startedRuns };

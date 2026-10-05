@@ -15,6 +15,8 @@ export const errorCodes = [
   "FULL_TEXT_UNLICENSED",
   "TRANSCRIPT_MISSING",
   "GENERATION_FAILED",
+  /** An optional integration (e.g. Connect YouTube) isn't set up on this server. */
+  "NOT_CONFIGURED",
   "INTERNAL",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];
@@ -130,6 +132,86 @@ export const sourceViewSchema = z.object({
   itemCount: z.number().int(),
 });
 export type SourceView = z.infer<typeof sourceViewSchema>;
+
+// ── Imports (docs/imports/README.md: /me/imports) ───────────────────────────
+
+/** Where an import's list came from. */
+export const importMethods = ["opml", "youtube", "substack", "bluesky", "mastodon"] as const;
+export type ImportMethod = (typeof importMethods)[number];
+
+/** The platforms imported from a handle (no sign-in). */
+export const handlePlatforms = ["substack", "bluesky", "mastodon"] as const;
+export type HandlePlatform = (typeof handlePlatforms)[number];
+
+/** At most this many sources are offered from one import; the rest are dropped (and counted). */
+export const MAX_IMPORT_CANDIDATES = 300;
+/** OPML uploads are refused above this size (bytes of text). */
+export const MAX_OPML_BYTES = 2 * 1024 * 1024;
+
+export const importOpmlInputSchema = z.object({
+  opml: z.string().min(1).max(MAX_OPML_BYTES),
+  /** The uploaded file's name, shown in the import's history. */
+  filename: z.string().trim().max(200).optional(),
+});
+export type ImportOpmlInput = z.infer<typeof importOpmlInputSchema>;
+
+export const importHandleInputSchema = z.object({
+  platform: z.enum(handlePlatforms),
+  handle: z.string().trim().min(1).max(300),
+});
+export type ImportHandleInput = z.infer<typeof importHandleInputSchema>;
+
+/**
+ * One thing found by an import. `ready` candidates know their feed (or
+ * channel) and are added as they are; `site` ones only know a website, and
+ * its feed is looked for when they're added.
+ */
+export const importCandidateSchema = z.object({
+  /** Stable within the import; what the confirm call sends back. */
+  key: z.string(),
+  kind: z.enum(["feed", "youtube_channel"]),
+  title: z.string(),
+  /** A second line: the site's host, an @handle, an OPML folder's site. */
+  detail: z.string().nullable(),
+  /** Groups the checklist: an OPML folder, "People you follow", "Their websites". */
+  group: z.string().nullable(),
+  /** The feed URL, the website (for `site`), or the channel's YouTube URL. */
+  url: z.string(),
+  check: z.enum(["ready", "site"]),
+  /** Already one of the user's sources. */
+  following: z.boolean(),
+});
+export type ImportCandidate = z.infer<typeof importCandidateSchema>;
+
+export const importViewSchema = z.object({
+  id: z.uuid(),
+  method: z.enum(importMethods),
+  /** The handle, the file name, or the YouTube account's name. */
+  label: z.string(),
+  createdAt: z.iso.datetime(),
+  candidates: z.array(importCandidateSchema),
+  /** Entries left out (over the cap, or with nothing to follow), explained. */
+  notes: z.array(z.string()),
+  addedCount: z.number().int(),
+});
+export type ImportView = z.infer<typeof importViewSchema>;
+
+export const confirmImportInputSchema = z.object({
+  keys: z.array(z.string().max(2_100)).min(1).max(MAX_IMPORT_CANDIDATES),
+  mode: z.enum(sourceModes).default("more_like_this"),
+});
+export type ConfirmImportInput = z.infer<typeof confirmImportInputSchema>;
+
+export const confirmImportResultSchema = z.object({
+  added: z.number().int(),
+  /** Selected but already followed: left as they were. */
+  alreadyFollowing: z.number().int(),
+  failed: z.array(z.object({ key: z.string(), title: z.string(), message: z.string() })),
+});
+export type ConfirmImportResult = z.infer<typeof confirmImportResultSchema>;
+
+/** Where Connect YouTube sends the browser back to once it's done. */
+export const youTubeConnectInputSchema = z.object({ returnTo: z.string().url().max(500) });
 
 // ── Publishers (build plan §6.3a, §7: /me/publishers) ───────────────────────
 

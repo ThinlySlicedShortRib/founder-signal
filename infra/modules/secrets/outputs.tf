@@ -17,3 +17,7 @@ output "supadata_api_key_secret_arn" {
 output "unsplash_access_key_secret_arn" {
   value = aws_secretsmanager_secret.unsplash.arn
 }
+
+output "google_oauth_client_secret_arn" {
+  value = aws_secretsmanager_secret.google_oauth.arn
+}

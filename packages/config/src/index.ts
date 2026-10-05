@@ -41,6 +41,14 @@ const envSchema = z.object({
   SUPADATA_API_KEY: z.string().optional(),
   SUPADATA_API_KEY_SECRET_ARN: z.string().optional(),
 
+  // Connect YouTube (docs/imports/README.md): a Google OAuth "Web application" client, asking only
+  // for youtube.readonly. Optional: without the ID and secret the app explains it isn't set up.
+  // The redirect URL defaults to <BETTER_AUTH_URL>/connections/youtube/callback.
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET_ARN: z.string().optional(),
+  GOOGLE_OAUTH_REDIRECT_URL: z.url().optional(),
+
   // Extracted blocks and transcripts: an S3 bucket on AWS, a directory locally.
   CONTENT_BUCKET: z.string().optional(),
   CONTENT_DIR: z.string().default(".data/content"),
@@ -163,6 +171,18 @@ async function optionalFromEnvOrSecret(value: string | undefined, arn: string | 
 
 export function resolveYouTubeApiKey(env: Env): Promise<string | null> {
   return optionalFromEnvOrSecret(env.YOUTUBE_API_KEY, env.YOUTUBE_API_KEY_SECRET_ARN);
+}
+
+/**
+ * Connect YouTube's Google OAuth client, or null when it isn't configured
+ * (no client ID, no secret value yet, or no redirect URL to give Google).
+ */
+export async function resolveGoogleOAuth(env: Env): Promise<{ clientId: string; clientSecret: string; redirectUrl: string } | null> {
+  if (!env.GOOGLE_OAUTH_CLIENT_ID) return null;
+  const clientSecret = await optionalFromEnvOrSecret(env.GOOGLE_OAUTH_CLIENT_SECRET, env.GOOGLE_OAUTH_CLIENT_SECRET_ARN);
+  const redirectUrl = env.GOOGLE_OAUTH_REDIRECT_URL ?? (env.BETTER_AUTH_URL ? `${env.BETTER_AUTH_URL.replace(/\/+$/, "")}/connections/youtube/callback` : null);
+  if (!clientSecret || !redirectUrl) return null;
+  return { clientId: env.GOOGLE_OAUTH_CLIENT_ID, clientSecret, redirectUrl };
 }
 
 export function resolveSupadataApiKey(env: Env): Promise<string | null> {

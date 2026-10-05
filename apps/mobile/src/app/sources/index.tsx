@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { SourceView } from "@fs/schema";
 import { router, Stack } from "expo-router";
 import { ActivityIndicator, Pressable, View } from "react-native";
-import { Badge, Body, Button, Card, EmptyState, ErrorBanner, Screen, Small, space, TAP } from "@/components/ui";
+import { Badge, Body, Button, Card, EmptyState, ErrorBanner, Row, Screen, Small, space, TAP } from "@/components/ui";
 import { font, palette } from "@/components/onboarding/kit";
 import { fetchHealth, rightsLabel, TYPE_ICON, TYPE_LABEL, useSources } from "@/lib/sources";
 
@@ -36,10 +36,19 @@ export default function Sources() {
             title="No sources yet"
             body="Add the sites, newsletters and channels you already trust. Founder Signal also finds new ones for you as it learns what you like."
           >
-            <Button title="Add a source" icon="add" onPress={() => router.push("/sources/add")} />
+            <Button title="Import what you follow" icon="download-outline" onPress={() => router.push("/sources/import")} />
+            <Button title="Add a source" icon="add" variant="secondary" onPress={() => router.push("/sources/add")} />
           </EmptyState>
         ) : (
           <>
+            <Card style={{ paddingVertical: space.xs }}>
+              <Row
+                icon="download-outline"
+                label="Import what you follow"
+                detail="OPML, YouTube, Substack, Bluesky or Mastodon"
+                onPress={() => router.push("/sources/import")}
+              />
+            </Card>
             <Small>Pull down to refresh. Feeds are checked about once an hour.</Small>
             {list.map((s) => (
               <SourceCard key={s.id} source={s} />

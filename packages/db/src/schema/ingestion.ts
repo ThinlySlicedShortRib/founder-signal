@@ -16,6 +16,7 @@ import {
   vector,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth.ts";
+import { sourceImport } from "./imports.ts";
 
 /** Dimensions of the item embedding (Titan Text Embeddings v2 and Cohere Embed v4 both support 1024). */
 export const EMBEDDING_DIMENSIONS = 1024;
@@ -139,6 +140,8 @@ export const userSource = pgTable(
       .references(() => source.id),
     mode: userSourceMode("mode").default("more_like_this").notNull(),
     blocked: boolean("blocked").default(false).notNull(),
+    /** The import it was added from; null when added by hand (or the import was deleted). */
+    importId: uuid("import_id").references(() => sourceImport.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [unique("user_source_user_source").on(t.userId, t.sourceId)],

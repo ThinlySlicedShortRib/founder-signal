@@ -1,11 +1,12 @@
 module "stack" {
   source = "../../modules/stack"
 
-  env              = "prod"
-  release          = var.release
-  artifacts_bucket = var.artifacts_bucket
-  email_from       = var.email_from
-  alert_email      = var.alert_email
+  env                    = "prod"
+  google_oauth_client_id = var.google_oauth_client_id
+  release                = var.release
+  artifacts_bucket       = var.artifacts_bucket
+  email_from             = var.email_from
+  alert_email            = var.alert_email
 
   nat_mode          = "gateway"
   nat_gateway_count = var.nat_gateway_count

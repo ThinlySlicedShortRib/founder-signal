@@ -69,6 +69,82 @@ const GLYPHS: Record<PieceIconKey, ComponentProps<typeof Ionicons>["name"]> = {
 };
 
 /**
+ * Each icon's colour, by family, from the palette: money and business in green,
+ * people in orange, building things in blue, reaching people in deep blue,
+ * reading and thinking in plum. All at least 3:1 on the page (non-text contrast).
+ */
+const TONES = {
+  money: palette.yes,
+  people: palette.blank,
+  build: palette.blue,
+  reach: palette.blueInk,
+  mind: "#7A3E9D",
+} as const;
+
+const COLOURS: Record<PieceIconKey, string> = {
+  pricing: TONES.money,
+  sales: TONES.money,
+  fundraising: TONES.money,
+  pitch: TONES.money,
+  equity: TONES.money,
+  finance: TONES.money,
+  metrics: TONES.money,
+  data: TONES.money,
+  acquisitions: TONES.money,
+  economy: TONES.money,
+  ecommerce: TONES.money,
+  marketplace: TONES.money,
+  "small-business": TONES.money,
+  bootstrapping: TONES.money,
+  saas: TONES.money,
+  services: TONES.money,
+  partnerships: TONES.money,
+  hiring: TONES.people,
+  team: TONES.people,
+  leadership: TONES.people,
+  customers: TONES.people,
+  support: TONES.people,
+  community: TONES.people,
+  remote: TONES.people,
+  health: TONES.people,
+  failure: TONES.people,
+  story: TONES.people,
+  product: TONES.build,
+  launch: TONES.build,
+  engineering: TONES.build,
+  ai: TONES.build,
+  automation: TONES.build,
+  "no-code": TONES.build,
+  infrastructure: TONES.build,
+  "open-source": TONES.build,
+  mobile: TONES.build,
+  hardware: TONES.build,
+  design: TONES.build,
+  security: TONES.build,
+  legal: TONES.build,
+  operations: TONES.build,
+  growth: TONES.reach,
+  retention: TONES.reach,
+  marketing: TONES.reach,
+  brand: TONES.reach,
+  content: TONES.reach,
+  seo: TONES.reach,
+  social: TONES.reach,
+  email: TONES.reach,
+  strategy: TONES.reach,
+  competition: TONES.reach,
+  international: TONES.reach,
+  article: TONES.mind,
+  video: TONES.mind,
+  podcast: TONES.mind,
+  productivity: TONES.mind,
+  writing: TONES.mind,
+  learning: TONES.mind,
+  ideas: TONES.mind,
+  research: TONES.mind,
+};
+
+/**
  * The glyph beside a piece in the letter's contents, on the page with no tile
  * behind it. Decorative: the row's own label names the piece and its position.
  */
@@ -81,7 +157,7 @@ export function PieceIcon({ icon, size = 28 }: { icon: PieceIconKey | undefined;
       importantForAccessibility="no-hide-descendants"
       style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}
     >
-      <Ionicons name={glyph} size={Math.round(size * 0.82)} color={palette.ink} />
+      <Ionicons name={glyph} size={Math.round(size * 0.82)} color={(icon && COLOURS[icon]) || COLOURS.article} />
     </View>
   );
 }

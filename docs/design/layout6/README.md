@@ -62,7 +62,7 @@ hiring, sparkles for AI, …) on its own, with no tile behind it, in the 28×28
 space where the boards had "01", "02", "03". The icon is picked
 by the enrichment model from a fixed list (`pieceIconKeys`); items it hasn't
 picked for get one from their tags, topic and title, else a document (article)
-or play (video) glyph. Ionicons outline glyphs, ink at 23px; decorative, so
+or play (video) glyph. Ionicons outline glyphs at 23px, coloured by family (money/business green, people orange, building blue, reach deep blue, reading/thinking plum; each ≥ 3:1 on the page); decorative, so
 screen readers still hear "Piece N: title, M minutes".
 
 Not on the boards: while a letter is being made now (the first letter right

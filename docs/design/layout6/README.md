@@ -44,7 +44,7 @@ button opens YouTube and Watch scrolls to the chapters. The Library's reader
 darker at every stop, `piece` variant: 0.44 / 0.54 / 0.86 / 0.97 at
 0 / 28 / 58 / 100% (Android, no blur: 0.50 / 0.64 / 0.92 / 0.99 at
 0 / 28 / 55 / 100%). The progressive blur spans the whole photo: mask alpha
-0.18 at the top → 0.5 at 40% → full from 72%. The P.S. keeps the board's
+0.45 at the top → 0.85 at 30% → full from 55%, at blur intensity 90 (was 55). The P.S. keeps the board's
 `page` gradient and its bottom-rising blur.
 
 Not on the boards: while a letter is being made now (the first letter right

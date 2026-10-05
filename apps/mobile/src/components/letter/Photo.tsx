@@ -41,9 +41,9 @@ const STRONG = { piece: "pieceStrong", page: "pageStrong", head: "headStrong" } 
 /** Blur masks: black is full blur, transparent none. */
 const MASKS = {
   /** Rising from the bottom of its box (transparent → opaque at 30%). */
-  rise: { colors: ["transparent", "#000", "#000"], locations: [0, 0.3, 1] },
-  /** A piece page: the whole photo, a light blur at the top growing to full behind the text. */
-  full: { colors: ["rgba(0,0,0,0.18)", "rgba(0,0,0,0.5)", "#000", "#000"], locations: [0, 0.4, 0.72, 1] },
+  rise: { colors: ["transparent", "#000", "#000"], locations: [0, 0.3, 1], intensity: 55 },
+  /** A piece page: the whole photo, already well blurred at the top and at full strength from just past the middle. */
+  full: { colors: ["rgba(0,0,0,0.45)", "rgba(0,0,0,0.85)", "#000", "#000"], locations: [0, 0.3, 0.55, 1], intensity: 90 },
 } as const;
 type Mask = (typeof MASKS)[keyof typeof MASKS];
 
@@ -125,7 +125,7 @@ function ProgressiveBlur({ height, mask }: { height: DimensionValue; mask: Mask 
         />
       }
     >
-      <BlurView intensity={55} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={mask.intensity} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
     </MaskedView>
   );
 }

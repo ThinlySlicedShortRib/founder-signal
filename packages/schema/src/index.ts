@@ -754,8 +754,25 @@ export const devLetterSchema = z.object({
   pieceCount: z.number().int(),
   /** How its copy was written ("anthropic", "claude-cli", "fallback"), once generated. */
   generation: z.object({ method: z.string(), model: z.string().nullable() }).nullable(),
-  /** Created with `discoverFirst`: held until its discovery run finishes. */
+  /** Held until a discovery run finishes: created with `discoverFirst`, or held by collection for too few candidates. */
   waitingOnDiscovery: z.boolean(),
+  /**
+   * How its candidates were collected (§6.2): each escalation step that ran
+   * ("own", "widened", "shared_pool", "discovery") with the candidate count
+   * after it. Null before collection.
+   */
+  collection: z
+    .object({
+      wanted: z.number().int(),
+      steps: z.array(z.object({ step: z.string(), total: z.number().int(), added: z.number().int() })),
+      candidates: z.number().int(),
+      shared: z.number().int(),
+      heldForDiscovery: z.boolean(),
+      extraSubstitutes: z.number().int(),
+    })
+    .nullable(),
+  /** Why it has fewer pieces than planned, when it does. */
+  shortReason: z.string().nullable(),
 });
 export type DevLetter = z.infer<typeof devLetterSchema>;
 

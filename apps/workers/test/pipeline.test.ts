@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type EnrichmentBatches, type EnrichmentInput, type EnrichmentResult, fallbackLetterWriter } from "@fs/ai";
 import { addUserSource, createDb, type NewSource, schema } from "@fs/db";
 import type { FetchResult, TranscriptProvider, YouTubeClient } from "@fs/ingest";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { memoryContentStore } from "../src/lib/content-store.ts";
 import { drain } from "../src/lib/local.ts";
@@ -164,6 +164,9 @@ async function itemsOf(sourceId: string) {
 
 // Each test gets its own sites, but sources from earlier tests stay due; keep them out of the way.
 beforeEach(async () => {
+  // Earlier tests' discoveries and trusted publishers would be this test's shared pool (letter-supply.ts); clear them.
+  await db.execute(sql`delete from user_discovery`);
+  await db.execute(sql`update publisher set status = 'candidate' where status = 'trusted'`);
   await db.update(source).set({ nextFetchAt: null });
 });
 

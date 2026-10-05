@@ -1,4 +1,4 @@
-import type { RankProfile, RankReview, WriterBrief } from "@fs/core";
+import { piecesWanted, type RankProfile, type RankReview, type WriterBrief } from "@fs/core";
 import { type Db, schema } from "@fs/db";
 import type { ContentStore, TranscriptSegment } from "@fs/ingest";
 import type { Block } from "@fs/schema";
@@ -12,6 +12,7 @@ export interface UserContext {
   rank: RankProfile;
   profileVersion: number | null;
   timeZone: string;
+  /** Pieces the letter is planned with: the schedule's count, never below MIN_PIECES. */
   itemCount: number;
   shortLetterPolicy: "shorten" | "skip";
   /** The previous delivered letter, if any: its chosen leanings feed this one. */
@@ -71,7 +72,7 @@ export async function loadUserContext(db: Db, userId: string, letterId: string):
     rank: { topics: topics.map((t) => ({ topic: t.topic, weight: t.weight })), lately: p?.lately ?? null, leanings: chosen, reviews: rankReviews },
     profileVersion: p?.version ?? null,
     timeZone: s?.timeZone ?? "UTC",
-    itemCount: s?.itemCount ?? 3,
+    itemCount: piecesWanted(s?.itemCount),
     shortLetterPolicy: s?.shortLetterPolicy === "skip" ? "skip" : "shorten",
     previous: previous?.deliveredAt ? { id: previous.id, deliveredAt: previous.deliveredAt, chosenLeanings: chosen } : null,
   };

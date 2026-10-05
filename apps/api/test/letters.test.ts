@@ -3,8 +3,9 @@ import type { ReaderWriter } from "@fs/ai";
 import { schema } from "@fs/db";
 import type { LetterItemSnapshot } from "@fs/db/schema";
 import { activityMonthSchema, itemViewSchema, letterSummarySchema, letterViewSchema, postscriptSchema, savedPieceSchema, sectionSummarySchema } from "@fs/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { hasEnoughToPick } from "../src/lib/on-demand-letter.ts";
 import { BASE_URL, createTestApp, signIn } from "./helpers.ts";
 
 const { author, contentItem, contentVersion, interaction, letter, letterItem, profile, publisher, review, schedule, source, summary, topicWeight, transcript, user, userAuthor, userSource } =
@@ -637,6 +638,47 @@ describe("PUT /me/authors/:key/follow", () => {
 });
 
 // ── Test letter ─────────────────────────────────────────────────────────────
+
+describe("hasEnoughToPick", () => {
+  it("counts by the collect step's rule: own items over the wide window, then shared-pool items matching the brief", async () => {
+    // A topic no other test uses, so other tests' discoveries can't match it.
+    const topic = `quokkanomics${randomUUID().slice(0, 4)}`;
+    await signIn(ctx, `enough-${topic}@example.com`);
+    const id = await idOf(`enough-${topic}@example.com`);
+    const other = await idOf("letters-other@example.com");
+    await ctx.db.insert(topicWeight).values({ userId: id, topic, origin: "explicit" });
+    expect(await hasEnoughToPick(ctx.db, id)).toBe(false);
+
+    const follow = async (title: string, daysOld: number) => {
+      const { item } = await seedArticle({ title });
+      await ctx.db.update(contentItem).set({ publishedAt: new Date(Date.now() - daysOld * 86_400_000) }).where(eq(contentItem.id, item.id));
+      await ctx.db.insert(userSource).values({ userId: id, sourceId: item.sourceId!, mode: "more_like_this" });
+      return item;
+    };
+    const foundForOther = async (title: string) => {
+      const { item } = await seedArticle({ title });
+      await ctx.db.insert(schema.userDiscovery).values({ userId: other, itemId: item.id, reason: "for them" });
+      return item;
+    };
+    await follow(`Fresh ${topic}`, 1);
+    // Outside the usual 60 days, inside the widened 180.
+    await follow(`Older ${topic}`, 100);
+    await follow(`Ancient ${topic}`, 400);
+    expect(await hasEnoughToPick(ctx.db, id)).toBe(false);
+
+    // Found for someone else, but off the brief: doesn't count.
+    await foundForOther("Gardening in autumn");
+    expect(await hasEnoughToPick(ctx.db, id)).toBe(false);
+    // On the brief: the third piece.
+    await foundForOther(`A ${topic} case study`);
+    expect(await hasEnoughToPick(ctx.db, id)).toBe(true);
+
+    // A schedule asking for more pieces needs more; one can't ask for fewer than three.
+    await ctx.db.insert(schedule).values({ userId: id, weekdays: [1], localTime: "07:30", timeZone: "UTC", itemCount: 4 });
+    expect(await hasEnoughToPick(ctx.db, id)).toBe(false);
+    await expect(ctx.db.execute(sql`update schedule set item_count = 2 where user_id = ${id}`)).rejects.toThrow();
+  });
+});
 
 describe("POST /me/schedule/test-letter", () => {
   it("creates a test occurrence for the pipeline without touching next_run_at", async () => {

@@ -6,7 +6,16 @@ import {
   cleanAuthorName,
   briefText,
   CANDIDATE_WINDOW_DAYS,
+  type CollectionStep,
   DISCOVERED_CANDIDATE_DAYS,
+  type DiscoveryAvailability,
+  HELD_LETTER_MAX_MINUTES,
+  nextCollectionStep,
+  RANKED_RESERVE,
+  SHARED_POOL_SCAN,
+  sharedPoolMatches,
+  shortReason,
+  WIDE_CANDIDATE_WINDOW_DAYS,
   checkLetterCopy,
   checkPieceCopy,
   checkPostscript,
@@ -30,9 +39,10 @@ import {
   type WriterInput,
   type WriterPiece,
 } from "@fs/core";
-import { schema } from "@fs/db";
-import type { DraftCopy, GenerationMeta, LetterItemSnapshot, RankedEntry } from "@fs/db/schema";
-import { and, desc, eq, exists, gt, inArray, isNotNull, ne, notExists, or, sql } from "drizzle-orm";
+import { ownCandidateIds, type PoolCandidateRow, schema, sharedPoolRows } from "@fs/db";
+import type { DraftCopy, GenerationMeta, LetterCollection, LetterItemSnapshot, RankedEntry } from "@fs/db/schema";
+import { DEV_RUN_PREFIX, TEST_LETTER_PREFIX } from "@fs/schema";
+import { and, desc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { logger, type PipelineDeps } from "../pipeline/deps.ts";
 import type { Message } from "../pipeline/messages.ts";
 import { loadParagraphs, loadUserContext, type UserContext } from "./context.ts";
@@ -48,7 +58,7 @@ import {
   releaseStep,
 } from "./state.ts";
 
-const { author, contentItem, letter, letterItem, publisher, review, source, userDiscovery, userPublisher, userSource } = schema;
+const { author, contentItem, discoveryRun, letter, letterItem, publisher, review, source, userDiscovery, userSource } = schema;
 
 const MAX_CANDIDATES = 300;
 /** Reserve pieces the writer also writes copy for, so a substitution needs no second call. */
@@ -89,109 +99,150 @@ export async function letterStep(deps: PipelineDeps, { letterId, expectedStatus 
 // ── collect ─────────────────────────────────────────────────────────────────
 
 /**
- * Candidates (§6.2) from three places:
- * - the user's followed, non-blocked sources (published in the last
- *   CANDIDATE_WINDOW_DAYS);
- * - pages discovery found for them (§6.3a), found in the last
- *   DISCOVERED_CANDIDATE_DAYS whatever their publish date, since good finds
- *   are often evergreen; a found page that turned out to be a duplicate
- *   counts as the original;
- * - new items from trusted discovered publishers' feeds, for users discovery
- *   has shown that publisher to.
- * Minus duplicates, thin or SEO filler, publishers blocked globally or by
- * this user, sources they blocked, anything already in one of their letters
- * and anything they've reviewed. Videos only reach `extracted` with a
- * transcript, so a video without one ("saved, no skim", §6.3) is never a
- * candidate.
+ * Candidates (§6.2), escalating until there are enough (@fs/core
+ * letter-supply.ts): the user's own (followed sources in
+ * CANDIDATE_WINDOW_DAYS, discovered pages found in DISCOVERED_CANDIDATE_DAYS,
+ * trusted discovered feeds; @fs/db `ownCandidateIds`), then the same over
+ * WIDE_CANDIDATE_WINDOW_DAYS, then the shared pool matched to the brief, and
+ * last a discovery run of the letter's own: the letter is held (back to
+ * `scheduled`, `awaiting_discovery`, letters/held.ts) and collected again
+ * when it ends, at most once. Every step that ran is recorded in
+ * `letter.collection`. With nothing at all, the letter is skipped with a
+ * `short_reason`.
  */
 async function collect(deps: PipelineDeps, current: Letter) {
   const { db } = deps;
   const userId = current.userId;
+  const now = deps.now?.() ?? new Date();
+  const ctx = await loadUserContext(db, userId, current.id);
+  const wanted = ctx.itemCount;
+  const prior = current.collection;
+  const discovery = await discoveryFor(deps, current);
 
-  const recent = gt(sql`coalesce(${contentItem.publishedAt}, ${contentItem.createdAt})`, sql`now() - make_interval(days => ${CANDIDATE_WINDOW_DAYS})`);
-  const followed = and(
-    recent,
-    exists(
-      db
-        .select({ one: sql`1` })
-        .from(userSource)
-        .where(and(eq(userSource.sourceId, contentItem.sourceId), eq(userSource.userId, userId), eq(userSource.blocked, false))),
-    ),
-  );
-  const discovered = exists(
-    db
-      .select({ one: sql`1` })
-      .from(userDiscovery)
-      .innerJoin(sql`${contentItem} as found`, sql`found.id = ${userDiscovery.itemId}`)
-      .where(
-        and(
-          eq(userDiscovery.userId, userId),
-          sql`(found.id = ${contentItem.id} or found.duplicate_of_id = ${contentItem.id})`,
-          gt(userDiscovery.foundAt, sql`now() - make_interval(days => ${DISCOVERED_CANDIDATE_DAYS})`),
-        ),
-      ),
-  );
-  const trustedFeed = and(
-    recent,
-    eq(publisher.origin, "discovered"),
-    eq(publisher.status, "trusted"),
-    exists(
-      db
-        .select({ one: sql`1` })
-        .from(userDiscovery)
-        .innerJoin(sql`${contentItem} as found`, sql`found.id = ${userDiscovery.itemId}`)
-        .where(and(eq(userDiscovery.userId, userId), sql`found.publisher_id = ${contentItem.publisherId}`)),
-    ),
-  );
+  const steps: LetterCollection["steps"] = [...(prior?.steps ?? [])];
+  const done: CollectionStep[] = [];
+  let ids: string[] = [];
+  let shared: string[] = [];
+  const record = (): LetterCollection => ({
+    wanted,
+    steps,
+    candidates: ids.length,
+    shared,
+    heldForDiscovery: prior?.heldForDiscovery ?? false,
+    discovery,
+  });
 
-  const rows = await db
-    .select({ id: contentItem.id })
-    .from(contentItem)
-    .innerJoin(publisher, eq(publisher.id, contentItem.publisherId))
-    .where(
-      and(
-        or(followed, discovered, trustedFeed),
-        inArray(contentItem.status, ["extracted", "enriched"]),
-        sql`${contentItem.duplicateOfId} is null`,
-        sql`${contentItem.title} is not null`,
-        sql`coalesce(${contentItem.qualityLabel}, 'substantive') not in ('thin', 'seo_filler')`,
-        ne(publisher.status, "blocked"),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(userPublisher)
-            .where(and(eq(userPublisher.userId, userId), eq(userPublisher.publisherId, contentItem.publisherId), eq(userPublisher.blocked, true))),
-        ),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(userSource)
-            .where(and(eq(userSource.sourceId, contentItem.sourceId), eq(userSource.userId, userId), eq(userSource.blocked, true))),
-        ),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(letterItem)
-            .innerJoin(letter, eq(letter.id, letterItem.letterId))
-            .where(and(eq(letterItem.itemId, contentItem.id), eq(letter.userId, userId), ne(letter.id, current.id))),
-        ),
-        notExists(db.select({ one: sql`1` }).from(review).where(and(eq(review.itemId, contentItem.id), eq(review.userId, userId)))),
-      ),
-    )
-    // Newest first; a discovered page counts as new when it was found.
-    .orderBy(
-      sql`greatest(coalesce(${contentItem.publishedAt}, ${contentItem.createdAt}),
-        coalesce((select max(${userDiscovery.foundAt}) from ${userDiscovery} where ${userDiscovery.userId} = ${userId} and ${userDiscovery.itemId} = ${contentItem.id}), '-infinity'::timestamptz)) desc`,
-    )
-    .limit(MAX_CANDIDATES);
-
-  const candidates = [...new Set(rows.map((r) => r.id))];
-  if (!candidates.length) {
-    await finishLetter(deps, current.id, "collecting", "skipped_no_candidates", "no candidates");
-    return { status: "skipped_no_candidates" as const, candidates: 0 };
+  for (;;) {
+    const step = nextCollectionStep({ found: ids.length, wanted, done, discovery });
+    if (!step) break;
+    done.push(step);
+    const before = ids.length;
+    if (step === "own" || step === "widened") {
+      const window =
+        step === "own"
+          ? { followedDays: CANDIDATE_WINDOW_DAYS, discoveredDays: DISCOVERED_CANDIDATE_DAYS }
+          : { followedDays: WIDE_CANDIDATE_WINDOW_DAYS, discoveredDays: WIDE_CANDIDATE_WINDOW_DAYS };
+      const found = await ownCandidateIds(db, { userId, letterId: current.id, window, limit: MAX_CANDIDATES });
+      ids = [...new Set([...ids, ...found])];
+    } else if (step === "shared_pool") {
+      const pool = await sharedPoolRows(db, { userId, letterId: current.id, windowDays: WIDE_CANDIDATE_WINDOW_DAYS, limit: SHARED_POOL_SCAN, exclude: ids });
+      shared = sharedPoolMatches(pool.map(poolCandidate), ctx.rank, { now }).map((c) => c.itemId);
+      ids = [...ids, ...shared];
+    } else {
+      steps.push({ step, total: ids.length, added: 0 });
+      const held = await holdForDiscovery(deps, current, { ...record(), heldForDiscovery: true });
+      return held ? { status: "held_for_discovery" as const, candidates: ids.length } : { status: "stale" as const };
+    }
+    steps.push({ step, total: ids.length, added: ids.length - before });
   }
-  await completeStep(deps, current, "collecting", { candidates });
-  return { status: "collected" as const, candidates: candidates.length };
+
+  const collection = record();
+  if (!ids.length) {
+    const reason = shortReason({ wanted, pieces: 0, candidates: 0, discovery: collection.discovery });
+    const [row] = await db
+      .update(letter)
+      .set({ status: "skipped_no_candidates", failureReason: "no candidates", shortReason: reason, collection, watchdogAt: null })
+      .where(and(eq(letter.id, current.id), eq(letter.status, "collecting")))
+      .returning({ id: letter.id });
+    if (row) logger(deps)("letter_short", { letterId: current.id, reason });
+    return { status: "skipped_no_candidates" as const, candidates: 0, steps: steps.map((s) => s.step) };
+  }
+  await db.update(letter).set({ collection }).where(and(eq(letter.id, current.id), eq(letter.status, "collecting")));
+  await completeStep(deps, current, "collecting", { candidates: ids });
+  return { status: "collected" as const, candidates: ids.length, shared: shared.length, steps: steps.map((s) => s.step) };
+}
+
+function poolCandidate(r: PoolCandidateRow): RankCandidate {
+  return {
+    itemId: r.itemId,
+    kind: r.kind,
+    title: r.title,
+    tags: r.tags,
+    excerpt: r.excerpt,
+    publisherId: r.publisherId,
+    publisherName: r.publisherName,
+    authorKey: r.authorKey,
+    sourceMode: null,
+    publishedAt: r.publishedAt,
+    quality: r.quality,
+    depth: r.depth,
+    minutes: minutesOf({ type: r.kind, durationSeconds: r.durationSeconds, readTimeMinutes: r.readTimeMinutes }),
+    shared: true,
+  };
+}
+
+/**
+ * Whether discovery can still run for this letter. It ran if the letter was
+ * already held for it, or a run for its occurrence exists: the scheduled
+ * letter's run DISCOVERY_LEAD_HOURS ahead, the first or a test letter's run,
+ * or a Dev tools `dev#` run made with the letter.
+ */
+async function discoveryFor(deps: PipelineDeps, current: Letter): Promise<DiscoveryAvailability> {
+  if (current.collection?.heldForDiscovery) return "ran";
+  const occurrences = [current.occurrenceId];
+  if (current.occurrenceId.startsWith(TEST_LETTER_PREFIX)) occurrences.push(`${DEV_RUN_PREFIX}${current.occurrenceId.slice(TEST_LETTER_PREFIX.length)}`);
+  const runs = await deps.db
+    .select({ status: discoveryRun.status })
+    .from(discoveryRun)
+    .where(and(eq(discoveryRun.userId, current.userId), inArray(discoveryRun.occurrenceId, occurrences)));
+  // A run in any state counts: one still pending or running means the letter was held for it already
+  // and released (the watchdog's backstop), so it isn't held again.
+  if (runs.length) return "ran";
+  return deps.discovery ? "available" : "off";
+}
+
+/**
+ * Holds the letter for a discovery run of its own (letters/held.ts): back to
+ * `scheduled` with `awaiting_discovery`, at most HELD_LETTER_MAX_MINUTES, and
+ * a run with its occurrence ID (or the one already pending for it). Its
+ * collect attempt doesn't count against it.
+ */
+async function holdForDiscovery(deps: PipelineDeps, current: Letter, collection: LetterCollection): Promise<boolean> {
+  const out = await deps.db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(letter)
+      .set({
+        status: "scheduled",
+        awaitingDiscovery: true,
+        watchdogAt: sql`now() + make_interval(mins => ${HELD_LETTER_MAX_MINUTES})`,
+        stepAttempts: sql`${letter.stepAttempts} - 'collecting'`,
+        collection,
+      })
+      .where(and(eq(letter.id, current.id), eq(letter.status, "collecting")))
+      .returning({ id: letter.id });
+    if (!row) return null;
+    const [run] = await tx
+      .insert(discoveryRun)
+      .values({ userId: current.userId, occurrenceId: current.occurrenceId, letterDueAt: current.scheduledFor })
+      .onConflictDoNothing({ target: [discoveryRun.userId, discoveryRun.occurrenceId] })
+      .returning({ id: discoveryRun.id });
+    return { runId: run?.id ?? null };
+  });
+  if (!out) return false;
+  // If this send is lost, the letter sweep sends it again (startHeldDiscovery).
+  if (out.runId) await deps.queues.send("discover", { runId: out.runId });
+  logger(deps)("letter_held_for_discovery", { letterId: current.id, candidates: collection.candidates, wanted: collection.wanted });
+  return true;
 }
 
 // ── rank ────────────────────────────────────────────────────────────────────
@@ -221,6 +272,7 @@ async function rank(deps: PipelineDeps, current: Letter) {
         .where(inArray(contentItem.id, ids))
     : [];
 
+  const shared = new Set(current.collection?.shared ?? []);
   const byId = new Map<string, RankCandidate>();
   for (const r of rows) {
     const prev = byId.get(r.item.id);
@@ -241,11 +293,18 @@ async function rank(deps: PipelineDeps, current: Letter) {
       minutes: minutesOf(r.item),
       discoveredReason: r.discoveredReason,
       // Explore vs exploit (§6.3a.5) is for publishers discovery found and the user doesn't follow.
-      catalog: r.publisher.origin === "discovered" && !r.mode ? { status: r.publisher.status, ...publisherEvidence(r.publisher) } : null,
+      // A shared-pool item was found for someone else: it competes on fit alone, never for the exploration slot.
+      catalog:
+        r.publisher.origin === "discovered" && !r.mode && !shared.has(r.item.id) ? { status: r.publisher.status, ...publisherEvidence(r.publisher) } : null,
+      shared: shared.has(r.item.id),
     });
   }
 
-  const { picks, reserve } = rankCandidates([...byId.values()], ctx.rank, { now: deps.now?.() ?? new Date(), count: ctx.itemCount });
+  const { picks, reserve } = rankCandidates([...byId.values()], ctx.rank, {
+    now: deps.now?.() ?? new Date(),
+    count: ctx.itemCount,
+    reserve: RANKED_RESERVE,
+  });
   const ranked: RankedEntry[] = [...picks, ...reserve].map(toEntry);
   await completeStep(deps, current, "ranking", { ranked, pickCount: picks.length });
   return { status: "ranked" as const, picks: picks.length, reserve: reserve.length };
@@ -416,13 +475,39 @@ async function verifyAndLock(deps: PipelineDeps, current: Letter) {
     }
   }
 
-  // Final set: picks that pass, then substitutes from the reserve.
+  // Final set: picks that pass, then substitutes from the reserve, until the letter has its pieces.
+  // A substitute the writer didn't see gets its passages loaded now, and copy from its own words.
   const scored = ranked.map((r) => ({ itemId: r.itemId, score: r.score, topic: r.topic, signals: [], publisherId: "" }) as ScoredCandidate);
   const publisherOf = await publishersOf(deps, ranked.map((r) => r.itemId));
   for (const s of scored) s.publisherId = publisherOf.get(s.itemId) ?? s.itemId;
   const reserve = scored.slice(pickCount);
   const kept: ScoredCandidate[] = [];
   const tried = new Set<string>();
+  const extraPieces: WriterPiece[] = [];
+  const pieceFor = async (ref: string) => {
+    if (pieceById.has(ref)) return pieceById.get(ref)!;
+    const entry = ranked.find((r) => r.itemId === ref);
+    const [piece] = entry ? await writerPieces(deps, current.userId, [entry], ctx) : [];
+    if (piece) {
+      pieceById.set(ref, piece);
+      extraPieces.push(piece);
+    }
+    return piece ?? null;
+  };
+  const substitute = async () => {
+    for (;;) {
+      const sub = nextSubstitute(reserve, kept, tried);
+      if (!sub) return false;
+      tried.add(sub.itemId);
+      const piece = await pieceFor(sub.itemId);
+      if (!piece) continue;
+      // A reserve piece without passing model copy gets copy from its own words, which always verifies.
+      if (check(sub.itemId).length) drafts[sub.itemId] = fallbackPieceCopy(piece);
+      if (check(sub.itemId).length) continue;
+      kept.push(sub);
+      return true;
+    }
+  };
   for (const ref of picks) {
     tried.add(ref);
     const reasons = check(ref);
@@ -431,21 +516,23 @@ async function verifyAndLock(deps: PipelineDeps, current: Letter) {
       continue;
     }
     generation.rejected.push({ itemId: ref, reasons });
-    for (;;) {
-      const sub = nextSubstitute(reserve, kept, tried);
-      if (!sub) break;
-      tried.add(sub.itemId);
-      const piece = pieceById.get(sub.itemId);
-      if (!piece) continue;
-      // A reserve piece without passing model copy gets copy from its own words, which always verifies.
-      if (check(sub.itemId).length) drafts[sub.itemId] = fallbackPieceCopy(piece);
-      if (check(sub.itemId).length) continue;
-      kept.push(sub);
-      break;
-    }
+    await substitute();
   }
+  // Ranking had too few picks, or substitutes ran out above: further down the ranking before going short.
+  while (kept.length < ctx.itemCount && (await substitute()));
 
   const short = kept.length < ctx.itemCount;
+  const collection = current.collection ? { ...current.collection, extraSubstitutes: extraPieces.length } : null;
+  const reason = short
+    ? shortReason({
+        wanted: ctx.itemCount,
+        pieces: kept.length,
+        candidates: current.collection?.candidates ?? ranked.length,
+        discovery: current.collection?.discovery ?? "available",
+        rejected: generation.rejected.length,
+      })
+    : null;
+  if (reason) log("letter_short", { letterId: current.id, reason });
   const verification = {
     passed: kept.map((k) => k.publisherId),
     failed: generation.rejected.map((r) => publisherOf.get(r.itemId)).filter((id): id is string => !!id),
@@ -454,7 +541,14 @@ async function verifyAndLock(deps: PipelineDeps, current: Letter) {
     await db.transaction(async (tx) => {
       const [row] = await tx
         .update(letter)
-        .set({ status: "skipped_no_candidates", failureReason: kept.length ? "short letter skipped by policy" : "nothing passed verification", generationMeta: generation, watchdogAt: null })
+        .set({
+          status: "skipped_no_candidates",
+          failureReason: kept.length ? "short letter skipped by policy" : "nothing passed verification",
+          shortReason: reason,
+          collection,
+          generationMeta: generation,
+          watchdogAt: null,
+        })
         .where(and(eq(letter.id, current.id), eq(letter.status, "verifying")))
         .returning({ id: letter.id });
       if (row) await recordVerification(tx, verification);
@@ -466,14 +560,17 @@ async function verifyAndLock(deps: PipelineDeps, current: Letter) {
     kept,
     drafts,
     pieceById,
+    extraPieces,
     generation,
     short,
+    shortReason: reason,
+    collection,
     ctx,
     brief,
     unchanged: kept.length === picks.length && kept.every((k, i) => k.itemId === picks[i]),
     verification,
   });
-  return { status: "ready" as const, pieces: kept.length, short, rejected: generation.rejected.length };
+  return { status: "ready" as const, pieces: kept.length, short, rejected: generation.rejected.length, extraSubstitutes: extraPieces.length };
 }
 
 /**
@@ -504,8 +601,11 @@ async function lock(
     kept,
     drafts,
     pieceById,
+    extraPieces,
     generation,
     short,
+    shortReason,
+    collection,
     ctx,
     brief,
     unchanged,
@@ -514,8 +614,11 @@ async function lock(
     kept: ScoredCandidate[];
     drafts: Record<string, PieceCopy>;
     pieceById: Map<string, WriterPiece>;
+    extraPieces: WriterPiece[];
     generation: GenerationMeta;
     short: boolean;
+    shortReason: string | null;
+    collection: LetterCollection | null;
     ctx: UserContext;
     brief: WriterBrief;
     unchanged: boolean;
@@ -624,8 +727,17 @@ async function lock(
         whyThisMix: mix,
         leanings,
         short,
+        shortReason,
+        collection,
         generationMeta: generation,
-        work: { ...current.work, drafts: Object.fromEntries(Object.entries(drafts).map(([k, { ref: _, ...d }]) => [k, d])) },
+        work: {
+          ...current.work,
+          drafts: Object.fromEntries(Object.entries(drafts).map(([k, { ref: _, ...d }]) => [k, d])),
+          // Substitutes loaded at verification join what the writer was given, so the letter can be reproduced.
+          ...(extraPieces.length && current.work.writer
+            ? { writer: { ...current.work.writer, pieces: [...current.work.writer.pieces, ...(extraPieces as unknown as Record<string, unknown>[])] } }
+            : {}),
+        },
         watchdogAt: null,
         // A test letter goes out as soon as it's ready.
         scheduledFor: current.isTest ? sql`least(${letter.scheduledFor}, now())` : letter.scheduledFor,

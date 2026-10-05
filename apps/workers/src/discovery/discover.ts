@@ -16,7 +16,7 @@ import {
 import { type Db, schema } from "@fs/db";
 import type { DiscoveryResult } from "@fs/db/schema";
 import { canonicalizeUrl, publisherKeyForUrl } from "@fs/ingest";
-import { and, eq, gt, isNotNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { loadUserContext } from "../letters/context.ts";
 import { failHeldRun, releaseHeldLetters, runHoldsLetter } from "../letters/held.ts";
 import { ASSEMBLY_LEAD_MINUTES } from "../letters/sweep.ts";
@@ -165,6 +165,7 @@ async function runDiscovery(deps: PipelineDeps, discovery: Discovery, run: Run) 
     promptVersion = "fallback-v1";
   }
 
+  // A query whose search failed found nothing because it never ran, so it doesn't count as run (or stale).
   const history = await db
     .select({ normalizedQuery: discoveryQuery.normalizedQuery, ranAt: discoveryQuery.ranAt, acceptedCount: discoveryQuery.acceptedCount })
     .from(discoveryQuery)
@@ -172,14 +173,12 @@ async function runDiscovery(deps: PipelineDeps, discovery: Discovery, run: Run) 
       and(
         eq(discoveryQuery.userId, run.userId),
         isNotNull(discoveryQuery.ranAt),
+        ne(discoveryQuery.status, "failed"),
         gt(discoveryQuery.ranAt, sql`now() - make_interval(days => ${STALE_QUERY_DAYS})`),
       ),
     );
-  const decisions = selectQueries(
-    generated,
-    history.map((h) => ({ normalizedQuery: h.normalizedQuery, ranAt: h.ranAt!, acceptedCount: h.acceptedCount ?? 0 })),
-    { now },
-  );
+  const past = history.map((h) => ({ normalizedQuery: h.normalizedQuery, ranAt: h.ranAt!, acceptedCount: h.acceptedCount ?? 0 }));
+  const decisions = selectQueries(generated, past, { now });
 
   // Every generated query is logged, including the skipped ones.
   const queryRows = decisions.length

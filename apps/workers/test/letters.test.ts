@@ -15,13 +15,17 @@ import type { PipelineDeps } from "../src/pipeline/deps.ts";
 import { dispatch } from "../src/pipeline/dispatch.ts";
 import { sweep } from "../src/pipeline/sweep.ts";
 
-const { author, contentItem, contentVersion, letter, letterItem, profile, publisher, review, schedule, source, topicWeight, user, userSource } = schema;
+const { author, contentItem, contentVersion, letter, letterItem, profile, publisher, review, schedule, source, topicWeight, user, userDiscovery, userSource } =
+  schema;
 
 const { db, pool } = createDb({ connectionString: process.env.TEST_DATABASE_URL!, ssl: false });
 afterAll(() => pool.end());
 
 // Earlier tests' schedules and sources stay in the shared database; keep them out of the way.
 beforeEach(async () => {
+  // Earlier tests' discoveries and trusted publishers would be this test's shared pool (letter-supply.ts); clear them.
+  await db.execute(sql`delete from user_discovery`);
+  await db.execute(sql`update publisher set status = 'candidate' where status = 'trusted'`);
   await db.update(schedule).set({ nextRunAt: null });
   await db.update(source).set({ nextFetchAt: null });
   await db.update(letter).set({ watchdogAt: null }).where(sql`${letter.status} in ('scheduled', 'collecting', 'ranking', 'generating', 'verifying')`);
@@ -439,8 +443,127 @@ describe("verify", () => {
     const [s] = await lettersOf(shorten);
     expect(s).toMatchObject({ status: "short_sent", short: true });
     expect(await itemsOf(s!.id)).toHaveLength(2);
+    // Only after every step that could find more, and with the reason recorded.
+    expect(s!.collection).toMatchObject({
+      wanted: 3,
+      steps: [
+        { step: "own", total: 2, added: 2 },
+        { step: "widened", total: 2, added: 0 },
+        { step: "shared_pool", total: 2, added: 0 },
+      ],
+      candidates: 2,
+      heldForDiscovery: false,
+      discovery: "off",
+    });
+    expect(s!.shortReason).toBe(
+      "2 of 3 pieces: 2 usable candidates after own sources, a 180-day window and the shared pool; discovery is off",
+    );
     const [k] = await lettersOf(skip);
     expect(k).toMatchObject({ status: "skipped_no_candidates", failureReason: "short letter skipped by policy" });
+    expect(k!.shortReason).toMatch(/^1 of 3 pieces: /);
+  });
+});
+
+// ── At least three pieces (§6.2) ────────────────────────────────────────────
+
+describe("at least three pieces", () => {
+  it("widens the window for followed sources when the usual one has too few", async () => {
+    const w = createWorld();
+    const userId = await newUser();
+    const recent = [
+      await seedArticle(w, userId, "wide-a.test", { title: "Pricing one" }),
+      await seedArticle(w, userId, "wide-b.test", { title: "Hiring two", topic: "hiring" }),
+    ];
+    const older = await seedArticle(w, userId, "wide-c.test", { title: "Pricing from last spring", daysOld: 100 });
+    // Older than even the wide window: still left out.
+    const ancient = await seedArticle(w, userId, "wide-d.test", { title: "Pricing long ago", daysOld: 400 });
+    await insertTestLetter(userId);
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+
+    const [l] = await lettersOf(userId);
+    expect(l).toMatchObject({ status: "sent", short: false, shortReason: null });
+    const ids = (await itemsOf(l!.id)).map((i) => i.itemId);
+    expect(ids.sort()).toEqual([...recent.map((r) => r.id), older.id].sort());
+    expect(ids).not.toContain(ancient.id);
+    expect(l!.collection!.steps.map((x) => [x.step, x.total])).toEqual([
+      ["own", 2],
+      ["widened", 3],
+      ["shared_pool", 3],
+    ]);
+  });
+
+  it("makes up the letter from the shared pool: good items found for others that match the brief, below the user's own", async () => {
+    const w = createWorld();
+    const userId = await newUser({ topics: ["pricing"] });
+    const own = await seedArticle(w, userId, "pool-own.test", { title: "Pricing your first deal", daysOld: 20 });
+    // Pages another user's discovery found.
+    const other = await newUser();
+    const found = async (site: string, title: string, over: Partial<typeof contentItem.$inferInsert> = {}, topic = "pricing") => {
+      const item = await seedArticle(w, other, site, { title, topic, daysOld: 0 });
+      if (Object.keys(over).length) await db.update(contentItem).set(over).where(eq(contentItem.id, item.id));
+      await db.insert(userDiscovery).values({ userId: other, itemId: item.id, reason: "for them" });
+      return item;
+    };
+    const p1 = await found("pool-1.test", "Pricing pages that convert");
+    const p2 = await found("pool-2.test", "Pricing a productized service", { qualityLabel: "substantive" });
+    const offTopic = await found("pool-3.test", "Gardening in autumn", {}, "gardening");
+    const thin = await found("pool-4.test", "Pricing tips", { qualityLabel: "thin" });
+    const rewritten = await found("pool-5.test", "Pricing secrets", { qualityLabel: "rewritten" });
+    await insertTestLetter(userId);
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+
+    const [l] = await lettersOf(userId);
+    expect(l).toMatchObject({ status: "sent", short: false });
+    const items = await itemsOf(l!.id);
+    expect(items.map((i) => i.itemId).sort()).toEqual([own.id, p1.id, p2.id].sort());
+    // Though older, the user's own piece leads: shared-pool items carry a penalty.
+    expect(items[0]!.itemId).toBe(own.id);
+    expect(l!.collection!.shared.sort()).toEqual([p1.id, p2.id].sort());
+    for (const out of [offTopic, thin, rewritten]) expect(l!.collection!.shared).not.toContain(out.id);
+    expect(l!.collection!.steps.map((x) => x.step)).toEqual(["own", "widened", "shared_pool"]);
+    expect(l!.collection!.steps.at(-1)).toMatchObject({ total: 3, added: 2 });
+  });
+
+  it("takes further substitutes, loaded at verification, before letting a letter go short", async () => {
+    const userId = await newUser();
+    const probe = createWorld();
+    // Three picks whose copy never verifies, three reserve pieces with nothing to write from (the writer
+    // gets those six), and three more further down the ranking.
+    const picks = [
+      await seedArticle(probe, userId, "sub-a.test", { title: "Pricing A", daysOld: 0 }),
+      await seedArticle(probe, userId, "sub-b.test", { title: "Hiring B", topic: "hiring", daysOld: 0 }),
+      await seedArticle(probe, userId, "sub-c.test", { title: "Pricing C", daysOld: 0 }),
+    ];
+    for (const site of ["sub-d", "sub-e", "sub-f"]) {
+      const empty = await seedArticle(probe, userId, `${site}.test`, { title: `Pricing ${site}`, daysOld: 2 });
+      await db.delete(contentVersion).where(eq(contentVersion.itemId, empty.id));
+    }
+    const later = [
+      await seedArticle(probe, userId, "sub-g.test", { title: "Pricing G", daysOld: 6 }),
+      await seedArticle(probe, userId, "sub-h.test", { title: "Pricing H", daysOld: 7 }),
+      await seedArticle(probe, userId, "sub-i.test", { title: "Pricing I", daysOld: 8 }),
+    ];
+    const { writer } = fakeWriter({ bad: new Set(picks.map((p) => p.id)) });
+    const w = { ...probe, deps: { ...probe.deps, letterWriter: writer } };
+    await insertTestLetter(userId);
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+
+    const [l] = await lettersOf(userId);
+    expect(l).toMatchObject({ status: "sent", short: false, shortReason: null });
+    expect(l!.generationMeta!.rejected.map((r) => r.itemId).sort()).toEqual(picks.map((p) => p.id).sort());
+    expect((await itemsOf(l!.id)).map((i) => i.itemId).sort()).toEqual(later.map((p) => p.id).sort());
+    expect(l!.collection!.extraSubstitutes).toBe(3);
+    // What they were written from is kept with the letter.
+    expect((l!.work.writer!.pieces as { ref: string }[]).map((p) => p.ref)).toEqual(expect.arrayContaining(later.map((p) => p.id)));
+  });
+
+  it("never plans fewer than three pieces", async () => {
+    const userId = await newUser();
+    await expect(addSchedule(userId, null, { itemCount: 2 })).rejects.toThrow();
+    await addSchedule(userId, null, { itemCount: 3 });
   });
 });
 

@@ -60,6 +60,14 @@ database within seconds. A new user follows nothing, so their first letter
 searches the web first (`DISCOVERY`, a few minutes with the CLI); with
 `DISCOVERY=none` it starts at once and only uses followed sources.
 
+Every letter aims for at least three pieces. When the usual candidates run
+short, collection widens the window to 180 days, then uses a shared pool of
+good pages found for other users that match your topics, then (once per
+letter) holds the letter for a discovery run of its own. Only then does it go
+out short, and `letter.short_reason` says why. Dev tools (`GET /dev/state`)
+shows each letter's `collection` steps and `shortReason`
+(build plan §6.2, "Every letter has at least three pieces").
+
 The app finds the API on the machine running the Expo dev server (port 8787),
 so a phone on the same network works without configuration. Release builds set
 `EXPO_PUBLIC_API_URL`.

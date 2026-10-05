@@ -16,6 +16,9 @@ afterAll(() => pool.end());
 
 // Other files' sources and letters stay in the shared database; keep them out of the way.
 beforeEach(async () => {
+  // Earlier tests' discoveries and trusted publishers would be this test's shared pool (letter-supply.ts); clear them.
+  await db.execute(sql`delete from user_discovery`);
+  await db.execute(sql`update publisher set status = 'candidate' where status = 'trusted'`);
   await db.update(source).set({ nextFetchAt: null });
   await db.update(letter).set({ watchdogAt: null }).where(sql`${letter.status} in ('scheduled', 'collecting', 'ranking', 'generating', 'verifying')`);
   await db.update(discoveryRun).set({ status: "done" }).where(eq(discoveryRun.status, "pending"));

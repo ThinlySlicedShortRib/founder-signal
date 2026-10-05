@@ -55,6 +55,8 @@ export const RANKING_WEIGHTS = {
   publisherRecord: 1,
   /** × 1/√(1 + evidence) for a discovered publisher still on candidate or trial. */
   exploration: 1,
+  /** From the shared pool (letter-supply.ts): found for someone else, so the user's own sources win. */
+  sharedPool: -1,
 } as const;
 
 /**
@@ -65,7 +67,7 @@ export const RANKING_WEIGHTS = {
 export const EXPLORATION_MIN_FIT = 1;
 
 /** Signals about how new or unproven a piece is, rather than how well it fits the user. */
-const NOT_FIT: ReadonlySet<PickSignal["kind"]> = new Set(["recency", "discovered", "publisher_record", "exploration"]);
+const NOT_FIT: ReadonlySet<PickSignal["kind"]> = new Set(["recency", "discovered", "publisher_record", "exploration", "shared_pool"]);
 
 /** A scored piece's fit to the user: its score without recency and the discovery bonuses. */
 export function fitScore(s: Pick<ScoredCandidate, "signals">): number {
@@ -96,6 +98,8 @@ export interface RankCandidate {
   discoveredReason?: string | null;
   /** The publisher's catalog standing, for publishers discovery found (§6.3a); null for ones the user added. */
   catalog?: { status: PublisherStatus; good: number; bad: number } | null;
+  /** From the shared pool (letter-supply.ts) rather than the user's own sources or discoveries. */
+  shared?: boolean;
 }
 
 export interface RankReview {
@@ -135,7 +139,8 @@ export interface PickSignal {
     | "format"
     | "discovered"
     | "publisher_record"
-    | "exploration";
+    | "exploration"
+    | "shared_pool";
   weight: number;
   detail: string | null;
 }
@@ -266,6 +271,8 @@ export function scoreCandidate(c: RankCandidate, profile: RankProfile, now: Date
     if (isExploratory(c)) add("exploration", W.exploration / Math.sqrt(1 + good + bad), c.publisherName);
   }
 
+  if (c.shared) add("shared_pool", W.sharedPool);
+
   const score = round(signals.reduce((s, x) => s + x.weight, 0));
   signals.sort((a, b) => b.weight - a.weight);
   const fallbackTopic = c.tags[0] ?? textTopics[0] ?? (c.kind === "video" ? "Video" : "Reading");
@@ -279,8 +286,9 @@ export interface RankResult {
 }
 
 /**
- * Scores every candidate and picks `count` greedily: at most one per
- * publisher, and a new topic each time while one is available. With room for
+ * Scores every candidate and picks `count` greedily: one per publisher and
+ * a new topic each time while that's possible, then a repeated publisher
+ * rather than a short letter (§6.2: at least MIN_PIECES). With room for
  * two or more, the first pick is the exploration slot: the best piece from an
  * unproven discovered publisher, if one fits at least EXPLORATION_MIN_FIT.
  * Ties break on item ID so ranking is deterministic.
@@ -317,16 +325,21 @@ export function rankCandidates(
     if (picks.length >= count) break;
     if (!picks.includes(s) && !publishers.has(s.publisherId)) take(s);
   }
+  for (const s of scored) {
+    if (picks.length >= count) break;
+    if (!picks.includes(s)) take(s);
+  }
   // Keep picks in score order.
   picks.sort((a, b) => b.score - a.score || (a.itemId < b.itemId ? -1 : 1));
   return { picks, reserve: scored.filter((s) => !picks.includes(s)).slice(0, reserve) };
 }
 
 /**
- * Picks a substitute from the reserve for a piece that failed verification,
- * keeping the one-per-publisher rule against the pieces still in the letter.
+ * Picks a substitute from the reserve for a piece that failed verification:
+ * the best untried one from a publisher not already in the letter, or else
+ * the best untried one (a repeated publisher beats a short letter).
  */
 export function nextSubstitute(reserve: ScoredCandidate[], kept: { publisherId: string }[], tried: ReadonlySet<string>): ScoredCandidate | null {
   const used = new Set(kept.map((k) => k.publisherId));
-  return reserve.find((r) => !tried.has(r.itemId) && !used.has(r.publisherId)) ?? null;
+  return reserve.find((r) => !tried.has(r.itemId) && !used.has(r.publisherId)) ?? reserve.find((r) => !tried.has(r.itemId)) ?? null;
 }

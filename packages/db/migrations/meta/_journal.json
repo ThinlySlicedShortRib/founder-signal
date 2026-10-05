@@ -71,6 +71,13 @@
       "when": 1791178997225,
       "tag": "0010_piece_icon",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791181532865,
+      "tag": "0011_letter_collection",
+      "breakpoints": true
     }
   ]
 }

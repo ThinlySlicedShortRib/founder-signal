@@ -161,15 +161,27 @@ describe("scoreCandidate", () => {
 describe("rankCandidates", () => {
   const p = profile({ topics: [{ topic: "pricing", weight: 1 }, { topic: "hiring", weight: 1 }] });
 
-  it("takes at most one piece per publisher", () => {
+  it("takes one piece per publisher while there are enough publishers", () => {
+    const c = [
+      candidate({ itemId: "a1", publisherId: "A", title: "Pricing one" }),
+      candidate({ itemId: "a2", publisherId: "A", title: "Pricing two" }),
+      candidate({ itemId: "b1", publisherId: "B", title: "Something else" }),
+      candidate({ itemId: "c1", publisherId: "C", title: "Hiring notes" }),
+    ];
+    const { picks, reserve } = rankCandidates(c, p, { now: NOW, count: 3 });
+    expect(picks.map((x) => x.itemId).sort()).toEqual(["a1", "b1", "c1"]);
+    expect(reserve.map((x) => x.itemId)).toEqual(["a2"]);
+  });
+
+  it("repeats a publisher rather than send a short letter", () => {
     const c = [
       candidate({ itemId: "a1", publisherId: "A", title: "Pricing one" }),
       candidate({ itemId: "a2", publisherId: "A", title: "Pricing two" }),
       candidate({ itemId: "b1", publisherId: "B", title: "Something else" }),
     ];
     const { picks, reserve } = rankCandidates(c, p, { now: NOW, count: 3 });
-    expect(picks.map((x) => x.itemId).sort()).toEqual(["a1", "b1"]);
-    expect(reserve.map((x) => x.itemId)).toEqual(["a2"]);
+    expect(picks.map((x) => x.itemId).sort()).toEqual(["a1", "a2", "b1"]);
+    expect(reserve).toEqual([]);
   });
 
   it("prefers topic diversity while there's a choice", () => {
@@ -182,7 +194,7 @@ describe("rankCandidates", () => {
     expect(picks.map((x) => x.topic).sort()).toEqual(["Hiring", "Pricing"]);
   });
 
-  it("fills with repeated topics when diversity runs out", () => {
+  it("fills with repeated topics when diversity runs out, and is short only when candidates are", () => {
     const c = [candidate({ itemId: "p1", title: "Pricing A" }), candidate({ itemId: "p2", title: "Pricing B" })];
     expect(rankCandidates(c, p, { now: NOW, count: 3 }).picks).toHaveLength(2);
   });
@@ -195,13 +207,25 @@ describe("rankCandidates", () => {
     expect(two).toEqual(one);
   });
 
-  it("finds a substitute that keeps publishers distinct", () => {
+  it("finds a substitute that keeps publishers distinct, else repeats one", () => {
     const reserve = [
       { itemId: "r1", score: 3, topic: "X", publisherId: "A", signals: [] },
       { itemId: "r2", score: 2, topic: "Y", publisherId: "B", signals: [] },
     ];
     expect(nextSubstitute(reserve, [{ publisherId: "A" }], new Set())?.itemId).toBe("r2");
-    expect(nextSubstitute(reserve, [{ publisherId: "A" }], new Set(["r2"]))).toBeNull();
+    expect(nextSubstitute(reserve, [{ publisherId: "A" }], new Set(["r2"]))?.itemId).toBe("r1");
+    expect(nextSubstitute(reserve, [{ publisherId: "A" }], new Set(["r1", "r2"]))).toBeNull();
+  });
+
+  it("ranks shared-pool items below the user's own, all else equal", () => {
+    const c = [
+      candidate({ itemId: "own", publisherId: "A", title: "Pricing one" }),
+      candidate({ itemId: "pool", publisherId: "B", title: "Pricing one", shared: true }),
+    ];
+    const s = scoreCandidate(c[1]!, p, NOW);
+    expect(s.signals).toContainEqual({ kind: "shared_pool", weight: -1, detail: null });
+    const { picks } = rankCandidates(c, p, { now: NOW, count: 1 });
+    expect(picks.map((x) => x.itemId)).toEqual(["own"]);
   });
 });
 

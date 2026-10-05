@@ -292,6 +292,9 @@ async function loadDevState(db: Db, user: { id: string; email: string }): Promis
         deliveredAt: letter.deliveredAt,
         failureReason: letter.failureReason,
         generation: letter.generationMeta,
+        awaitingDiscovery: letter.awaitingDiscovery,
+        collection: letter.collection,
+        shortReason: letter.shortReason,
         // Spelled out: Drizzle leaves columns unqualified in a single-table select, which a subquery would misread.
         pieceCount: sql<number>`(select count(*)::int from letter_item li where li.letter_id = "letter"."id")`,
       })
@@ -372,7 +375,18 @@ async function loadDevState(db: Db, user: { id: string; email: string }): Promis
     failureReason: l.failureReason,
     pieceCount: l.pieceCount,
     generation: l.generation ? { method: l.generation.method, model: l.generation.model } : null,
-    waitingOnDiscovery: l.status === "scheduled" && !l.watchdogAt && l.occurrenceId.startsWith(TEST_LETTER_PREFIX),
+    waitingOnDiscovery: l.status === "scheduled" && (l.awaitingDiscovery || (!l.watchdogAt && l.occurrenceId.startsWith(TEST_LETTER_PREFIX))),
+    collection: l.collection
+      ? {
+          wanted: l.collection.wanted,
+          steps: l.collection.steps,
+          candidates: l.collection.candidates,
+          shared: l.collection.shared.length,
+          heldForDiscovery: l.collection.heldForDiscovery,
+          extraSubstitutes: l.collection.extraSubstitutes ?? 0,
+        }
+      : null,
+    shortReason: l.shortReason,
   }));
 
   const n = counts.rows[0]!;

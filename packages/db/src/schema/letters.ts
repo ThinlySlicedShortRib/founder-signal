@@ -80,6 +80,28 @@ export interface LetterWork {
   writer?: { brief: Record<string, unknown>; pieces: Record<string, unknown>[] };
 }
 
+/**
+ * How a letter's candidates were collected (§6.2, "Every letter has at least
+ * three pieces"): the escalation steps that ran, in order, with the
+ * candidate count after each. A letter held for discovery and collected
+ * again lists both passes. Shown in Dev tools.
+ */
+export interface LetterCollection {
+  /** Pieces the letter was planned with (`piecesWanted`). */
+  wanted: number;
+  steps: { step: "own" | "widened" | "shared_pool" | "discovery"; total: number; added: number }[];
+  /** Candidates at the end. */
+  candidates: number;
+  /** Of those, items from the shared pool (ranked with a penalty). */
+  shared: string[];
+  /** It was held for a discovery run of its own (at most once). */
+  heldForDiscovery: boolean;
+  /** Whether discovery could still run when collection stopped: "available" (not needed), "ran" or "off". */
+  discovery: "available" | "ran" | "off";
+  /** Extra reserve pieces verification loaded (with copy from their own words) to stay at `wanted`. */
+  extraSubstitutes?: number;
+}
+
 export interface RankedEntry {
   itemId: string;
   score: number;
@@ -164,6 +186,10 @@ export const letter = pgTable(
      */
     awaitingDiscovery: boolean("awaiting_discovery").default(false).notNull(),
     failureReason: text("failure_reason"),
+    /** How its candidates were collected: the escalation steps that ran (`LetterCollection`). */
+    collection: jsonb("collection").$type<LetterCollection>(),
+    /** Why it has fewer pieces than planned (or none), when it does: what was tried, and what ran out. */
+    shortReason: text("short_reason"),
     /** "Tomorrow, more of": the options offered, and what the user picked (read by the next letter's rank step). */
     leanings: text("leanings").array().default([]).notNull(),
     chosenLeanings: text("chosen_leanings").array().default([]).notNull(),

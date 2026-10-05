@@ -18,6 +18,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { evaluatePublishers, refreshUserPublisherBlocks } from "../src/discovery/catalog.ts";
 import { discover, startDueDiscovery } from "../src/discovery/discover.ts";
 import { releaseHeldLetters } from "../src/letters/held.ts";
+import { dispatch } from "../src/pipeline/dispatch.ts";
 import { contentKeys, memoryContentStore } from "../src/lib/content-store.ts";
 import { drain } from "../src/lib/local.ts";
 import { memoryQueues } from "../src/lib/queues.ts";
@@ -49,6 +50,9 @@ afterAll(() => pool.end());
 
 // Earlier tests' schedules and sources stay in the shared database; keep them out of the way.
 beforeEach(async () => {
+  // Earlier tests' discoveries and trusted publishers would be this test's shared pool (letter-supply.ts); clear them.
+  await db.execute(sql`delete from user_discovery`);
+  await db.execute(sql`update publisher set status = 'candidate' where status = 'trusted'`);
   await db.update(schedule).set({ nextRunAt: null });
   await db.update(source).set({ nextFetchAt: null });
   await db
@@ -347,12 +351,14 @@ describe("discovery runs", () => {
 
   it("falls back to queries from the user's own topics when the generator fails, and records it", async () => {
     const w = createWorld({ queries: "fail" });
-    const userId = await newUser({ topics: ["pricing"], lately: null });
+    // A topic of its own, so no earlier test's search is cached for it.
+    const topic = uniq("pricing");
+    const userId = await newUser({ topics: [topic], lately: null });
     const { run } = await runDiscoveryNow(w, userId);
     const [r] = await runsOf(userId);
     expect(r).toMatchObject({ status: "done", queryMethod: "fallback", queryModel: null, queryPromptVersion: "fallback-v1" });
-    expect(w.searches.map((s) => s.query)).toEqual(["pricing first-hand lessons for a founder"]);
-    expect((await queriesOf(run.id))[0]).toMatchObject({ method: "fallback", origin: "topic", originDetail: "pricing" });
+    expect(w.searches.map((s) => s.query)).toEqual([`${topic} first-hand lessons for a founder`]);
+    expect((await queriesOf(run.id))[0]).toMatchObject({ method: "fallback", origin: "topic", originDetail: topic });
   });
 
   it("skips a user with nothing to search for", async () => {
@@ -534,6 +540,90 @@ describe("letters held for discovery", () => {
     await drain(w.deps, w.mq);
     // It went ahead with what there was (nothing, for a new user).
     expect((await letterRow(held.letter.id)).status).toBe("skipped_no_candidates");
+  });
+});
+
+describe("a letter short of candidates", () => {
+  /** A page of its own words (so it isn't a near-duplicate of another test's), on its own host. */
+  const uniquePage = (w: ReturnType<typeof createWorld>, title: string) => {
+    const url = `https://${site("found")}/posts/${randomUUID().slice(0, 8)}`;
+    const paragraphs = Array.from({ length: 6 }, () => `<p>${Array.from({ length: 40 }, () => randomUUID().slice(0, 6)).join(" ")}.</p>`).join("");
+    w.web.set(url, { body: `<!doctype html><html lang="en"><head><title>${title}</title></head><body><article><h1>${title}</h1>${paragraphs}</article></body></html>` });
+    return { url, title: null, reason: `About ${title.toLowerCase()}` };
+  };
+  const testLetter = async (userId: string) => {
+    const [l] = await db
+      .insert(letter)
+      .values({ userId, occurrenceId: `test#${randomUUID()}`, isTest: true, scheduledFor: new Date(), localDate: "2026-10-05", watchdogAt: new Date() })
+      .returning();
+    return l!;
+  };
+
+  it("is held for a discovery run of its own, then collected again with what it found", async () => {
+    const query = uniq("pricing case study");
+    const w = createWorld({ queries: [q(query)] });
+    const pages = ["Pricing our first contract", "Pricing for retention", "Raising prices without churn"].map((t) => uniquePage(w, t));
+    w.deps = { ...w.deps, discovery: { ...w.deps.discovery!, search: fakeSearch({ [query]: pages }).searcher } };
+    const userId = await newUser();
+    const l = await testLetter(userId);
+
+    // The watchdog starts it; collection finds nothing anywhere and holds it for discovery.
+    await sweepLetters(w.deps);
+    const message = w.mq.take()!;
+    expect(message.queue).toBe("letter-step");
+    await dispatch(w.deps, "letter-step", message.body as { letterId: string; expectedStatus: "scheduled" });
+    const held = await letterRow(l.id);
+    expect(held).toMatchObject({ status: "scheduled", awaitingDiscovery: true, stepAttempts: {} });
+    expect(held.collection).toMatchObject({ heldForDiscovery: true, candidates: 0, steps: [{ step: "own" }, { step: "widened" }, { step: "shared_pool" }, { step: "discovery" }] });
+    const [run] = await runsOf(userId);
+    expect(run).toMatchObject({ occurrenceId: l.occurrenceId, status: "pending" });
+    expect(queued(w)).toEqual(["discover"]);
+
+    // The run finds three pages; once they're extracted the letter goes out with them.
+    await drain(w.deps, w.mq);
+    const done = await letterRow(l.id);
+    expect(done).toMatchObject({ status: "sent", short: false, shortReason: null, awaitingDiscovery: false });
+    expect(await db.select().from(letterItem).where(eq(letterItem.letterId, l.id))).toHaveLength(3);
+    expect(done.collection!.steps.map((x) => x.step)).toEqual(["own", "widened", "shared_pool", "discovery", "own", "widened", "shared_pool"]);
+    expect(done.collection!.steps[4]).toMatchObject({ step: "own", total: 3, added: 3 });
+    expect(await runsOf(userId)).toHaveLength(1);
+  });
+
+  it("is held at most once, then goes short with the reason when discovery found too little", async () => {
+    const query = uniq("pricing essays");
+    const w = createWorld({ queries: [q(query)] });
+    w.deps = { ...w.deps, discovery: { ...w.deps.discovery!, search: fakeSearch({ [query]: [uniquePage(w, "Pricing alone")] }).searcher } };
+    const userId = await newUser();
+    const l = await testLetter(userId);
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+
+    const row = await letterRow(l.id);
+    expect(row).toMatchObject({ status: "short_sent", short: true });
+    expect(await db.select().from(letterItem).where(eq(letterItem.letterId, l.id))).toHaveLength(1);
+    expect(row.shortReason).toBe(
+      "1 of 3 pieces: 1 usable candidate after own sources, a 180-day window and the shared pool; discovery already ran for this letter",
+    );
+    expect(row.collection!.steps.filter((x) => x.step === "discovery")).toHaveLength(1);
+    expect(await runsOf(userId)).toHaveLength(1);
+  });
+
+  it("doesn't search again when its scheduled run already searched for it", async () => {
+    const w = createWorld({ queries: [q(uniq("nothing new"))] });
+    const userId = await newUser();
+    const occurrenceId = `2026-10-05#${randomUUID().slice(0, 4)}`;
+    await db.insert(discoveryRun).values({ userId, occurrenceId, letterDueAt: new Date(), status: "done" });
+    const [l] = await db
+      .insert(letter)
+      .values({ userId, occurrenceId, scheduledFor: new Date(), localDate: "2026-10-05", watchdogAt: new Date() })
+      .returning();
+    await sweepLetters(w.deps);
+    await drain(w.deps, w.mq);
+    const row = await letterRow(l!.id);
+    expect(row).toMatchObject({ status: "skipped_no_candidates", failureReason: "no candidates" });
+    expect(row.shortReason).toMatch(/discovery already ran for this letter$/);
+    expect(await runsOf(userId)).toHaveLength(1);
+    expect(w.searches).toEqual([]);
   });
 });
 
@@ -719,7 +809,12 @@ describe("publisher catalog", () => {
     const items = async (userId: string) =>
       db.select({ itemId: letterItem.itemId }).from(letterItem).innerJoin(letter, eq(letter.id, letterItem.letterId)).where(eq(letter.userId, userId));
     expect((await items(shown)).map((i) => i.itemId)).toEqual([fresh.id]);
-    expect(await items(notShown)).toEqual([]);
+    const own = await db.select({ collection: letter.collection }).from(letter).where(eq(letter.userId, shown));
+    expect(own[0]!.collection!.shared).toEqual([]);
+    // For anyone else it's only in the shared pool (a trusted publisher, matching their topics), used to make up the letter.
+    expect((await items(notShown)).map((i) => i.itemId)).toEqual([fresh.id]);
+    const other = await db.select({ collection: letter.collection }).from(letter).where(eq(letter.userId, notShown));
+    expect(other[0]!.collection!.shared).toEqual([fresh.id]);
   });
 
   it("blocks a publisher globally for repeated low quality, and its pages are no longer linked", async () => {

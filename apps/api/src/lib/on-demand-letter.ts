@@ -1,7 +1,7 @@
-import { CANDIDATE_WINDOW_DAYS, DISCOVERED_CANDIDATE_DAYS, HELD_LETTER_MAX_MINUTES, localDateOf } from "@fs/core";
-import { type Db, schema } from "@fs/db";
+import { HELD_LETTER_MAX_MINUTES, localDateOf, piecesWanted, SHARED_POOL_SCAN, sharedPoolMatches, WIDE_CANDIDATE_WINDOW_DAYS } from "@fs/core";
+import { type Db, loadPoolBrief, ownCandidateIds, schema, sharedPoolRows } from "@fs/db";
 import type { LetterProgress, LetterStage } from "@fs/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DiscoverQueue, LetterQueue } from "./letter-queue.ts";
 
 const { discoveryRun, letter, schedule } = schema;
@@ -94,31 +94,25 @@ export async function createOnDemandLetter(
 }
 
 /**
- * Whether there's already enough to make a letter from: at least the
- * schedule's item count of fresh, extracted pieces from followed sources or
- * recent discoveries that the user hasn't had or reviewed. A cheap version of
- * the collect step's rules (apps/workers/src/letters/steps.ts), used to decide
- * whether a test letter should search the web first.
+ * Whether there's already enough to make a letter from, by the collect
+ * step's rule (apps/workers/src/letters/steps.ts, @fs/core letter-supply.ts):
+ * at least `piecesWanted` usable candidates from the user's own sources and
+ * discoveries over the widened window, plus shared-pool items that match
+ * their brief. If not, the collect step would hold the letter for discovery
+ * anyway, so an on-demand letter discovers first.
  */
 export async function hasEnoughToPick(db: Db, userId: string): Promise<boolean> {
   const [s] = await db.select({ itemCount: schedule.itemCount }).from(schedule).where(eq(schedule.userId, userId));
-  const needed = s?.itemCount ?? 3;
-  const found = await db.execute<{ n: number }>(sql`
-    select count(*)::int as n from (
-      select ci.id from content_item ci
-      join publisher p on p.id = ci.publisher_id
-      where ci.status in ('extracted', 'enriched') and ci.duplicate_of_id is null and ci.title is not null
-        and coalesce(ci.quality_label, 'substantive') not in ('thin', 'seo_filler') and p.status <> 'blocked'
-        and (
-          (coalesce(ci.published_at, ci.created_at) > now() - make_interval(days => ${CANDIDATE_WINDOW_DAYS})
-            and exists (select 1 from user_source us where us.source_id = ci.source_id and us.user_id = ${userId} and not us.blocked))
-          or exists (select 1 from user_discovery ud where ud.item_id = ci.id and ud.user_id = ${userId}
-            and ud.found_at > now() - make_interval(days => ${DISCOVERED_CANDIDATE_DAYS})))
-        and not exists (select 1 from letter_item li join letter l on l.id = li.letter_id where li.item_id = ci.id and l.user_id = ${userId})
-        and not exists (select 1 from review r where r.item_id = ci.id and r.user_id = ${userId})
-      limit ${needed}
-    ) c`);
-  return (found.rows[0]?.n ?? 0) >= needed;
+  const wanted = piecesWanted(s?.itemCount);
+  const window = { followedDays: WIDE_CANDIDATE_WINDOW_DAYS, discoveredDays: WIDE_CANDIDATE_WINDOW_DAYS };
+  const own = await ownCandidateIds(db, { userId, window, limit: wanted });
+  if (own.length >= wanted) return true;
+  const [pool, brief] = await Promise.all([
+    sharedPoolRows(db, { userId, windowDays: WIDE_CANDIDATE_WINDOW_DAYS, limit: SHARED_POOL_SCAN, exclude: own }),
+    loadPoolBrief(db, userId),
+  ]);
+  const candidates = pool.map((r) => ({ ...r, sourceMode: null, minutes: r.readTimeMinutes, shared: true }));
+  return own.length + sharedPoolMatches(candidates, brief, { now: new Date(), max: wanted }).length >= wanted;
 }
 
 /** Where an on-demand letter has got to (see `letterStages`). */

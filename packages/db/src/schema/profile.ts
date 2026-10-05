@@ -1,4 +1,5 @@
-import { boolean, index, integer, jsonb, pgEnum, pgTable, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.ts";
 import { contentItem } from "./ingestion.ts";
 
@@ -108,13 +109,13 @@ export const schedule = pgTable(
     skipNext: boolean("skip_next").default(false).notNull(),
     /** When verification leaves fewer pieces than asked for: send a shorter letter, or skip it (§6.2). */
     shortLetterPolicy: text("short_letter_policy").default("shorten").notNull(),
-    /** Pieces per letter (open item #2: 3 by default). */
+    /** Pieces per letter (open item #2: 3 by default; never below MIN_PIECES = 3, @fs/core letter-supply.ts). */
     itemCount: integer("item_count").default(3).notNull(),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     version: integer("version").default(1).notNull(),
     ...timestamps,
   },
-  (t) => [index("schedule_next_run_at_idx").on(t.nextRunAt)],
+  (t) => [index("schedule_next_run_at_idx").on(t.nextRunAt), check("schedule_item_count_min", sql`${t.itemCount} >= 3`)],
 );
 
 /** A vote on an item, with reasons (build plan §5). One per user and item; edits overwrite. */

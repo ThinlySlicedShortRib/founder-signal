@@ -2,7 +2,42 @@
   "$schema": "https://raw.githubusercontent.com/servedev/servedev/main/schema/servedev.schema.json",
   "profiles": {
     "Founder signal": {
-      "servers": ["api", "mobile", "studio", "workers", "mobile-web"]
+      "servers": [
+        "api",
+        "mobile",
+        "studio",
+        "workers"
+      ]
+    }
+  },
+  "servers": {
+    "api": {
+      "command": "pnpm dev:api",
+      "port": 8787,
+      "ready": {
+        "url": "/health"
+      },
+      "setup": "docker compose up -d --wait postgres"
+    },
+    "workers": {
+      "command": "pnpm dev:workers",
+      "ready": "none",
+      "setup": "docker compose up -d --wait postgres"
+    },
+    "mobile": {
+      "command": "pnpm dev:mobile --lan --port 8081",
+      "port": 8081,
+      "ready": {
+        "log": "Waiting on|Metro waiting"
+      }
+    },
+    "studio": {
+      "command": "pnpm exec drizzle-kit studio --port {port}",
+      "cwd": "packages/db",
+      "port": 4983,
+      "ready": {
+        "log": "running|local\\.drizzle\\.studio"
+      }
     }
   }
 }

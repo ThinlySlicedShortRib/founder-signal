@@ -1,6 +1,7 @@
 import type { LetterPiece } from "@fs/schema";
+import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { type SharedValue, useAnimatedStyle, useReducedMotion } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { font, palette } from "@/components/onboarding/kit";
 import { PagerIcon } from "@/components/pager/icons";
@@ -10,15 +11,11 @@ import { AuthorChip } from "./Author";
 import { PhotoBackdrop } from "./Photo";
 import { ProgressBars } from "./ProgressBars";
 
-/** How much slower than the page the photo moves as it scrolls away. */
-const PARALLAX = 0.45;
-
 /**
- * One piece of the letter over its photo: the top of the piece's scroll, at
- * least a screen tall, with the article flowing on beneath it (the Reader's
- * `lead`). The photo scrolls at a little under half speed and stretches when
- * pulled down past the top; with Reduce Motion on it simply scrolls. Read
- * scrolls to the start of the article; on a video, the play button opens it.
+ * One piece of the letter over its photo, a fixed full-screen layer under the
+ * article's drawer (the Reader's `lead`). Dragging up anywhere on it, or
+ * tapping Read article, brings the drawer up; the Read and Skip row fades as
+ * it comes (`progress`). On a video, the play button opens it on YouTube.
  */
 export function PiecePage({
   piece,
@@ -27,7 +24,7 @@ export function PiecePage({
   page,
   pageCount,
   height,
-  scrollY,
+  progress,
   onRead,
   onPlay,
   onSkip,
@@ -38,10 +35,10 @@ export function PiecePage({
   pieceCount: number;
   page: number;
   pageCount: number;
-  /** The screen's height: the page is at least this tall. */
+  /** The screen's height. */
   height: number;
-  /** The piece's scroll offset, for the photo's parallax. */
-  scrollY: SharedValue<number>;
+  /** How far the article's drawer is open, 0 → 1. */
+  progress: SharedValue<number>;
   onRead: () => void;
   onPlay: () => void;
   onSkip: () => void;
@@ -49,26 +46,21 @@ export function PiecePage({
 }) {
   const insets = useSafeAreaInsets();
   const { space } = usePillSpace();
-  const reduceMotion = useReducedMotion();
   const video = piece.kind === "video";
   const len = `${piece.minutes} min`;
+  const label = video ? "Watch" : "Read article";
 
-  const photoStyle = useAnimatedStyle(() => {
-    const y = scrollY.get();
-    // Pulled down past the top: grow to cover the gap rather than show the ground above.
-    if (y < 0) return { transform: [{ translateY: y / 2 }, { scale: 1 - y / Math.max(1, height) }] };
-    return { transform: [{ translateY: reduceMotion ? 0 : Math.min(y, height) * PARALLAX }, { scale: 1 }] };
-  });
+  const actionsStyle = useAnimatedStyle(() => ({ opacity: 1 - Math.min(1, Math.max(0, progress.get() * 2.5)) }));
 
   return (
     <View
-      style={{ minHeight: height, overflow: "hidden" }}
-      accessibilityActions={[{ name: "activate", label: video ? "Watch" : "Read" }]}
+      style={{ height, overflow: "hidden" }}
+      accessibilityActions={[{ name: "activate", label }]}
       onAccessibilityAction={(e) => e.nativeEvent.actionName === "activate" && onRead()}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, photoStyle]}>
+      <View style={StyleSheet.absoluteFill}>
         <PhotoBackdrop image={piece.image} topic={piece.topic} variant="piece" />
-      </Animated.View>
+      </View>
 
       <View style={{ zIndex: 2, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: insets.top + 14, paddingHorizontal: 20, minHeight: 56 }}>
         <Mono color="rgba(255,255,255,0.92)">
@@ -113,24 +105,48 @@ export function PiecePage({
         <Text numberOfLines={4} style={{ fontFamily: font.body, fontSize: 18, lineHeight: 26, color: "rgba(255,255,255,0.92)" }}>
           {piece.summary}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Animated.View style={[{ flexDirection: "row", alignItems: "center", gap: 12 }, actionsStyle]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${video ? "Watch" : "Read"}, ${len}`}
-            accessibilityHint={video ? "Scrolls to the chapters" : "Scrolls to the start of the article"}
+            accessibilityLabel={label}
+            accessibilityHint={video ? "Opens the chapters" : "Opens the article"}
             onPress={onRead}
             style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 52, borderRadius: 999, backgroundColor: "#FFFFFF", paddingHorizontal: 20, opacity: pressed ? 0.88 : 1 })}
           >
-            <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: palette.ink }}>
-              {video ? "Watch" : "Read"} · {len}
-            </Text>
-            <PagerIcon name="down" size={18} color={palette.ink} />
+            <RisingDot />
+            <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: palette.ink }}>{label}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={onSkip} style={{ marginLeft: "auto", minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.body, fontSize: 14, color: "rgba(255,255,255,0.75)", textDecorationLine: "underline" }}>Skip this one</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
+    </View>
+  );
+}
+
+/**
+ * The hint to swipe up, in the Read button: a small blue dot that keeps rising (fades in over
+ * the first 15%, rises 11px by 65%, fades out by the end, every 1.6s). Still, 5px up, with Reduce Motion.
+ */
+function RisingDot() {
+  const reduceMotion = useReducedMotion();
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (reduceMotion) return;
+    t.set(withRepeat(withTiming(1, { duration: 1600, easing: Easing.bezier(0.4, 0, 0.2, 1) }), -1, false));
+    return () => cancelAnimation(t);
+  }, [reduceMotion, t]);
+  const style = useAnimatedStyle(() => {
+    if (reduceMotion) return { opacity: 1, transform: [{ translateY: -5 }] };
+    const p = t.get();
+    const opacity = p < 0.15 ? p / 0.15 : p < 0.65 ? 1 : 1 - (p - 0.65) / 0.35;
+    const rise = p < 0.65 ? 11 * (p / 0.65) : 11 + (p - 0.65) / 0.35;
+    return { opacity, transform: [{ translateY: -rise }] };
+  });
+  return (
+    <View aria-hidden style={{ width: 8, height: 18 }}>
+      <Animated.View style={[{ position: "absolute", left: 1, bottom: 0, width: 6, height: 6, borderRadius: 3, backgroundColor: palette.blue }, style]} />
     </View>
   );
 }

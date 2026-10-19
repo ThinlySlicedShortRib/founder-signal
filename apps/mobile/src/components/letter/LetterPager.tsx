@@ -32,6 +32,7 @@ export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "piece
     image: p.image,
     author: p.author,
     whyPicked: p.whyPicked,
+    summary: p.summary,
     sourceName: p.sourceName,
     originalUrl: p.originalUrl,
     position: p.position,
@@ -44,10 +45,10 @@ export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "piece
 
 /**
  * A letter as full-screen pages: cover → one page per piece → P.S. The pill's
- * ↑ and ↓ move between pages (scrolling down means "read", so it doesn't page).
- * A piece is one scroll: its page, then the article beneath it (the Reader
- * with the PiecePage as its `lead`). Past the piece page the Reader takes the
- * pill and the status bar goes dark; back above it, the pager's pill returns.
+ * ↑ and ↓ move between pages (dragging up on a piece means "read", so it doesn't page).
+ * A piece is its page with the article in a drawer over it (the Reader with
+ * the PiecePage as its `lead`). Once the drawer is up the Reader takes the
+ * pill and the status bar goes dark; when it goes back down, the pager's pill returns.
  */
 export function LetterPager({ letter: base, today }: { letter: LetterView; today: boolean }) {
   useLocalVersion();
@@ -55,7 +56,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
   const n = letter.pieces.length;
   const pageCount = n + 2;
   const [page, setPage] = useState<number | null>(null);
-  /** Scrolled past the piece page into the article. */
+  /** The article's drawer is up. */
   const [reading, setReading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [author, setAuthor] = useState<AuthorCard | null>(null);
@@ -115,7 +116,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
     <View style={{ flex: 1, backgroundColor: palette.ground }}>
       {/* The cover sets its own, from its art. */}
       {page !== 0 && <StatusBar style={inArticle ? "dark" : "light"} />}
-      {/* Keyed by page only: moving into the article and back happens in place, in the same scroll. */}
+      {/* Keyed by page only: opening the article's drawer and closing it happens in place. */}
       <Animated.View key={page} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
         {page === 0 ? (
           <CoverPage letter={letter} pageCount={pageCount} onPiece={goPage} onAuthor={setAuthor} />
@@ -127,7 +128,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
             onMenu={() => setMenuOpen(true)}
             onAuthor={() => piece.author && setAuthor(piece.author)}
             onReadingChange={setReading}
-            lead={({ height, scrollY, onRead, onPlay }) => (
+            lead={({ height, progress, onRead, onPlay }) => (
               <PiecePage
                 piece={piece}
                 letterNumber={letter.number}
@@ -135,7 +136,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
                 page={page}
                 pageCount={pageCount}
                 height={height}
-                scrollY={scrollY}
+                progress={progress}
                 onRead={onRead}
                 onPlay={onPlay}
                 onSkip={() => skip(piece)}

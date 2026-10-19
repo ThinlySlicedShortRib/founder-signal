@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -15,7 +16,6 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
@@ -27,6 +27,7 @@ import { Sheet } from "@/components/pager/Sheet";
 import { timestamp } from "@/lib/format";
 import { DISLIKE_LABELS, LIKE_LABELS, setPieceState, track, usePieceState, useItem, useSectionSummary, useToggleSave } from "@/lib/letters";
 import { useReview } from "@/lib/profile";
+import { DRAWER_ROW, DrawerHeader, useArticleDrawer } from "./ArticleDrawer";
 import { AuthorCardView, AuthorChip, SheetButton } from "./Author";
 import { BlockView, TEXT_SIZES, type TextSize } from "./BlockRenderer";
 import { FOCUS_STYLE_LABEL, FocusBlock, FocusProvider, nextFocusSetting, useFocusSetting, useFocusTracker } from "./Focus";
@@ -43,6 +44,8 @@ export type ReaderMeta = {
   image: PieceImage | null;
   author: AuthorCard | null;
   whyPicked: string | null;
+  /** In a letter, the piece's summary: shown under the title and in the header's info. */
+  summary?: string | null;
   sourceName: string | null;
   originalUrl: string | null;
   /** In a letter: "Piece 2 of 3". */
@@ -55,13 +58,13 @@ export type ReaderMeta = {
 
 export type UpNext = { kicker: string; title: string; short: string; onPress: () => void };
 
-/** What a `lead` (the piece page above the article) is given. */
+/** What a `lead` (the piece page under the article's drawer) is given. */
 export type ReaderLead = {
   /** The screen's height; the lead is at least this tall. */
   height: number;
-  /** The scroll offset, on the UI thread. */
-  scrollY: SharedValue<number>;
-  /** Scrolls to the start of the article. */
+  /** How far the drawer is open, 0 → 1, on the UI thread. */
+  progress: SharedValue<number>;
+  /** Opens the drawer. */
   onRead: () => void;
   /** Opens the video on YouTube. */
   onPlay: () => void;
@@ -80,14 +83,12 @@ type SummaryState = { status: "loading" } | { status: "error" } | { status: "don
  * at the end the pill asks for the verdict, then offers the next piece.
  *
  * On its own (the Library), a photo header shrinks with scrolling to a white
- * bar. In a letter, `lead` renders the piece page as the top of the same
- * scroll and the article flows on beneath it: while the piece page is on
- * screen the reader stays out of the way (no bar, no pill, and
- * `onReadingChange(false)`, so the pager shows its own pill). Once the piece
- * page's bottom has passed under the bar, the white bar slides in, the
- * reading pill takes over and `onReadingChange(true)`; scrolling back above
- * that point undoes it. Progress, time left, sections, `open`/`complete` and
- * the verdict all count from the start of the article.
+ * bar. In a letter, `lead` renders the piece page and the article sits in a
+ * drawer over it (ArticleDrawer): out of sight until the piece page is
+ * dragged up or Read is tapped, then snapped to the top. While the drawer is
+ * down the reader stays out of the way (no pill, and `onReadingChange(false)`,
+ * so the pager shows its own pill). Once it's up, the reading pill takes over
+ * and `onReadingChange(true)`; closing it undoes that and keeps your place.
  */
 export function Reader({
   meta,
@@ -102,13 +103,13 @@ export function Reader({
 }: {
   meta: ReaderMeta;
   next: UpNext;
-  /** Leaving the reader. With a `lead`, back scrolls to the top of the piece page instead. */
+  /** Leaving the reader. With a `lead`, back closes the drawer instead. */
   onBack?: () => void;
   backLabel?: string;
   onSkip?: () => void;
   onMenu: () => void;
   onAuthor: () => void;
-  /** The piece page, as the top of the scroll. */
+  /** The piece page, under the article's drawer. */
   lead?: (l: ReaderLead) => ReactNode;
   onReadingChange?: (reading: boolean) => void;
 }) {
@@ -128,9 +129,16 @@ export function Reader({
   const minutes = data?.minutes ?? meta.minutes ?? 1;
   const originalUrl = data?.originalUrl ?? meta.originalUrl;
   const flow = !!lead;
-  const headMax = flow ? 0 : (video ? PLAYER : HEAD_MAX) + insets.top;
-  const headMin = HEAD_MIN + insets.top;
-  const [viewport, setViewport] = useState(useWindowDimensions().height);
+  // In the drawer the header is one tight row under the status bar, and the article starts under it.
+  const headMax = flow ? insets.top + DRAWER_ROW : (video ? PLAYER : HEAD_MAX) + insets.top;
+  const headMin = flow ? headMax : HEAD_MIN + insets.top;
+  const screenH = useWindowDimensions().height;
+  const [viewport, setViewport] = useState(screenH);
+  const drawer = useArticleDrawer({ screenH: viewport, reduceMotion });
+  // For worklets: capture these, never the whole drawer (its gesture and styles don't cross threads).
+  const { y: drawerY, close: closeDrawer } = drawer;
+  /** Where the article's own title ends in the scroll, for the drawer header. */
+  const titleBottom = useSharedValue(Number.MAX_SAFE_INTEGER);
 
   // ── Scroll position, progress, sections ────────────────────────────────────
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
@@ -138,10 +146,10 @@ export function Reader({
   const yRef = useRef(0);
   const viewH = useRef(0);
   const contentH = useRef(0);
-  /** Where the article starts in the scroll: under the photo header, or under the lead. */
+  /** Where the article starts in the scroll: under the header. */
   const bodyTop = useRef(headMax);
-  /** The offset at which the article is reached (its top just under the bar): 0 without a lead. */
-  const startY = useSharedValue(flow ? Number.MAX_SAFE_INTEGER : 0);
+  /** The offset at which the article is reached (its top just under the bar): always 0 now. */
+  const startY = useSharedValue(0);
   /** Sections and the end card, measured within the article. */
   const sectionY = useRef(new Map<string, number>());
   const endY = useRef<number | null>(null);
@@ -183,22 +191,28 @@ export function Reader({
 
   // Progress, the compact bar and the end are worked out on the JS side every 6px of scrolling.
   const lastTick = useSharedValue(-100);
-  const onScroll = useAnimatedScrollHandler((e) => {
-    const y = e.contentOffset.y;
-    scrollY.set(y);
-    viewS.set(e.layoutMeasurement.height);
-    contentS.set(e.contentSize.height);
-    if (Math.abs(y - lastTick.get()) >= 6) {
-      lastTick.set(y);
-      scheduleOnRN(onTick, y, e.layoutMeasurement.height, e.contentSize.height);
-    }
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      const y = e.contentOffset.y;
+      scrollY.set(y);
+      viewS.set(e.layoutMeasurement.height);
+      contentS.set(e.contentSize.height);
+      if (Math.abs(y - lastTick.get()) >= 6) {
+        lastTick.set(y);
+        scheduleOnRN(onTick, y, e.layoutMeasurement.height, e.contentSize.height);
+      }
+    },
+    // In the drawer, pulling well past the top of the article (iOS bounce) closes it.
+    onEndDrag: (e) => {
+      if (flow && e.contentOffset.y < -56) closeDrawer();
+    },
   });
 
-  // With a lead: reading once the scroll reaches the start of the article. Decided on the UI
-  // thread so the bar keeps up with the finger; React hears about it when it flips.
+  // With a lead: reading while the drawer is all the way up. Decided on the UI thread;
+  // React hears about it when it flips.
   const reading = useSharedValue(0);
   useAnimatedReaction(
-    () => flow && scrollY.get() >= startY.get() - 1,
+    () => flow && drawerY.get() < 0.5,
     (now, before) => {
       if (now === before) return;
       reading.set(now ? 1 : 0);
@@ -213,8 +227,9 @@ export function Reader({
   const [focusSetting, setFocusSetting] = useFocusSetting();
   const articleRef = useRef<View>(null);
   useEffect(() => {
-    if (!flow) articleTop.set(headMax);
-  }, [flow, headMax, articleTop]);
+    articleTop.set(headMax);
+    bodyTop.current = headMax;
+  }, [headMax, articleTop]);
   const focus = useFocusTracker({
     articleRef,
     setting: focusSetting,
@@ -289,15 +304,16 @@ export function Reader({
     if (target !== null) scrollToY(target - headMin - 12);
   }
 
-  /** Read on the piece page: to the start of the article, just under the bar. */
+  /** Read on the piece page: up comes the drawer. */
   function read() {
     markOpen();
-    scrollToY(bodyTop.current - headMin);
+    drawer.open();
   }
 
-  /** Back: to the top of the piece page, or out of the reader. */
+  /** Back: the drawer goes down (keeping your place), or out of the reader. */
   function back() {
-    if (flow || !onBack) scrollToY(0);
+    if (flow) drawer.close();
+    else if (!onBack) scrollToY(0);
     else onBack();
   }
 
@@ -372,13 +388,6 @@ export function Reader({
   const collapseAt = HEAD_MAX - COMPACT_AT;
   const photoStyle = useAnimatedStyle(() => ({ opacity: interpolate(scrollY.get(), [collapseAt - 8, collapseAt], [1, 0], Extrapolation.CLAMP) }));
   const barStyle = useAnimatedStyle(() => ({ opacity: interpolate(scrollY.get(), [collapseAt - 8, collapseAt], [0, 1], Extrapolation.CLAMP) }));
-  // With a lead, the bar fades and slides in from above (just fades in, at once, with Reduce Motion).
-  const flowBarStyle = useAnimatedStyle(() => {
-    const on = reading.get();
-    if (reduceMotion) return { opacity: on, transform: [{ translateY: 0 }] };
-    return { opacity: withTiming(on, { duration: 200 }), transform: [{ translateY: withTiming((on - 1) * 16, { duration: 200 }) }] };
-  });
-
   const kicker = [meta.position && meta.pieceCount ? `Piece ${meta.position} of ${meta.pieceCount}` : null, meta.topic].filter(Boolean).join(" · ");
   const sourceRights = video ? (data?.video?.chapters?.length ? "transcript" : "video") : data?.blocks ? "full text" : data?.digest ? "digest" : null;
   const digestMode = !video && !!data && !data.blocks && !!data.digest;
@@ -389,215 +398,240 @@ export function Reader({
     if (url) void Linking.openURL(url);
   }
 
-  return (
-    <View style={{ flex: 1, backgroundColor: palette.surface }}>
-      {/* In a letter the pager sets the status bar, from onReadingChange. */}
-      {!flow && <StatusBar style={compact ? "dark" : "light"} />}
-      <Animated.ScrollView
-        ref={scrollRef}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        onLayout={(e) => {
-          viewH.current = e.nativeEvent.layout.height;
-          viewS.set(viewH.current);
-          if (viewH.current > 0) setViewport(viewH.current);
-          recompute();
-        }}
-        onContentSizeChange={(_w, h) => {
-          contentH.current = h;
-          contentS.set(h);
-          recompute();
-        }}
-        contentContainerStyle={{ paddingTop: headMax }}
-      >
-        {/* The lead's height is where the article starts (measured by size: on web, onLayout misses moves). */}
-        {lead && (
-          <View
-            onLayout={(e) => {
-              bodyTop.current = e.nativeEvent.layout.height;
-              articleTop.set(e.nativeEvent.layout.height);
-              startY.set(Math.max(0, e.nativeEvent.layout.height - headMin));
-              recompute();
-            }}
-          >
-            {lead({
-              height: viewport,
-              scrollY,
-              onRead: read,
-              onPlay: () => {
-                markOpen();
-                openVideo(0);
-              },
-            })}
-          </View>
-        )}
-        {/* The article. Under a lead it's at least a screen tall, so it can always be scrolled up under the bar. */}
-        <FocusProvider value={focus}>
-          <View
-            ref={articleRef}
-            collapsable={false}
-            onLayout={focus.changed}
-            style={{ backgroundColor: palette.surface, paddingTop: 18, paddingHorizontal: 20, paddingBottom: pill.space + 16, gap: 18, minHeight: flow ? viewport - headMin : undefined }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, borderBottomWidth: 1, borderBottomColor: palette.rule, paddingBottom: 12 }}>
-              <Text style={{ flex: 1, fontFamily: font.body, fontSize: 14, lineHeight: 19, color: palette.muted }}>
-                {[meta.sourceName ?? data?.sourceName, `${minutes} min`, sourceRights].filter(Boolean).join(" · ")}
-              </Text>
-              {originalUrl && (
-                <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>{video ? "YouTube" : "Original"}</Text>
-                  <PagerIcon name="external" size={15} color={palette.blue} />
-                </Pressable>
-              )}
-            </View>
-            {meta.image?.credit && (
-              <Pressable accessibilityRole="link" disabled={!meta.image.creditUrl} onPress={() => meta.image?.creditUrl && void Linking.openURL(meta.image.creditUrl)} style={{ marginTop: -10 }}>
-                <Text style={{ fontFamily: font.body, fontSize: 12.5, color: palette.offText }}>
-                  {meta.image.source === "stock" ? "Stock photo" : "Photo"}: {meta.image.credit}
-                </Text>
-              </Pressable>
-            )}
-            {/* Under a lead, the piece page already shows the author and why it was picked. */}
-            {!flow && meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
-            {!flow && meta.whyPicked && (
-              <AgentLine>
-                <Text style={{ fontFamily: font.bodySemi }}>Why I picked this. </Text>
-                {meta.whyPicked}
-              </AgentLine>
-            )}
+  function onPlay() {
+    markOpen();
+    openVideo(0);
+  }
 
-            {item.isPending ? (
-              <ActivityIndicator color={palette.muted} style={{ marginVertical: 40 }} accessibilityLabel="Loading the piece" />
-            ) : item.isError ? (
-              <InlineError message={item.error.message} onRetry={() => void item.refetch()} />
-            ) : video ? (
-              <Chapters item={data!} onOpen={openVideo} />
-            ) : data?.blocks ? (
-              <ArticleBlocks blocks={data.blocks} sections={sections} size={size} summaries={summaries} onSectionLayout={onSectionLayout} onRetry={onRetrySummary} />
-            ) : digestMode ? (
-              <>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, borderTopWidth: 1, borderBottomWidth: 1, borderColor: palette.rule }}>
-                  <DigestBadge />
-                  {originalUrl && (
-                    <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, justifyContent: "center" }}>
-                      <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>Read the original ↗</Text>
-                    </Pressable>
-                  )}
-                </View>
-                <DigestText text={data!.digest!} size={size} />
-              </>
-            ) : (
-              <Unavailable reason={data?.unavailableReason ?? null} onOpen={originalUrl ? () => void Linking.openURL(originalUrl) : undefined} />
-            )}
-
-            {/* About the author, in full, once the piece is read. */}
-            {meta.author && (
-              <View style={{ gap: 10, marginTop: 6 }}>
-                <Mono>About the author</Mono>
-                <AuthorCardView author={meta.author} onMore={onAuthor} />
-              </View>
-            )}
-
-            {/* The end card (.endc) */}
-            <View
-              onLayout={(e) => {
-                endY.current = e.nativeEvent.layout.y;
-                recompute();
-              }}
-              style={{ gap: 12, borderRadius: 24, padding: 20, backgroundColor: TINTS[((meta.position ?? 1) - 1) % 3] }}
-            >
-              <Mono color={palette.promptInk}>
-                Finished · {minutes} min{digestMode ? " · digest" : ""}
-              </Mono>
-              <Text style={{ fontFamily: font.display, fontSize: 28, lineHeight: 29.4, letterSpacing: -0.7, color: palette.ink }}>
-                {video ? "That's the video." : "That's the piece."}
-              </Text>
-              <Text style={{ fontFamily: font.body, fontSize: 15, color: palette.promptInk }}>
-                {state.verdict === "interested" ? "Worth it. Noted." : state.verdict === "not_interested" ? "Less like this. Noted." : "Use the pill: was it worth your time?"}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${next.kicker}: ${next.title}`}
-                onPress={next.onPress}
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  minHeight: 64,
-                  borderRadius: 18,
-                  backgroundColor: palette.ink,
-                  paddingHorizontal: 18,
-                  paddingVertical: 10,
-                  opacity: pressed ? 0.88 : 1,
-                })}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Mono color={palette.pillMuted}>{next.kicker}</Mono>
-                  <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: "#FFFFFF" }}>{next.title}</Text>
-                </View>
-                <PagerIcon name="down" color="#FFFFFF" />
-              </Pressable>
-            </View>
-          </View>
-        </FocusProvider>
-      </Animated.ScrollView>
-
-      {/* Header: under a lead, the plain white bar once reading; otherwise the photo, shrinking to that
-          bar (.rhead / .rhead.compact), or the video still (.player). */}
-      {flow ? (
-        // Touches are switched on the plain View: on web an animated view keeps its first pointer-events.
+  const scroll = (
+    <Animated.ScrollView
+      ref={scrollRef}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      onLayout={(e) => {
+        viewH.current = e.nativeEvent.layout.height;
+        viewS.set(viewH.current);
+        if (viewH.current > 0) setViewport(viewH.current);
+        recompute();
+      }}
+      onContentSizeChange={(_w, h) => {
+        contentH.current = h;
+        contentS.set(h);
+        recompute();
+      }}
+      contentContainerStyle={{ paddingTop: headMax }}
+    >
+      {/* The article. In the drawer it's at least a screen tall. */}
+      <FocusProvider value={focus}>
         <View
-          accessibilityElementsHidden={!compact}
-          importantForAccessibility={compact ? "auto" : "no-hide-descendants"}
-          style={{ position: "absolute", top: 0, left: 0, right: 0, height: headMin, zIndex: 5, pointerEvents: compact ? "box-none" : "none" }}
+          ref={articleRef}
+          collapsable={false}
+          onLayout={focus.changed}
+          style={{ backgroundColor: palette.surface, paddingTop: 18, paddingHorizontal: 20, paddingBottom: pill.space + 16, gap: 18, minHeight: flow ? viewport - headMin : undefined }}
         >
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.rule }, flowBarStyle]}>
-            <CompactBar title={title} digest={digestMode} backLabel={backLabel} onBack={back} />
-          </Animated.View>
-        </View>
-      ) : (
-        <Animated.View style={[{ position: "absolute", top: 0, left: 0, right: 0, overflow: "hidden", zIndex: 5 }, headStyle]}>
-          {video ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.ink }]}>
-              {meta.image && <Image source={{ uri: meta.image.url }} style={[StyleSheet.absoluteFill, { opacity: 0.55 }]} contentFit="cover" />}
-              <RoundButton icon="chevron-down" label={backLabel} onPress={back} style={{ top: insets.top + 18, left: 14 }} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Play on YouTube"
-                onPress={() => openVideo(0)}
-                style={{ position: "absolute", left: "50%", top: insets.top + PLAYER / 2, marginLeft: -38, marginTop: -38, width: 76, height: 76, borderRadius: 38, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center" }}
-              >
-                <PagerIcon name="play" size={30} color={palette.ink} />
-              </Pressable>
-              <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 10, gap: 6 }}>
-                <Mono color="#FFFFFF" numberOfLines={1}>
-                  {data?.video?.durationSeconds ? `${timestamp(data.video.durationSeconds)} · ` : ""}
-                  {title}
-                </Mono>
-                <View style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.3)" }} />
-              </View>
-            </View>
-          ) : (
+          {/* In the drawer, the article's own header: the drawer's header takes the title over once this one has scrolled under it. */}
+          {flow && (
             <>
-              <Animated.View style={[StyleSheet.absoluteFill, { pointerEvents: compact ? "none" : "box-none" }, photoStyle]}>
-                <PhotoBackdrop image={meta.image} topic={meta.topic ?? title} variant="head" blurHeight="78%" />
-                <RoundButton icon="chevron-down" label={backLabel} onPress={back} style={{ top: insets.top + 18, left: 14 }} />
-                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingBottom: 16, gap: 8 }}>
-                  {!!kicker && <Mono color="rgba(255,255,255,0.85)">{kicker}</Mono>}
-                  <Text accessibilityRole="header" numberOfLines={3} style={{ fontFamily: font.display, fontSize: 26, lineHeight: 28, letterSpacing: -0.65, color: "#FFFFFF" }}>
-                    {title}
-                  </Text>
-                </View>
-              </Animated.View>
-              <Animated.View
-                style={[StyleSheet.absoluteFill, { backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.rule, pointerEvents: compact ? "box-none" : "none" }, barStyle]}
+              <Text
+                accessibilityRole="header"
+                onLayout={(e) => titleBottom.set(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}
+                style={{ fontFamily: font.display, fontSize: 26, lineHeight: 28, letterSpacing: -0.65, color: palette.ink }}
               >
-                <CompactBar title={title} digest={digestMode} backLabel={backLabel} onBack={back} />
-              </Animated.View>
+                {title}
+              </Text>
+              {!!meta.summary && <Text style={{ marginTop: -6, fontFamily: font.body, fontSize: 16, lineHeight: 23.2, color: palette.promptInk }}>{meta.summary}</Text>}
+              {meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
             </>
           )}
-        </Animated.View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, borderBottomWidth: 1, borderBottomColor: palette.rule, paddingBottom: 12 }}>
+            <Text style={{ flex: 1, fontFamily: font.body, fontSize: 14, lineHeight: 19, color: palette.muted }}>
+              {[meta.sourceName ?? data?.sourceName, `${minutes} min`, sourceRights].filter(Boolean).join(" · ")}
+            </Text>
+            {originalUrl && (
+              <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>{video ? "YouTube" : "Original"}</Text>
+                <PagerIcon name="external" size={15} color={palette.blue} />
+              </Pressable>
+            )}
+          </View>
+          {meta.image?.credit && (
+            <Pressable accessibilityRole="link" disabled={!meta.image.creditUrl} onPress={() => meta.image?.creditUrl && void Linking.openURL(meta.image.creditUrl)} style={{ marginTop: -10 }}>
+              <Text style={{ fontFamily: font.body, fontSize: 12.5, color: palette.offText }}>
+                {meta.image.source === "stock" ? "Stock photo" : "Photo"}: {meta.image.credit}
+              </Text>
+            </Pressable>
+          )}
+          {/* In the drawer the author is above, and the piece page has already said why it was picked. */}
+          {!flow && meta.author && <AuthorChip author={meta.author} onPress={onAuthor} />}
+          {!flow && meta.whyPicked && (
+            <AgentLine>
+              <Text style={{ fontFamily: font.bodySemi }}>Why I picked this. </Text>
+              {meta.whyPicked}
+            </AgentLine>
+          )}
+
+          {item.isPending ? (
+            <ActivityIndicator color={palette.muted} style={{ marginVertical: 40 }} accessibilityLabel="Loading the piece" />
+          ) : item.isError ? (
+            <InlineError message={item.error.message} onRetry={() => void item.refetch()} />
+          ) : video ? (
+            <Chapters item={data!} onOpen={openVideo} />
+          ) : data?.blocks ? (
+            <ArticleBlocks blocks={data.blocks} sections={sections} size={size} summaries={summaries} onSectionLayout={onSectionLayout} onRetry={onRetrySummary} />
+          ) : digestMode ? (
+            <>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, borderTopWidth: 1, borderBottomWidth: 1, borderColor: palette.rule }}>
+                <DigestBadge />
+                {originalUrl && (
+                  <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(originalUrl)} style={{ minHeight: 44, justifyContent: "center" }}>
+                    <Text style={{ fontFamily: font.bodySemi, fontSize: 14, color: palette.blue }}>Read the original ↗</Text>
+                  </Pressable>
+                )}
+              </View>
+              <DigestText text={data!.digest!} size={size} />
+            </>
+          ) : (
+            <Unavailable reason={data?.unavailableReason ?? null} onOpen={originalUrl ? () => void Linking.openURL(originalUrl) : undefined} />
+          )}
+
+          {/* About the author, in full, once the piece is read. */}
+          {meta.author && (
+            <View style={{ gap: 10, marginTop: 6 }}>
+              <Mono>About the author</Mono>
+              <AuthorCardView author={meta.author} onMore={onAuthor} />
+            </View>
+          )}
+
+          {/* The end card (.endc) */}
+          <View
+            onLayout={(e) => {
+              endY.current = e.nativeEvent.layout.y;
+              recompute();
+            }}
+            style={{ gap: 12, borderRadius: 24, padding: 20, backgroundColor: TINTS[((meta.position ?? 1) - 1) % 3] }}
+          >
+            <Mono color={palette.promptInk}>
+              Finished · {minutes} min{digestMode ? " · digest" : ""}
+            </Mono>
+            <Text style={{ fontFamily: font.display, fontSize: 28, lineHeight: 29.4, letterSpacing: -0.7, color: palette.ink }}>
+              {video ? "That's the video." : "That's the piece."}
+            </Text>
+            <Text style={{ fontFamily: font.body, fontSize: 15, color: palette.promptInk }}>
+              {state.verdict === "interested" ? "Worth it. Noted." : state.verdict === "not_interested" ? "Less like this. Noted." : "Use the pill: was it worth your time?"}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${next.kicker}: ${next.title}`}
+              onPress={next.onPress}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                minHeight: 64,
+                borderRadius: 18,
+                backgroundColor: palette.ink,
+                paddingHorizontal: 18,
+                paddingVertical: 10,
+                opacity: pressed ? 0.88 : 1,
+              })}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Mono color={palette.pillMuted}>{next.kicker}</Mono>
+                <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: "#FFFFFF" }}>{next.title}</Text>
+              </View>
+              <PagerIcon name="down" color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
+      </FocusProvider>
+    </Animated.ScrollView>
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: flow ? "#000000" : palette.surface }}>
+      {/* In a letter the pager sets the status bar, from onReadingChange. */}
+      {!flow && <StatusBar style={compact ? "dark" : "light"} />}
+      {lead ? (
+        <>
+          {/* The piece page, behind: drag up anywhere on it for the drawer. It shrinks back and dims as the drawer comes. */}
+          <GestureDetector gesture={drawer.coverPan}>
+            <Animated.View
+              accessibilityElementsHidden={compact}
+              importantForAccessibility={compact ? "no-hide-descendants" : "auto"}
+              style={[StyleSheet.absoluteFill, { transformOrigin: "top" }, drawer.coverStyle]}
+            >
+              {lead({ height: viewport, progress: drawer.openness, onRead: read, onPlay })}
+            </Animated.View>
+          </GestureDetector>
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "#000000", pointerEvents: "none" }, drawer.dimStyle]} />
+          {/* The drawer: the article, under its sticky header. */}
+          <Animated.View
+            accessibilityElementsHidden={!compact}
+            importantForAccessibility={compact ? "auto" : "no-hide-descendants"}
+            style={[StyleSheet.absoluteFill, { overflow: "hidden", backgroundColor: palette.surface, boxShadow: "0 -10px 30px rgba(0,0,0,0.28)" }, drawer.drawerStyle]}
+          >
+            {scroll}
+            <DrawerHeader
+              drawer={drawer}
+              scrollY={scrollY}
+              titleBottom={titleBottom}
+              insetTop={insets.top}
+              title={title}
+              summary={meta.summary ?? null}
+              author={meta.author}
+              onAuthor={onAuthor}
+              onClose={back}
+              reduceMotion={reduceMotion}
+            />
+          </Animated.View>
+        </>
+      ) : (
+        <>
+          {scroll}
+          {/* Header: the photo, shrinking to the plain white bar (.rhead / .rhead.compact), or the video still (.player). */}
+          <Animated.View style={[{ position: "absolute", top: 0, left: 0, right: 0, overflow: "hidden", zIndex: 5 }, headStyle]}>
+            {video ? (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.ink }]}>
+                {meta.image && <Image source={{ uri: meta.image.url }} style={[StyleSheet.absoluteFill, { opacity: 0.55 }]} contentFit="cover" />}
+                <RoundButton icon="chevron-down" label={backLabel} onPress={back} style={{ top: insets.top + 18, left: 14 }} />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Play on YouTube"
+                  onPress={() => openVideo(0)}
+                  style={{ position: "absolute", left: "50%", top: insets.top + PLAYER / 2, marginLeft: -38, marginTop: -38, width: 76, height: 76, borderRadius: 38, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center" }}
+                >
+                  <PagerIcon name="play" size={30} color={palette.ink} />
+                </Pressable>
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 10, gap: 6 }}>
+                  <Mono color="#FFFFFF" numberOfLines={1}>
+                    {data?.video?.durationSeconds ? `${timestamp(data.video.durationSeconds)} · ` : ""}
+                    {title}
+                  </Mono>
+                  <View style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.3)" }} />
+                </View>
+              </View>
+            ) : (
+              <>
+                <Animated.View style={[StyleSheet.absoluteFill, { pointerEvents: compact ? "none" : "box-none" }, photoStyle]}>
+                  <PhotoBackdrop image={meta.image} topic={meta.topic ?? title} variant="head" blurHeight="78%" />
+                  <RoundButton icon="chevron-down" label={backLabel} onPress={back} style={{ top: insets.top + 18, left: 14 }} />
+                  <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingBottom: 16, gap: 8 }}>
+                    {!!kicker && <Mono color="rgba(255,255,255,0.85)">{kicker}</Mono>}
+                    <Text accessibilityRole="header" numberOfLines={3} style={{ fontFamily: font.display, fontSize: 26, lineHeight: 28, letterSpacing: -0.65, color: "#FFFFFF" }}>
+                      {title}
+                    </Text>
+                  </View>
+                </Animated.View>
+                <Animated.View
+                  style={[StyleSheet.absoluteFill, { backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.rule, pointerEvents: compact ? "box-none" : "none" }, barStyle]}
+                >
+                  <CompactBar title={title} digest={digestMode} backLabel={backLabel} onBack={back} />
+                </Animated.View>
+              </>
+            )}
+          </Animated.View>
+        </>
       )}
 
       {/* The tray (.tray) */}

@@ -1,6 +1,6 @@
 import { C } from "./colors.ts";
-import { contour, dots, halftone, mesh, sky, wash } from "./fields.ts";
-import { airmail, letterhead, postmark, ruled, stamp } from "./post.ts";
+import { contour, dots, halftone, sky } from "./fields.ts";
+import { letterhead } from "./post.ts";
 import { type Rng, rng } from "./random.ts";
 import type { Scene } from "./scene.ts";
 import { riso, routes, sketch } from "./shapes.ts";
@@ -12,28 +12,14 @@ import { riso, routes, sketch } from "./shapes.ts";
  * so a letter always has the same picture and the next one looks different.
  */
 
-export type StyleId =
-  | "mesh"
-  | "routes"
-  | "postmark"
-  | "halftone"
-  | "riso"
-  | "contour"
-  | "stamp"
-  | "airmail"
-  | "letterhead"
-  | "sketch"
-  | "sky"
-  | "wash"
-  | "dots"
-  | "ruled";
+export type StyleId = "routes" | "halftone" | "riso" | "contour" | "letterhead" | "sketch" | "sky" | "dots";
 
 export type ArtInput = {
   width: number;
   height: number;
   /** What the details are drawn from: the letter's id, or the day. */
   seed: string;
-  /** The letter's day, YYYY-MM-DD (the postmarks print it). */
+  /** The letter's day, YYYY-MM-DD (the letterhead prints its day of the month before there's a number). */
   date: string;
   /** The letter's number, if there is one yet. */
   number: number | null;
@@ -66,28 +52,23 @@ const LIGHT: ArtText = { primary: C.ink, secondary: C.promptInk, accent: C.blueI
 const style = (id: StyleId, name: string, base: string, scrim: number, draw: ArtStyle["draw"]): ArtStyle => ({ id, name, tone: "light", base, text: LIGHT, scrim, draw });
 
 export const STYLES: Record<StyleId, ArtStyle> = {
-  mesh: style("mesh", "Morning mesh", C.ground, 0.15, mesh),
   routes: style("routes", "Routes", C.paper, 0.3, routes),
-  postmark: style("postmark", "Cancelled", C.ground, 0.2, postmark),
   halftone: style("halftone", "Halftone", C.ground, 0.15, halftone),
   riso: style("riso", "Riso", C.paper, 0.15, riso),
   contour: style("contour", "Survey", C.ground, 0.2, contour),
-  stamp: style("stamp", "Stamp", C.ground, 0.25, stamp),
-  airmail: style("airmail", "Airmail", C.paper, 0.3, airmail),
   letterhead: style("letterhead", "Letterhead", C.paper, 0.25, letterhead),
   sketch: style("sketch", "Line drawing", C.ground, 0.3, sketch),
   sky: style("sky", "Quiet sky", C.blueTint, 0.25, sky),
-  wash: style("wash", "Wash and grid", C.ground, 0.15, wash),
   dots: style("dots", "Dot grid", C.ground, 0.15, dots),
-  ruled: style("ruled", "Ruled paper", C.ground, 0.15, ruled),
 };
 
 /**
  * Every style, in two alternating sets (even and odd places). Letter N draws
  * from one set and letter N+1 from the other, so two letters running never
- * share a style.
+ * share a style. Each set mixes filled and line work, denser and airy:
+ * even riso, contour, dots, sketch; odd halftone, routes, sky, letterhead.
  */
-export const STYLE_ORDER: StyleId[] = ["mesh", "routes", "postmark", "halftone", "riso", "contour", "stamp", "airmail", "letterhead", "sketch", "sky", "wash", "dots", "ruled"];
+export const STYLE_ORDER: StyleId[] = ["riso", "halftone", "contour", "routes", "dots", "sky", "sketch", "letterhead"];
 
 /** The set a letter's place in the sequence draws from. */
 export function styleSet(sequence: number): StyleId[] {

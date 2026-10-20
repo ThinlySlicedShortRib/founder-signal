@@ -18,7 +18,7 @@ export const C = {
   orange: "#FF5A1F",
   peach: "#FFE3D6",
   orangeTint: "#FFF1EC",
-  /** Art only: a warm uncoated stock (riso, airmail, letterhead and others). */
+  /** Art only: a warm uncoated stock (riso, routes, letterhead and others). */
   paper: "#F6F2EA",
   /** Art only: a cool, faintly blue stock. */
   fog: "#F4F6FB",

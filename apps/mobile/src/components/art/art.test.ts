@@ -110,6 +110,7 @@ test("the pick is random but stable for a seed, and every style is reachable", (
 
 test("consecutive letters, and consecutive days, never share a style", () => {
   assert.deepEqual([...styleSet(0), ...styleSet(1)].sort(), [...STYLE_ORDER].sort());
+  assert.equal(styleSet(0).length, styleSet(1).length, "the two sets are the same size");
   for (let n = 1; n < 200; n++) assert.notEqual(pickStyle({ seed: `id-${n}`, date: "2026-10-05", sequence: n }), pickStyle({ seed: `id-${n + 1}`, date: "2026-10-05", sequence: n + 1 }));
   for (let d = 1; d < 31; d++) {
     const [a, b] = [`2026-10-${String(d).padStart(2, "0")}`, `2026-10-${String(d + 1).padStart(2, "0")}`];

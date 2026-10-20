@@ -1,56 +1,13 @@
 import { C, GROUNDS, LINES } from "./colors.ts";
 import type { Rng } from "./random.ts";
-import { type ArtDef, type ArtNode, circleD, dotNodes, grain, n, type Scene, smoothD } from "./scene.ts";
+import { type ArtNode, circleD, dotNodes, n, type Scene, smoothD } from "./scene.ts";
 import type { ArtInput } from "./styles.ts";
 
 /**
- * Fields: art that covers the band softly (washes, lines, dots). Everything
+ * Fields: art that covers the band softly (lines, dots, a sky). Everything
  * is a tint on a near-white ground, so the cover reads as a quiet page and
  * the text on it doesn't need much of a scrim.
  */
-
-/** Morning mesh: three or four pale blobs of the brand tints melting into each other, with a little grain. */
-export function mesh(r: Rng, { width: w, height: h }: ArtInput): Scene {
-  const big = Math.max(w, h);
-  const palettes: [string, string, string][] = [
-    [C.blueCard, C.blueTint, C.peach],
-    [C.peach, C.orangeTint, C.blueTint],
-    [C.blueTint, C.blueCard, C.orangeTint],
-    [C.blueCard, C.peach, C.blueTint],
-  ];
-  const [a, b, c] = r.pick(palettes);
-  const blobs: [string, number][] = [
-    [a, 0.8],
-    [b, 0.9],
-    [c, 0.6],
-  ];
-  // Now and then a breath of blue, very faint.
-  if (r.chance(0.5)) blobs.push([C.lineBlue, 0.12]);
-  const defs: ArtDef[] = [];
-  const nodes: ArtNode[] = [];
-  blobs.forEach(([color, alpha], i) => {
-    const accent = i >= 3;
-    const cx = r.range(-0.15, 1.15) * w;
-    const cy = r.range(-0.15, accent ? 0.45 : 0.7) * h;
-    const rad = big * (accent ? r.range(0.22, 0.32) : r.range(0.4, 0.62));
-    defs.push({
-      kind: "radial",
-      id: `b${i}`,
-      cx,
-      cy,
-      r: rad,
-      stops: [
-        { offset: 0, color, opacity: alpha },
-        { offset: 0.55, color, opacity: alpha * 0.45 },
-        { offset: 1, color, opacity: 0 },
-      ],
-    });
-    nodes.push({ kind: "circle", cx, cy, r: rad, fill: `url(#b${i})` });
-  });
-  defs.push(grain(r, "grain", C.ink, 50));
-  nodes.push({ kind: "rect", x: 0, y: 0, w, h, fill: "url(#grain)", opacity: 0.05 });
-  return { width: w, height: h, background: r.pick([C.ground, C.ground, C.fog]), defs, nodes };
-}
 
 /** Survey: hairline contour lines around one hill, every fifth a touch firmer, sometimes one in a faint orange. */
 export function contour(r: Rng, { width: w, height: h }: ArtInput): Scene {
@@ -143,45 +100,6 @@ export function dots(r: Rng, { width: w, height: h }: ArtInput): Scene {
   }
   const nodes = byBand.flatMap((pts, i) => (pts.length ? dotNodes(pts, ink, bands[i]!) : []));
   return { width: w, height: h, background: r.pick(GROUNDS), defs: [], nodes };
-}
-
-/** Wash: a soft two-tint gradient across the page with a fine drafting grid over it. */
-export function wash(r: Rng, { width: w, height: h }: ArtInput): Scene {
-  const [a, b] = r.pick<[string, string]>([
-    [C.blueTint, C.orangeTint],
-    [C.blueCard, C.blueTint],
-    [C.orangeTint, C.blueTint],
-    [C.peach, C.fog],
-  ]);
-  const size = r.pick([20, 24, 32]);
-  const ink = r.pick(LINES);
-  const diagonal = r.chance(0.5);
-  const defs: ArtDef[] = [
-    {
-      kind: "linear",
-      id: "wash",
-      x1: diagonal ? 0 : w / 2,
-      y1: 0,
-      x2: diagonal ? w : w / 2,
-      y2: h,
-      stops: [
-        { offset: 0, color: a, opacity: 0.9 },
-        { offset: 0.55, color: a, opacity: 0.25 },
-        { offset: 1, color: b, opacity: 0.8 },
-      ],
-    },
-    { kind: "pattern", id: "grid", size, children: [{ kind: "path", d: `M0 0.5H${size}M0.5 0V${size}`, stroke: ink, strokeWidth: 0.6 }] },
-  ];
-  const nodes: ArtNode[] = [
-    { kind: "rect", x: 0, y: 0, w, h, fill: "url(#wash)" },
-    { kind: "rect", x: 0, y: 0, w, h, fill: "url(#grid)", opacity: 0.3 },
-  ];
-  // Sometimes one finer, firmer rule, like a fold.
-  if (r.chance(0.5)) {
-    const y = Math.round(h * r.range(0.3, 0.5) / size) * size + 0.5;
-    nodes.push({ kind: "path", d: `M0 ${n(y)}H${w}`, stroke: ink, strokeWidth: 0.6, opacity: 0.5 });
-  }
-  return { width: w, height: h, background: C.ground, defs, nodes };
 }
 
 /** Quiet sky: a two-tint sky over a hairline horizon, with a small sun or a crescent moon. */

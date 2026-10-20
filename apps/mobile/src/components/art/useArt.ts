@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { pickStyle, type StyleId } from "./styles";
+import { pickStyle, STYLES, type StyleId } from "./styles";
 
 /** Which art to draw: the style, and what its details are drawn from. */
 export type ArtPick = { style: StyleId; seed: string; date: string; number: number | null };
@@ -30,6 +30,8 @@ export function useForcedStyle(): StyleId | null {
  * and the pages before a letter), so consecutive letters never share a style.
  */
 export function useArt({ seed, date, number, sequence }: { seed: string; date: string; number: number | null; sequence?: number | null }): ArtPick {
-  const override = useForcedStyle();
+  const forcedStyle = useForcedStyle();
+  // A forced id that no longer exists (a style removed while the app was running) falls back to the pick.
+  const override = forcedStyle && Object.hasOwn(STYLES, forcedStyle) ? forcedStyle : null;
   return { style: (__DEV__ && override) || pickStyle({ seed, date, sequence }), seed, date, number };
 }

@@ -14,18 +14,20 @@ Code: `apps/mobile/src/components/art/`. The generators are pure TypeScript
   seed (a letter's id; before there's a letter, the day), so a letter always
   has the same cover and different letters land on different styles at random.
 - **Never the previous letter's style.** `STYLE_ORDER` is split into two
-  alternating sets of seven (even and odd places). The pick draws from the set
+  alternating sets of four (even and odd places): riso, contour, dots and
+  line drawing; halftone, routes, quiet sky and letterhead. Each set mixes
+  filled and line work, denser and airier styles. The pick draws from the set
   for the letter's number (`sequence`), so letter N and letter N+1 always come
   from different sets and can't repeat. Test letters and the pages before a
   letter (empty Today, "being put together") have no number, so they use the
   day instead, and consecutive days alternate the same way. A style can come
-  back two letters later (1 in 7).
+  back two letters later (1 in 4).
 - **Details and variant: the seed.** `drawArt` seeds each style with
   `<style>:<seed>`; within a style the seed also picks the variant (ground,
   palette, composition, and for some styles the subject), so a style that
   comes back still looks new.
-- The postmark, stamp and letterhead print the letter's date and/or number
-  (the day of the month before there's a number).
+- The letterhead's numbered watermark prints the letter's number (the day of
+  the month before there's a number).
 - Dev tools can force a style on Today (in memory, development builds).
 
 ## The look
@@ -45,20 +47,14 @@ Each style has a few variants, picked by the seed.
 
 | Style | Id | Scrim | What it is (variants) |
 |---|---|---|---|
-| Morning mesh | `mesh` | 0.15 | Three pale blobs of brand tints melting together, sometimes a breath of blue, faint grain. (4 palettes, ground or fog.) Was: five saturated blobs including blue mid and orange. |
-| Routes | `routes` | 0.25 | A pale map: 5–7 towns as fine points, dotted roads, one journey in a hairline ending at a tiny outlined envelope and an orange pin. (Blue or graphite lines, paper/fog/ground, with or without meridians.) Was: white and orange on full-bleed ink with stars. |
-| Cancelled | `postmark` | 0.15 | A small hairline date stamp (Founder Signal, the date, No. N) with four dashed waves over a small pale stamp. (3 grounds, 3 stamp tints, blue or graphite.) Was: a big blue stamp over an orange stamp. |
+| Routes | `routes` | 0.3 | A pale map: 5–7 towns as fine points, dotted roads, one journey in a hairline ending at a tiny outlined envelope and an orange pin. (Blue or graphite lines, paper/fog/ground, with or without meridians.) Was: white and orange on full-bleed ink with stars. |
 | Halftone | `halftone` | 0.15 | A soft sun of fine pale dots growing out of one corner, the rest left clear. (4 positions, blue or faint orange dots, two screens.) Was: big dots on full-bleed blue with an orange ring. |
 | Riso | `riso` | 0.15 | Two or three pale shapes (blue card, peach) overprinted on paper, gathered to one side, sometimes one tiny orange dot. (3 ink pairs, side, paper or ground.) Was: three or four big blue and orange shapes. |
-| Survey | `contour` | 0.15 | Hairline contour lines around one hill, stopping short of the far corners, sometimes one line in faint orange. (Blue or graphite, 3 grounds.) Was: blue mid and orange lines on full-bleed blue ink. |
-| Stamp | `stamp` | 0.15 | One smaller perforated stamp in pale tints with the letter's number, lightly cancelled at a corner. (4 ground/panel pairs, blue or graphite.) Was: a big orange or blue stamp. |
-| Airmail | `airmail` | 0.15 | A thin, pale striped border (sometimes none), a hairline "Par avion" label and a dotted flight to a small outlined paper plane. Was: a bold blue and orange border and an orange plane. |
-| Letterhead | `letterhead` | 0.15 | Paper with a faint watermark (a seal with "FS", or the letter's number) and a fine double rule broken by a small orange diamond. New. |
-| Line drawing | `sketch` | 0.25 | One small drawing in a single hairline: an envelope with a seal, a horizon with hills, a sun and birds, or a map fragment with a coastline, a road and a pin. New. |
-| Quiet sky | `sky` | 0.15 | A two-tint sky over a hairline horizon, with a small soft sun or a crescent moon and a thin cloud or two. (4 skies.) New. |
-| Wash and grid | `wash` | 0.15 | A soft two-tint gradient wash with a fine drafting grid, sometimes one firmer rule like a fold. (4 washes, 3 grid sizes, straight or diagonal.) New. |
+| Survey | `contour` | 0.2 | Hairline contour lines around one hill, stopping short of the far corners, sometimes one line in faint orange. (Blue or graphite, 3 grounds.) Was: blue mid and orange lines on full-bleed blue ink. |
+| Letterhead | `letterhead` | 0.25 | Paper with a faint watermark (a seal with "FS", or the letter's number) and a fine double rule broken by a small orange diamond. New. |
+| Line drawing | `sketch` | 0.3 | One small drawing in a single hairline: an envelope with a seal, a horizon with hills, a sun and birds, or a map fragment with a coastline, a road and a pin. New. |
+| Quiet sky | `sky` | 0.25 | A two-tint sky over a hairline horizon, with a small soft sun or a crescent moon and a thin cloud or two. (4 skies.) New. |
 | Dot grid | `dots` | 0.15 | An even grid of tiny dots fading out from one edge into plain paper. (3 pitches, straight or staggered, 4 directions.) New. |
-| Ruled paper | `ruled` | 0.15 | Faint ruled lines (or squares) starting below the masthead, with a faint orange margin rule outside the text (left edge or right, single or double). New. |
 
 ## Text and contrast
 
@@ -75,8 +71,8 @@ opacity), layers them up to two deep over the background, puts the scrim on
 top and takes the worst case. `art.test.ts` asserts every text colour keeps
 **4.5:1** over 30 seeds × 4 screen sizes for every style, and that no scrim
 is lower than needed. With the darker hairlines, styles whose lines can run
-under the text need more: postmark and contour 0.2, stamp, letterhead and sky
-0.25, routes, airmail and line drawing 0.3; the rest keep the 0.15 floor so the
+under the text need more: contour 0.2, letterhead and sky 0.25, routes and
+line drawing 0.3; the rest keep the 0.15 floor so the
 art softens under the text. The tests also check the grounds stay pale, the
 scrims stay at or under 0.3, and the line tints stay visible (≥ 2.5:1) on every
 ground.

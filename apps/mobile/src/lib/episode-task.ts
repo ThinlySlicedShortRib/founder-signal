@@ -58,11 +58,55 @@ export function rowShows(phase: Phase, local: TaskLocal): boolean {
   return true;
 }
 
-/** Making: the step the worker is on (from its status and progress) and about how long that leaves, as on the mock. */
-export function makingStep(server: Pick<EpisodeView, "status" | "progress"> | null | undefined): { step: string; eta: string } {
-  if (!server || server.status === "queued" || server.status === "scripting") return { step: "Writing the script", eta: "~1 min" };
-  if ((server.progress ?? 0) >= 0.95) return { step: "Finishing", eta: "a few sec" };
-  return { step: "Recording voices", eta: "~30 sec" };
+// ── Making: steps and the time left ─────────────────────────────────────────
+
+/** Where each step ends on the ring (the worker's own split): the script, voicing, then finishing. */
+export const STEP_ENDS = [0.25, 0.95] as const;
+export const STEPS = ["Writing the script", "Recording voices", "Finishing"] as const;
+/** The step a point on the ring is in (the ring decides, so the step text changes as the ring crosses a tick). */
+export const stepOf = (v: number) => (v >= STEP_ENDS[1] ? 2 : v >= STEP_ENDS[0] ? 1 : 0);
+
+/** Below this there's too little to go on, so the estimate is just "~1 min left". */
+export const ETA_FROM = 0.3;
+export const ETA_EARLY = "~1 min left";
+export const ETA_DONE = "Almost done";
+
+/** The time left as it's shown: 5s steps, "Almost done" at the end, minutes above a minute. */
+export type Eta = { eta: number | null; bucket: number | null; last: number };
+export const newEta = (): Eta => ({ eta: null, bucket: null, last: 0 });
+
+/** Raw seconds left: elapsed × (1 − p) / p at the sample, less the time since it was taken. */
+export function rawSecondsLeft(p: number, elapsedAtSample: number, sampledAt: number, now: number): number {
+  return Math.max(0, (elapsedAtSample * (1 - p)) / p - (now - sampledAt) / 1000);
+}
+
+/**
+ * One tick of the estimate (about four a second). It counts down with the clock and eases toward the raw
+ * figure: quickly when that's lower, only a little at a time when it's higher (a stall). The label moves in
+ * 5s steps and only goes back up once the estimate is clearly higher, so it never flickers. `raw` is null
+ * before there's enough to go on.
+ */
+export function tickEta(s: Eta, now: number, p: number, raw: number | null): string {
+  const dt = s.last ? Math.min(250, Math.max(0, now - s.last)) : 0;
+  s.last = now;
+  if (raw == null || p < ETA_FROM) {
+    s.eta = null;
+    s.bucket = null;
+    return ETA_EARLY;
+  }
+  if (s.eta == null) s.eta = raw;
+  else {
+    s.eta = Math.max(0, s.eta - dt / 1000);
+    const d = raw - s.eta;
+    if (d < 0) s.eta += d * (1 - Math.exp(-dt / 900));
+    else s.eta += Math.min(d * (1 - Math.exp(-dt / 2500)), (dt / 1000) * 2);
+  }
+  const sec = s.eta;
+  const b = Math.ceil(sec / 5) * 5;
+  if (s.bucket == null || b < s.bucket || sec > s.bucket + 2) s.bucket = b;
+  if (s.bucket <= 5) return ETA_DONE;
+  if (s.bucket >= 60) return `~${Math.max(1, Math.round(sec / 60))} min left`;
+  return `~${s.bucket}s left`;
 }
 
 /** The ring's target: the server's number (never backwards), and full once it's ready. */

@@ -1,7 +1,7 @@
 // Run with `pnpm --filter @fs/mobile test`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CONFIRM_MS, createEpisodeTasks, DONE_MS, IDLE_LOCAL, makingStep, phaseOf, ringTarget, rowShows, STOPPED_MS } from "./episode-task.ts";
+import { CONFIRM_MS, createEpisodeTasks, DONE_MS, ETA_EARLY, IDLE_LOCAL, newEta, phaseOf, rawSecondsLeft, ringTarget, rowShows, stepOf, STOPPED_MS, tickEta } from "./episode-task.ts";
 
 function fakeTimers() {
   let now = 1000;
@@ -54,9 +54,7 @@ test("the row: shows for an episode on the go, not for an old failure or once fo
 });
 
 test("steps and the ring follow the worker, never backwards", () => {
-  assert.deepEqual(makingStep({ status: "scripting", progress: 0.1 }), { step: "Writing the script", eta: "~1 min" });
-  assert.deepEqual(makingStep({ status: "voicing", progress: 0.5 }), { step: "Recording voices", eta: "~30 sec" });
-  assert.equal(makingStep({ status: "voicing", progress: 0.96 }).step, "Finishing");
+  assert.deepEqual([stepOf(0), stepOf(0.249), stepOf(0.25), stepOf(0.94), stepOf(0.95), stepOf(1)], [0, 0, 1, 1, 2, 2]);
   assert.equal(ringTarget(0.4, { status: "voicing", progress: 0.3 }), 0.4);
   assert.equal(ringTarget(0.4, { status: "voicing", progress: 0.6 }), 0.6);
   assert.equal(ringTarget(0.4, { status: "ready", progress: 0.9 }), 1);
@@ -117,3 +115,30 @@ test("Listened: a few seconds, then the row folds; playing again brings it back"
   assert.equal(tasks.get("a").hidden, false);
 });
 
+
+test("time left: ~1 min early on, then elapsed × (1 − p) / p, counting down in 5s steps", () => {
+  const e = newEta();
+  assert.equal(tickEta(e, 1000, 0.2, rawSecondsLeft(0.2, 10, 1000, 1000)), ETA_EARLY);
+  // 40% after 20s: 30s left.
+  let now = 2000;
+  assert.equal(tickEta(e, now, 0.4, rawSecondsLeft(0.4, 20, now, now)), "~30s left");
+  // It counts down with the clock between samples.
+  const sampled = now;
+  const seen = new Set<string>();
+  for (let i = 0; i < 40; i++) {
+    now += 250;
+    seen.add(tickEta(e, now, 0.4, rawSecondsLeft(0.4, 20, sampled, now)));
+  }
+  assert.ok(seen.has("~25s left") && seen.has("~20s left"), [...seen].join(", "));
+  assert.equal([...seen].at(-1), "~20s left");
+  // A stall (the raw figure jumps up a little) doesn't make it flicker back up.
+  assert.equal(tickEta(e, now + 250, 0.4, 22), "~20s left");
+  // Near the end.
+  for (let i = 0; i < 80; i++) tickEta(e, (now += 250), 0.9, 1);
+  assert.equal(tickEta(e, (now += 250), 0.9, 1), "Almost done");
+});
+
+test("time left: above a minute it reads in minutes", () => {
+  const e = newEta();
+  assert.equal(tickEta(e, 1000, 0.3, rawSecondsLeft(0.3, 60, 1000, 1000)), "~2 min left");
+});

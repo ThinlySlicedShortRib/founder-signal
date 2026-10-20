@@ -62,7 +62,7 @@ describe("/items/:id/episode", () => {
     const first = await post(id);
     expect(first.status).toBe(202);
     const { episode: made } = (await first.json()) as { episode: { id: string } };
-    expect(made).toMatchObject({ status: "queued", format: "conversation", audioUrl: null, chapters: [], progress: 0 });
+    expect(made).toMatchObject({ status: "queued", format: "conversation", audioUrl: null, chapters: [], progress: 0, elapsedSeconds: null });
     expect(queued).toContain(made.id);
 
     const again = await post(id);
@@ -83,14 +83,22 @@ describe("/items/:id/episode", () => {
       durationSeconds: 61.5,
       chapters: [{ title: "Opening", startSeconds: 0 }],
       progress: 1,
+      elapsedSeconds: null,
     });
   });
 
   it("stops one that's being made (only for whoever asked), and leaves finished ones alone", async () => {
     const id = await seedItem();
     const { episode: made } = (await (await post(id)).json()) as { episode: { id: string } };
-    await ctx.db.update(episode).set({ status: "voicing", progress: 0.6 }).where(eq(episode.id, made.id));
-    expect(((await (await get(id)).json()) as { episode: unknown }).episode).toMatchObject({ status: "voicing", progress: 0.6 });
+    await ctx.db
+      .update(episode)
+      .set({ status: "voicing", progress: 0.6, startedAt: new Date(Date.now() - 30_000) })
+      .where(eq(episode.id, made.id));
+    const making = ((await (await get(id)).json()) as { episode: { elapsedSeconds: number } }).episode;
+    expect(making).toMatchObject({ status: "voicing", progress: 0.6 });
+    // Time since the worker started on it: with the progress, the app's estimate of the time left.
+    expect(making.elapsedSeconds).toBeGreaterThanOrEqual(29);
+    expect(making.elapsedSeconds).toBeLessThan(40);
 
     // Someone else can't stop it.
     const other = await signIn(ctx, "podcast-other@example.com");

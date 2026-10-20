@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type AudioPlayer, type AudioStatus, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { GestureResponderEvent } from "react-native";
-import { createEpisodeTasks, makingStep, minutesLabel, type Phase, phaseOf, type PlayState, rowShows } from "./episode-task";
+import { createEpisodeTasks, ETA_DONE, ETA_EARLY, type Eta, isBusy, minutesLabel, newEta, type Phase, phaseOf, type PlayState, rawSecondsLeft, rowShows, tickEta } from "./episode-task";
 import { cancelEpisode, episodeAudioUrl, episodeKey, type EpisodeResponse, requestEpisode, useEpisode } from "./podcast";
 
 /**
@@ -102,6 +102,49 @@ export function keepOnTouchElsewhere(e: GestureResponderEvent): boolean {
   return false;
 }
 
+// ── Time left while making, shared by every view of a piece ───────────────────
+/** One estimate per piece, ticked four times a second while it's being made; views hear only a change of label. */
+type Estimate = { eta: Eta; text: string; sample: { p: number; elapsed: number | null; at: number } | null };
+const estimates = new Map<string, Estimate>();
+const etaListeners = new Set<() => void>();
+let etaTimer: ReturnType<typeof setInterval> | null = null;
+
+function tickEstimates() {
+  const now = Date.now();
+  let changed = false;
+  for (const e of estimates.values()) {
+    const s = e.sample;
+    const raw = s && s.elapsed != null && s.p > 0 ? rawSecondsLeft(s.p, s.elapsed, s.at, now) : null;
+    const text = tickEta(e.eta, now, s?.p ?? 0, raw);
+    if (text !== e.text) {
+      e.text = text;
+      changed = true;
+    }
+  }
+  if (changed) emit(etaListeners);
+  if (!estimates.size && etaTimer) {
+    clearInterval(etaTimer);
+    etaTimer = null;
+  }
+}
+
+/** The latest poll of a piece being made (or null: it's not, and its estimate starts afresh next time). */
+function sampleEstimate(itemId: string, episode: EpisodeView | null, at: number, making: boolean) {
+  if (!making) {
+    if (estimates.delete(itemId)) emit(etaListeners);
+    return;
+  }
+  let e = estimates.get(itemId);
+  if (!e) estimates.set(itemId, (e = { eta: newEta(), text: ETA_EARLY, sample: null }));
+  const sample = episode && isBusy(episode) ? { p: episode.progress, elapsed: episode.elapsedSeconds, at } : null;
+  if (sample && e.sample && sample.at === e.sample.at) return;
+  e.sample = sample;
+  tickEstimates();
+  etaTimer ??= setInterval(tickEstimates, 250);
+}
+
+const subscribeEta = (l: () => void) => (etaListeners.add(l), () => void etaListeners.delete(l));
+
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
 export type EpisodeTask = {
@@ -114,8 +157,7 @@ export type EpisodeTask = {
   confirming: boolean;
   /** The pill grows its status row. */
   row: boolean;
-  /** Making: the step and time left; the ring's target (0 → 1, from the worker). */
-  step: string;
+  /** Making: about how long it has left ("~35s left"); the ring's target (0 → 1, from the worker). */
   eta: string;
   progress: number;
   /** "4 min". */
@@ -135,6 +177,11 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
   const play = useSyncExternalStore(subscribeCoarse, () => coarse);
   const episode = query.data?.episode ?? null;
   const phase = phaseOf(episode, local, play, itemId);
+  const making = phase === "making";
+  const updatedAt = query.dataUpdatedAt;
+  useEffect(() => sampleEstimate(itemId, episode, updatedAt, making), [itemId, episode, updatedAt, making]);
+  // Ready while the ring is still closing: it's done, whatever the last estimate said.
+  const eta = useSyncExternalStore(subscribeEta, () => estimates.get(itemId)?.text ?? (episode?.status === "ready" ? ETA_DONE : ETA_EARLY));
 
   const start = useCallback(() => {
     tasks.begin(itemId);
@@ -168,7 +215,6 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
     p.play();
   }, [itemId, episode]);
 
-  const making = makingStep(episode);
   return useMemo(
     () => ({
       itemId,
@@ -177,8 +223,7 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
       phase,
       confirming: local.confirm && phase === "making",
       row: !!query.data?.available && rowShows(phase, local),
-      step: making.step,
-      eta: making.eta,
+      eta,
       progress: episode?.status === "ready" ? 1 : (episode?.progress ?? 0),
       length: minutesLabel(episode?.durationSeconds),
       start,
@@ -187,7 +232,7 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
       stop,
       toggle,
     }),
-    [itemId, query.data?.available, episode, phase, local, making.step, making.eta, start, stop, toggle],
+    [itemId, query.data?.available, episode, phase, local, eta, start, stop, toggle],
   );
 }
 

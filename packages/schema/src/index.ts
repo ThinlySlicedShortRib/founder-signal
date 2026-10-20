@@ -805,6 +805,8 @@ export const episodeViewSchema = z.object({
   chapters: z.array(z.object({ title: z.string(), startSeconds: z.number() })),
   /** How far along making it is, 0 → 1 (1 once ready): the script to 0.25, voicing to 0.95, then encoding. */
   progress: z.number().min(0).max(1),
+  /** While it's being made: seconds since the worker started on it (null while queued, and once it's done). With `progress`, the app's estimate of the time left. */
+  elapsedSeconds: z.number().min(0).nullable(),
 });
 export type EpisodeView = z.infer<typeof episodeViewSchema>;
 

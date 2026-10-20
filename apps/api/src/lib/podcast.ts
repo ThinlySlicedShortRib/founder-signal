@@ -31,8 +31,11 @@ export interface PodcastConfig {
   audioUrl(key: string): string;
 }
 
-export function episodeView(row: EpisodeRow, audioUrl: (key: string) => string): EpisodeView {
+const MAKING: EpisodeRow["status"][] = ["queued", "scripting", "voicing"];
+
+export function episodeView(row: EpisodeRow, audioUrl: (key: string) => string, now = Date.now()): EpisodeView {
   const ready = row.status === "ready" && row.audioKey;
+  const making = MAKING.includes(row.status) && row.startedAt;
   return {
     id: row.id,
     status: row.status,
@@ -41,6 +44,8 @@ export function episodeView(row: EpisodeRow, audioUrl: (key: string) => string):
     durationSeconds: ready ? row.durationSeconds : null,
     chapters: ready ? (row.chapters ?? []) : [],
     progress: ready ? 1 : Math.max(0, Math.min(1, row.progress ?? 0)),
+    // Measured here, so the app's estimate doesn't depend on the phone's clock agreeing with the server's.
+    elapsedSeconds: making ? Math.max(0, Math.round((now - row.startedAt!.getTime()) / 100) / 10) : null,
   };
 }
 

@@ -23,15 +23,18 @@ import { createPillStore, type PillLayer, type PillStore } from "./pill-store";
  * Above the controls the pill can grow a status row for a background task
  * (`<PillStatusSlot>`): it's claimed on its own, so it stays put, without
  * re-animating, while the controls under it morph or change hands. While it
- * shows, the pill is at least `STATUS_W` wide and the controls sit centred
- * under it, with a hairline between.
+ * shows, the pill is at least `STATUS_W` wide (the row takes the pill's
+ * width), the controls sit centred under it, and a hairline runs between.
  */
 
-/** The status row: its comfortable width, and its height with the hairline under it. */
+/** The status row: its least width, and its height with the hairline under it. */
 export const STATUS_W = 264;
-export const STATUS_H = 45;
-/** The row grows and folds in this long (instantly with Reduce Motion). */
+export const STATUS_H = 44;
+/** The row grows and folds in this long (its height at once with Reduce Motion), fading in or out in STATUS_FADE_MS (RM: STATUS_RM_FADE_MS). */
 const STATUS_MS = 220;
+const STATUS_FADE_MS = 180;
+const STATUS_RM_FADE_MS = 120;
+const STATUS_EASE = Easing.bezier(0.2, 0.8, 0.2, 1);
 const noSubscribe = () => () => {};
 
 export function usePillSpace() {
@@ -242,7 +245,8 @@ export function PillOutlet() {
   const pillStyle = useAnimatedStyle(() => ({ opacity: shown.get() }));
   /** The live controls' width, for the status row to grow from. */
   const ctlW = useSharedValue(0);
-  const onLiveWidth = useCallback((w: number) => ctlW.set(w), [ctlW]);
+  // The row follows the controls' width as the pill springs between modes (at once the first time, or with Reduce Motion).
+  const onLiveWidth = useCallback((w: number) => ctlW.set(ctlW.get() === 0 || reduce ? w : withSpring(w, SPRING)), [ctlW, reduce]);
 
   const layers = [...snap.exiting, ...(current ? [current] : [])].sort((a, b) => a.id - b.id);
 
@@ -286,9 +290,9 @@ export function PillOutlet() {
 }
 
 /**
- * The status row above the controls. It grows (height and opacity, 220ms) when a status is claimed and folds
- * when it's let go, keeping its last contents while it folds. Its contents lay out at a fixed width, centred,
- * so nothing in them moves while the pill's width changes under the controls' morphs.
+ * The status row above the controls. It grows (height 220ms, fading in over 180ms) when a status is claimed and
+ * folds when it's let go, keeping its last contents while it folds. It takes the pill's width: at least
+ * `STATUS_W`, or the controls' if they're wider, and the pill widens with it as it grows.
  */
 function PillStatusArea({ node, reduce, ctlW, maxW }: { node: ReactNode | null; reduce: boolean; ctlW: SharedValue<number>; maxW: number }) {
   const on = node != null;
@@ -296,29 +300,35 @@ function PillStatusArea({ node, reduce, ctlW, maxW }: { node: ReactNode | null; 
   const [held, setHeld] = useState<ReactNode | null>(node);
   if (on && held !== node) setHeld(node);
   const open = useSharedValue(on ? 1 : 0);
+  const fade = useSharedValue(on ? 1 : 0);
   const w = Math.min(STATUS_W, maxW);
 
   const folded = useCallback(() => setHeld(null), []);
   useEffect(() => {
-    const cfg = { duration: reduce ? 0 : STATUS_MS, easing: EASE_OUT, reduceMotion: ReduceMotion.Never };
-    open.set(
-      withTiming(on ? 1 : 0, cfg, (done) => {
-        if (done && !on) scheduleOnRN(folded);
-      }),
-    );
-  }, [on, reduce, open, folded]);
+    const done = (finished?: boolean) => {
+      "worklet";
+      if (finished && !on) scheduleOnRN(folded);
+    };
+    const grow = { duration: reduce ? 0 : STATUS_MS, easing: STATUS_EASE, reduceMotion: ReduceMotion.Never };
+    const fadeCfg = { duration: reduce ? STATUS_RM_FADE_MS : STATUS_FADE_MS, easing: Easing.inOut(Easing.ease), reduceMotion: ReduceMotion.Never };
+    // Whichever ends last lets the contents go.
+    open.set(withTiming(on ? 1 : 0, grow, reduce ? undefined : done));
+    fade.set(withTiming(on ? 1 : 0, fadeCfg, reduce ? done : undefined));
+  }, [on, reduce, open, fade, folded]);
 
   const style = useAnimatedStyle(() => {
     const p = open.get();
-    // Grows from the controls' width to the row's, so the pill widens with it (never narrower than the controls).
-    const from = Math.min(ctlW.get(), w);
-    return { height: p * STATUS_H, opacity: Math.min(1, p * 1.25), width: from + (w - from) * p };
+    const ctl = Math.min(ctlW.get(), maxW);
+    // The row's width; the pill grows from the controls' width to it.
+    const row = Math.max(ctl, w);
+    return { height: p * STATUS_H, opacity: fade.get(), width: ctl + (row - ctl) * p };
   });
+  const rowStyle = useAnimatedStyle(() => ({ width: Math.max(Math.min(ctlW.get(), maxW), w) }));
 
   if (held == null) return null;
   return (
     <Animated.View style={[{ overflow: "hidden", alignItems: "center", justifyContent: "flex-start" }, style]}>
-      <View style={{ width: w, height: STATUS_H, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)", flexShrink: 0 }}>{held}</View>
+      <Animated.View style={[{ height: STATUS_H, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)", flexShrink: 0 }, rowStyle]}>{held}</Animated.View>
     </Animated.View>
   );
 }

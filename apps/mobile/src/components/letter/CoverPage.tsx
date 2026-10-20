@@ -8,14 +8,14 @@ import { useArt } from "@/components/art/useArt";
 import { font, palette } from "@/components/onboarding/kit";
 import { usePillSpace } from "@/components/pager/Pill";
 import { Display, Mono } from "@/components/pager/PagerScreen";
-import { dayAndTime, greeting, longDate } from "@/lib/format";
+import { shortDate } from "@/lib/format";
 import { AuthorChip } from "./Author";
 import { PieceIcon } from "./PieceIcon";
 import { ProgressBars } from "./ProgressBars";
 
 /**
  * Page 1 of a letter, like a magazine cover: the day's art with the masthead,
- * "Letter No. N", the headline and the greeting on it; below, the post
+ * "Letter No. N" with the letter's date and the headline on it; below, the post
  * office's note (in full, with "why this mix" opening inside it) and the contents.
  */
 export function CoverPage({
@@ -51,15 +51,12 @@ export function CoverPage({
           >
             <Mono color={text.accent}>
               {letter.isTest ? "Test letter" : `Letter No. ${letter.number}`}
-              {letter.deliveredAt ? ` · arrived ${dayAndTime(letter.deliveredAt)}` : ""}
+              {` · ${shortDate(letter.localDate)}`}
             </Mono>
             {/* Board "Home A": the headline at Bricolage 500, lighter than the pager boards' 700. */}
             <Display size={38} lineHeight={40} color={text.primary} style={{ fontFamily: font.displayMedium }}>
               {letter.headline}
             </Display>
-            <Text style={{ fontFamily: font.body, fontSize: 16, lineHeight: 22, color: text.secondary }}>
-              <Text style={{ fontFamily: font.bodySemi, color: text.primary }}>{greeting()}</Text> · {longDate(letter.localDate)}
-            </Text>
           </ArtHero>
         </View>
         <Brief intro={letter.intro} why={letter.whyThisMix} />

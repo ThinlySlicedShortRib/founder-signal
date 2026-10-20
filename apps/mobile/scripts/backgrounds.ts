@@ -50,7 +50,7 @@ function cover(scene: Scene, style: StyleId, s: (typeof SAMPLES)[number]): strin
   const bg = scene.background;
   const a = st.scrim;
   const lines = wrap(s.headline, 38, W - 40, 0.5);
-  const blockH = 15 + 14 + lines.length * 40 + 12 + 22 + HERO.bottomPad;
+  const blockH = 15 + 14 + lines.length * 40 + HERO.bottomPad;
   const blockTop = HERO_H - blockH;
   const mastBottom = TOP + HERO.mastHeight;
   let out =
@@ -61,16 +61,14 @@ function cover(scene: Scene, style: StyleId, s: (typeof SAMPLES)[number]): strin
   // Masthead and progress bars.
   out += text(20, TOP + 26, `FOUNDER SIGNAL · NO. ${s.number}`, 11, "JetBrains Mono", t.secondary, `letter-spacing="0.88"`);
   for (let i = 0; i < 6; i++) out += `<rect x="${W - 20 - (6 - i) * 22 + 4}" y="${TOP + 20}" width="18" height="4" rx="2" fill="${st.tone === "dark" ? "#FFFFFF" : C.ink}" opacity="${i === 0 ? 1 : 0.25}"/>`;
-  // Kicker, headline, greeting and date.
+  // Kicker (with the date) and headline.
   let y = blockTop + 15;
-  out += text(20, y, `LETTER NO. ${s.number} · ARRIVED MON 7:02 AM`, 11, "JetBrains Mono", t.accent, `letter-spacing="0.88"`);
+  out += text(20, y, `LETTER NO. ${s.number} · MON, OCT 5`, 11, "JetBrains Mono", t.accent, `letter-spacing="0.88"`);
   y += 14;
   for (const line of lines) {
     y += 40;
     out += text(20, y - 9, line, 38, "Bricolage Grotesque", t.primary, `font-weight="700" letter-spacing="-1.14"`);
   }
-  y += 22;
-  out += `<text x="20" y="${y}" font-family="Instrument Sans" font-size="16" fill="${t.primary}"><tspan font-weight="600">Good morning</tspan><tspan fill="${t.secondary}"> · Monday, October 5</tspan></text>`;
   // Below the art: the brief and the contents.
   y = HERO_H + 18;
   out += `<rect x="20" y="${y}" width="${W - 40}" height="68" rx="16" fill="#FFF4EE"/><circle cx="42" cy="${y + 23}" r="8" fill="${C.orange}"/>`;

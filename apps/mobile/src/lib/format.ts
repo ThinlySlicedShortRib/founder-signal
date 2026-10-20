@@ -39,12 +39,6 @@ export function weekday(d: Date): string {
   return d.toLocaleDateString("en-US", { weekday: "long" });
 }
 
-/** "Mon 7:30" */
-export function dayAndTime(iso: string): string {
-  const d = new Date(iso);
-  return `${d.toLocaleDateString("en-US", { weekday: "short" })} ${clock(d)}`;
-}
-
 export function greeting(d = new Date()): string {
   const h = d.getHours();
   return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";

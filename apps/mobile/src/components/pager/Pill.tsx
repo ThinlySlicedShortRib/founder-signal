@@ -1,6 +1,7 @@
 import { Children, createContext, isValidElement, type ReactNode, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { font, palette } from "@/components/onboarding/kit";
 import { PagerIcon, type PagerIconName } from "./icons";
@@ -41,8 +42,6 @@ const RM_OUT_MS = 100;
 const RM_IN_MS = 150;
 /** The size: a gentle spring with almost no bounce (perceptual duration; Reanimated runs it ~1.5x). */
 const SPRING = { duration: 340, dampingRatio: 0.88 } as const;
-/** Size changes this soon after a mode change still spring (the new contents settling); later ones within a mode snap. */
-const MORPH_WINDOW_MS = 450;
 /** A new mode's children that mount this long after it appeared don't fade in (they're an update, not the morph). */
 const ENTRANCE_MS = IN_DELAY + IN_MS + 4 * STAGGER_MS;
 const EASE_OUT = Easing.out(Easing.cubic);
@@ -89,8 +88,19 @@ function PillSlot({ store, children, label, mode, hidden = false, z = 20 }: Pill
 }
 
 type Size = { w: number; h: number };
+/** A pinned size while the pill springs between modes, or "auto": sized by the live contents, as laid out. */
+type Dim = number | "auto";
 
-/** Draws the provider's pill: one container whose size springs between modes, with the contents crossfading inside it. */
+/** The box the contents of an outgoing mode lay out in, centred on the pill: big enough that they keep their natural size whatever size the pill is mid-spring. */
+const STAGE_H = 200;
+
+/**
+ * Draws the provider's pill: one container whose size springs between modes, with the contents crossfading inside it.
+ *
+ * The live contents lay out in normal flow, so they size the pill themselves (right from the first frame, and
+ * for every update within a mode). Only a morph pins the size: when the mode changes, the pill is held at the
+ * outgoing contents' size, springs to the new contents' size once they've laid out, and goes back to "auto".
+ */
 export function PillOutlet() {
   const store = useContext(PillContext);
   if (!store) throw new Error("PillOutlet needs a PillProvider");
@@ -99,52 +109,82 @@ export function PillOutlet() {
   const stageW = useWindowDimensions().width;
   const reduce = useReducedMotion();
 
-  const width = useSharedValue(0);
-  const height = useSharedValue(0);
-  const shown = useSharedValue(0);
-  /** The pill has had a size once (until then it's invisible: nothing to fade in from). */
-  const [sized, setSized] = useState(false);
+  const width = useSharedValue<Dim>("auto");
+  const height = useSharedValue<Dim>("auto");
+  const shown = useSharedValue(1);
+  /** Each layer's natural size, from its own layout. */
   const sizes = useRef(new Map<number, Size>());
-  const currentId = useRef<number | null>(null);
-  const morphUntil = useRef(0);
+  /** The layer the pill is sized by (kept in step with the store, ahead of this component's render). */
+  const liveId = useRef<number | null>(null);
+  /** The size is held at explicit numbers (a morph in progress). */
+  const pinned = useRef(false);
+  /** The pill's first contents don't have an entrance of their own. */
+  const [firstId, setFirstId] = useState<number | null>(null);
 
   const current = snap.current;
   const id = current?.id ?? null;
   const visible = !!current && !current.hidden;
+  if (firstId === null && id !== null) setFirstId(id);
 
-  const applySize = useCallback(
-    (s: Size, morph: boolean) => {
-      // Snap when there's nothing to see a spring on (first size, faded out) or with Reduce Motion.
-      if (!morph || reduce || shown.get() < 0.5) {
-        width.set(s.w);
-        height.set(s.h);
-      } else {
-        width.set(withSpring(s.w, SPRING));
-        height.set(withSpring(s.h, SPRING));
+  const unpinned = useCallback(() => {
+    pinned.current = false;
+  }, []);
+
+  /** Pinned: spring to the live contents' size and hand back to "auto" (snap with Reduce Motion, or while faded out). */
+  const settle = useCallback(
+    (s: Size) => {
+      if (reduce || shown.get() < 0.5) {
+        width.set("auto");
+        height.set("auto");
+        pinned.current = false;
+        return;
       }
+      width.set(
+        withSpring(s.w, SPRING, (done) => {
+          if (done) width.set("auto");
+        }),
+      );
+      height.set(
+        withSpring(s.h, SPRING, (done) => {
+          if (done) {
+            height.set("auto");
+            scheduleOnRN(unpinned);
+          }
+        }),
+      );
     },
-    [reduce, width, height, shown],
+    [reduce, width, height, shown, unpinned],
   );
 
-  // A new mode: the size springs once its contents are measured (below), or now if it's one coming back mid-fade.
+  // A new mode: hold the pill at the outgoing contents' size before the incoming ones lay out. This listens to the
+  // store directly (rather than reacting to the render) so the pin is set before the new contents are committed.
   useLayoutEffect(() => {
-    currentId.current = id;
-    if (id === null) return;
-    morphUntil.current = Date.now() + MORPH_WINDOW_MS;
-    const known = sizes.current.get(id);
-    if (known) applySize(known, true);
-  }, [id, applySize]);
+    liveId.current = store.getSnapshot().current?.id ?? null;
+    return store.subscribe(() => {
+      const next = store.getSnapshot().current?.id ?? null;
+      const prev = liveId.current;
+      if (next === prev) return;
+      liveId.current = next;
+      const from = prev === null ? undefined : sizes.current.get(prev);
+      if (!pinned.current && from) {
+        width.set(from.w);
+        height.set(from.h);
+        pinned.current = true;
+      }
+      // A mode coming back mid-fade already has a size; a new one springs once it's laid out (onMeasure).
+      const known = next === null ? undefined : sizes.current.get(next);
+      if (pinned.current && known) settle(known);
+    });
+  }, [store, width, height, settle]);
 
   const onMeasure = useCallback(
     (layer: number, s: Size) => {
       const was = sizes.current.get(layer);
       if (was && was.w === s.w && was.h === s.h) return;
       sizes.current.set(layer, s);
-      if (layer !== currentId.current) return;
-      applySize(s, Date.now() < morphUntil.current);
-      setSized(true);
+      if (layer === liveId.current && pinned.current) settle(s);
     },
-    [applySize],
+    [settle],
   );
 
   const onGone = useCallback(
@@ -155,10 +195,17 @@ export function PillOutlet() {
     [store],
   );
 
-  useEffect(() => {
-    if (!sized) return;
+  // The first look shows at once (no fade from nothing); after that the pill fades out and back under a dialog.
+  const started = useRef(false);
+  useLayoutEffect(() => {
+    if (!current) return;
+    if (!started.current) {
+      started.current = true;
+      shown.set(visible ? 1 : 0);
+      return;
+    }
     shown.set(withTiming(visible ? 1 : 0, { duration: visible ? IN_MS : OUT_MS, easing: EASE_OUT, reduceMotion: ReduceMotion.Never }));
-  }, [visible, sized, shown]);
+  }, [current, visible, shown]);
 
   const boxStyle = useAnimatedStyle(() => ({ width: width.get(), height: height.get(), opacity: shown.get() }));
 
@@ -168,46 +215,52 @@ export function PillOutlet() {
     <View style={{ pointerEvents: "box-none", position: "absolute", left: 0, right: 0, bottom, alignItems: "center", zIndex: current?.z ?? 20 }}>
       <Animated.View
         style={[
-          { pointerEvents: visible ? "auto" : "none", backgroundColor: palette.pill, borderRadius: 999, boxShadow: "0 12px 30px rgba(18,19,22,0.22)" },
+          {
+            pointerEvents: visible ? "auto" : "none",
+            backgroundColor: palette.pill,
+            borderRadius: 999,
+            boxShadow: "0 12px 30px rgba(18,19,22,0.22)",
+            // Clips the contents to the rounded shape (the shadow is drawn outside the clip).
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "center",
+          },
           boxStyle,
         ]}
       >
-        {/* Clipped inside the pill's rounded shape; the shadow stays on the outer view. */}
-        <View style={[StyleSheet.absoluteFill, { pointerEvents: "box-none", borderRadius: 999, overflow: "hidden" }]}>
-          {/* A full-width stage centred on the pill, so contents lay out at their natural width whatever size the pill is mid-spring. */}
-          <View style={{ pointerEvents: "box-none", position: "absolute", top: 0, bottom: 0, left: "50%", width: stageW, marginLeft: -stageW / 2 }}>
-            {layers.map((layer) => (
-              <PillLayerView
-                key={layer.id}
-                layer={layer}
-                live={layer === current}
-                initial={!sized}
-                reduce={reduce}
-                onMeasure={onMeasure}
-                onGone={onGone}
-              />
-            ))}
-          </View>
-        </View>
+        {layers.map((layer) => (
+          <PillLayerView
+            key={layer.id}
+            layer={layer}
+            live={layer === current}
+            initial={layer.id === firstId}
+            reduce={reduce}
+            stageW={stageW}
+            onMeasure={onMeasure}
+            onGone={onGone}
+          />
+        ))}
       </Animated.View>
     </View>
   );
 }
 
-/** One mode's contents: live while current, frozen as it last looked while fading out. */
+/** One mode's contents: live (in flow, sizing the pill) while current, frozen as it last looked while fading out. */
 function PillLayerView({
   layer,
   live,
   initial,
   reduce,
+  stageW,
   onMeasure,
   onGone,
 }: {
   layer: PillLayer;
   live: boolean;
-  /** The pill's first contents: no entrance of their own (the whole pill fades in). */
+  /** The pill's first contents: no entrance of their own. */
   initial: boolean;
   reduce: boolean;
+  stageW: number;
   onMeasure: (layer: number, s: Size) => void;
   onGone: (layer: number) => void;
 }) {
@@ -252,7 +305,15 @@ function PillLayerView({
 
   return (
     <Animated.View
-      style={[StyleSheet.absoluteFill, { pointerEvents: active ? "box-none" : "none", alignItems: "center", justifyContent: "center" }, style]}
+      style={[
+        live
+          ? // In flow: its natural size is the pill's size. It never shrinks to the pill, so mid-spring it overflows, centred, into the clip.
+            { flexShrink: 0 }
+          : // Out of flow, on a fixed stage centred on the pill, so it keeps its last look while the pill springs to the new one.
+            { position: "absolute", left: "50%", top: "50%", width: stageW, height: STAGE_H, marginLeft: -stageW / 2, marginTop: -STAGE_H / 2 },
+        { pointerEvents: active ? "box-none" : "none", alignItems: "center", justifyContent: "center" },
+        style,
+      ]}
       accessibilityElementsHidden={!live}
       importantForAccessibility={live ? "auto" : "no-hide-descendants"}
       aria-hidden={!live}
@@ -261,7 +322,7 @@ function PillLayerView({
         accessibilityRole={live ? "toolbar" : undefined}
         accessibilityLabel={live ? layer.label : undefined}
         onLayout={(e) => onMeasure(id, { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-        style={{ pointerEvents: "box-none", flexDirection: "row", alignItems: "center", gap: 2, padding: 5, maxWidth: "94%" }}
+        style={{ pointerEvents: "box-none", flexDirection: "row", alignItems: "center", flexShrink: 0, gap: 2, padding: 5, maxWidth: Math.round(stageW * 0.94) }}
       >
         {Children.toArray(layer.node).map((child, i) => (
           <PillItem key={isValidElement(child) && child.key != null ? child.key : i} index={i} enter={entering} reduce={reduce}>

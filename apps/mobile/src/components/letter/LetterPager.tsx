@@ -5,7 +5,7 @@ import { ActivityIndicator, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { palette } from "@/components/onboarding/kit";
 import { MenuSheet } from "@/components/pager/MenuSheet";
-import { MenuToggle, Pill, PillButton, PillLabel } from "@/components/pager/Pill";
+import { MenuToggle, Pill, PillButton, PillLabel, PillOutlet, PillProvider } from "@/components/pager/Pill";
 import { lastPage, letterWithLocal, setPieceState, track, useLocalVersion } from "@/lib/letters";
 import { AuthorSheet } from "./Author";
 import { CoverPage } from "./CoverPage";
@@ -49,6 +49,7 @@ export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "piece
  * A piece is its page with the article in a drawer over it (the Reader with
  * the PiecePage as its `lead`). Once the drawer is up the Reader takes the
  * pill and the status bar goes dark; when it goes back down, the pager's pill returns.
+ * Both share one pill (the PillProvider), so it morphs from one to the other.
  */
 export function LetterPager({ letter: base, today }: { letter: LetterView; today: boolean }) {
   useLocalVersion();
@@ -113,61 +114,65 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
   const kicker = isPs ? "Postscript" : today ? "Today" : `No. ${letter.number}`;
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.ground }}>
-      {/* The cover sets its own, from its art. */}
-      {page !== 0 && <StatusBar style={inArticle ? "dark" : "light"} />}
-      {/* Keyed by page only: opening the article's drawer and closing it happens in place. */}
-      <Animated.View key={page} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
-        {page === 0 ? (
-          <CoverPage letter={letter} pageCount={pageCount} onPiece={goPage} onAuthor={setAuthor} />
-        ) : piece ? (
-          <Reader
-            meta={pieceMeta(piece, letter)}
-            next={upNext(piece)}
-            onSkip={() => skip(piece)}
-            onMenu={() => setMenuOpen(true)}
-            onAuthor={() => piece.author && setAuthor(piece.author)}
-            onReadingChange={setReading}
-            lead={({ height, progress, onRead, onPlay }) => (
-              <PiecePage
-                piece={piece}
-                letterNumber={letter.number}
-                pieceCount={n}
-                page={page}
-                pageCount={pageCount}
-                height={height}
-                progress={progress}
-                onRead={onRead}
-                onPlay={onPlay}
-                onSkip={() => skip(piece)}
-                onAuthor={() => piece.author && setAuthor(piece.author)}
-              />
-            )}
-          />
-        ) : (
-          <PsPage letter={letter} page={page} pageCount={pageCount} />
-        )}
-      </Animated.View>
+    <PillProvider>
+      <View style={{ flex: 1, backgroundColor: palette.ground }}>
+        {/* The cover sets its own, from its art. */}
+        {page !== 0 && <StatusBar style={inArticle ? "dark" : "light"} />}
+        {/* Keyed by page only: opening the article's drawer and closing it happens in place. */}
+        <Animated.View key={page} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
+          {page === 0 ? (
+            <CoverPage letter={letter} pageCount={pageCount} onPiece={goPage} onAuthor={setAuthor} />
+          ) : piece ? (
+            <Reader
+              meta={pieceMeta(piece, letter)}
+              next={upNext(piece)}
+              onSkip={() => skip(piece)}
+              onMenu={() => setMenuOpen(true)}
+              onAuthor={() => piece.author && setAuthor(piece.author)}
+              onReadingChange={setReading}
+              lead={({ height, progress, onRead, onPlay }) => (
+                <PiecePage
+                  piece={piece}
+                  letterNumber={letter.number}
+                  pieceCount={n}
+                  page={page}
+                  pageCount={pageCount}
+                  height={height}
+                  progress={progress}
+                  onRead={onRead}
+                  onPlay={onPlay}
+                  onSkip={() => skip(piece)}
+                  onAuthor={() => piece.author && setAuthor(piece.author)}
+                />
+              )}
+            />
+          ) : (
+            <PsPage letter={letter} page={page} pageCount={pageCount} />
+          )}
+        </Animated.View>
 
-      <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={today ? "today" : null} />
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={today ? "today" : null} />
 
-      {!inArticle ? (
-        <Pill label="Navigation">
-          <PillButton icon="up" label="Previous page" dim={page === 0} onPress={() => goPage(page - 1)} />
-          <PillLabel kicker={kicker} value={`${page + 1} / ${pageCount}`} />
-          <PillButton icon="down" label="Next page" dim={page === pageCount - 1} onPress={() => goPage(page + 1)} />
-          <MenuToggle open={menuOpen} onPress={() => setMenuOpen((o) => !o)} />
-        </Pill>
-      ) : (
-        menuOpen && (
-          <Pill label="Navigation">
-            <PillLabel kicker={kicker} value="Reading" />
-            <MenuToggle open onPress={() => setMenuOpen(false)} />
+        {!inArticle ? (
+          <Pill label="Navigation" mode="pager">
+            <PillButton icon="up" label="Previous page" dim={page === 0} onPress={() => goPage(page - 1)} />
+            <PillLabel kicker={kicker} value={`${page + 1} / ${pageCount}`} />
+            <PillButton icon="down" label="Next page" dim={page === pageCount - 1} onPress={() => goPage(page + 1)} />
+            <MenuToggle open={menuOpen} onPress={() => setMenuOpen((o) => !o)} />
           </Pill>
-        )
-      )}
+        ) : (
+          menuOpen && (
+            <Pill label="Navigation" mode="menu">
+              <PillLabel kicker={kicker} value="Reading" />
+              <MenuToggle open onPress={() => setMenuOpen(false)} />
+            </Pill>
+          )
+        )}
+        {/* The one pill: the pager's (above) or, once the drawer is up, the Reader's. */}
+        <PillOutlet />
 
-      <AuthorSheet author={author} onClose={() => setAuthor(null)} />
-    </View>
+        <AuthorSheet author={author} onClose={() => setAuthor(null)} />
+      </View>
+    </PillProvider>
   );
 }

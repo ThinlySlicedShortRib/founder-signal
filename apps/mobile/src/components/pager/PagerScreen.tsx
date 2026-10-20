@@ -29,7 +29,7 @@ export function PagerScreen({
       <StatusBar style={statusBar} />
       {children}
       <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={current} />
-      <Pill label="Navigation">
+      <Pill label="Navigation" mode="screen">
         <PillLabel kicker={kicker} value={title} />
         <MenuToggle open={menuOpen} onPress={() => setMenuOpen((o) => !o)} />
       </Pill>

@@ -712,9 +712,10 @@ export function Reader({
         </>
       )}
 
-      {/* The pill: reading → verdict → next (under a lead, only once reading) */}
+      {/* The pill: reading → verdict → next (under a lead, only once reading). One <Pill> in one place, so it morphs
+          between modes; in a letter it's drawn by the pager's PillOutlet. It fades out under the verdict sheet. */}
       {!pillOn ? null : showNextPill ? (
-        <Pill label="Next">
+        <Pill label="Next" mode="next" hidden={!!sheet}>
           <PillStatus label={state.verdict === "interested" ? "Worth it. Noted." : "Less like this."}>
             <PagerIcon name="check" size={18} color={palette.blueMid} />
             <PillStatusText>{state.verdict === "interested" ? "Worth it. Noted." : "Less like this."}</PillStatusText>
@@ -722,7 +723,7 @@ export function Reader({
           <PillAction title={`${next.short} ↓`} label={`${next.kicker}: ${next.title}`} onPress={next.onPress} primary />
         </Pill>
       ) : showEndPill ? (
-        <Pill label="Was it worth it?">
+        <Pill label="Was it worth it?" mode="verdict" hidden={!!sheet}>
           <PillAction
             title="Not for me"
             onPress={() => {
@@ -741,7 +742,7 @@ export function Reader({
           <PillButton icon="dots" label="More" onPress={() => setTray((t) => !t)} expanded={tray} />
         </Pill>
       ) : (
-        <Pill label="Reading">
+        <Pill label="Reading" mode="reading" hidden={!!sheet}>
           <PillButton
             icon="bookmark"
             filled={!!state.saved}

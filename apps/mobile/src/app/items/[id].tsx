@@ -7,7 +7,7 @@ import { pieceMeta } from "@/components/letter/LetterPager";
 import { Reader, type ReaderMeta } from "@/components/letter/Reader";
 import { palette } from "@/components/onboarding/kit";
 import { MenuSheet } from "@/components/pager/MenuSheet";
-import { MenuToggle, Pill, PillLabel } from "@/components/pager/Pill";
+import { MenuToggle, Pill, PillLabel, PillOutlet, PillProvider } from "@/components/pager/Pill";
 import { PageState } from "@/components/pager/PagerScreen";
 import { useItem, useSaved, useTodayLetter } from "@/lib/letters";
 
@@ -53,23 +53,27 @@ export default function ItemReader() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.surface }}>
-      <Reader
-        meta={meta}
-        next={{ kicker: "Done", title: "Back to your library", short: "Library", onPress: back }}
-        onBack={back}
-        backLabel="Back"
-        onMenu={() => setMenuOpen(true)}
-        onAuthor={() => meta.author && setAuthor(meta.author)}
-      />
-      <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={null} />
-      {menuOpen && (
-        <Pill label="Navigation">
-          <PillLabel kicker="Library" value="Reading" />
-          <MenuToggle open onPress={() => setMenuOpen(false)} />
-        </Pill>
-      )}
-      <AuthorSheet author={author} onClose={() => setAuthor(null)} />
-    </View>
+    <PillProvider>
+      <View style={{ flex: 1, backgroundColor: palette.surface }}>
+        <Reader
+          meta={meta}
+          next={{ kicker: "Done", title: "Back to your library", short: "Library", onPress: back }}
+          onBack={back}
+          backLabel="Back"
+          onMenu={() => setMenuOpen(true)}
+          onAuthor={() => meta.author && setAuthor(meta.author)}
+        />
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={null} />
+        {menuOpen && (
+          <Pill label="Navigation" mode="menu">
+            <PillLabel kicker="Library" value="Reading" />
+            <MenuToggle open onPress={() => setMenuOpen(false)} />
+          </Pill>
+        )}
+        {/* One pill for the Reader's modes and the menu's, so it morphs between them. */}
+        <PillOutlet />
+        <AuthorSheet author={author} onClose={() => setAuthor(null)} />
+      </View>
+    </PillProvider>
   );
 }

@@ -130,3 +130,31 @@ test("hidden keeps the layer", () => {
   assert.equal(s.getSnapshot().current!.id, id);
   assert.equal(s.getSnapshot().current!.hidden, true);
 });
+
+test("the status row is claimed on its own, survives mode changes, and folds after a grace period", () => {
+  const timers = fakeTimers();
+  const store = createPillStore(timers);
+  store.set("pager", e("pager"));
+  store.setStatus("reader", "making");
+  assert.equal(store.getSnapshot().status, "making");
+  // The controls morph; the status stays.
+  store.set("reader", e("reading"));
+  assert.equal(store.getSnapshot().current?.mode, "reading");
+  assert.equal(store.getSnapshot().status, "making");
+  store.setStatus("reader", "ready");
+  assert.equal(store.getSnapshot().status, "ready");
+
+  // Let go and claimed again inside the grace period (a handover): no fold.
+  store.releaseStatus("reader");
+  assert.equal(store.getSnapshot().status, "ready");
+  store.setStatus("reader2", "playing");
+  timers.advance(GRACE_MS);
+  assert.equal(store.getSnapshot().status, "playing");
+
+  // Nothing to show: it folds once the grace period is up.
+  store.setStatus("reader2", null);
+  assert.equal(store.getSnapshot().status, "playing");
+  timers.advance(GRACE_MS);
+  assert.equal(store.getSnapshot().status, null);
+  assert.equal(store.getSnapshot().current?.mode, "reading");
+});

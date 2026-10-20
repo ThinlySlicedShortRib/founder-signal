@@ -15,6 +15,12 @@ import type { ReactNode } from "react";
  * first, because owners hand over across a render or two (the Reader lets go
  * of the pill before the pager takes it back); a claim inside that window
  * morphs straight from the old look.
+ *
+ * Separately, the pill can carry a status row above its controls (a
+ * background task, e.g. a Listen episode being made). It's claimed on its own
+ * (`setStatus`), not with a mode, so it stays put while the controls under it
+ * change hands or morph. The newest status claim wins; letting go of it is
+ * held for `GRACE_MS` like the pill, so a handover doesn't fold and regrow it.
  */
 
 export const GRACE_MS = 100;
@@ -40,6 +46,8 @@ export type PillLayer = PillEntry & {
 export type PillSnapshot = {
   current: PillLayer | null;
   exiting: readonly PillLayer[];
+  /** The status row's contents, or null for none. */
+  status: ReactNode | null;
 };
 
 type Slot = PillEntry & { order: number };
@@ -51,11 +59,13 @@ export function createPillStore(timers: { set: (fn: () => void, ms: number) => u
   const listeners = new Set<() => void>();
   let order = 0;
   let layerId = 0;
-  let snapshot: PillSnapshot = { current: null, exiting: [] };
+  let snapshot: PillSnapshot = { current: null, exiting: [], status: null };
   let grace: unknown = null;
+  const statuses = new Map<string, { node: ReactNode; order: number }>();
+  let statusGrace: unknown = null;
 
-  function emit(next: PillSnapshot) {
-    snapshot = next;
+  function emit(next: Omit<PillSnapshot, "status"> & { status?: ReactNode | null }) {
+    snapshot = { ...next, status: next.status === undefined ? snapshot.status : next.status };
     for (const l of listeners) l();
   }
 
@@ -99,6 +109,22 @@ export function createPillStore(timers: { set: (fn: () => void, ms: number) => u
     emit({ current: next, exiting: current ? [...rest, current] : rest });
   }
 
+  function reconcileStatus() {
+    let best: { node: ReactNode; order: number } | null = null;
+    for (const s of statuses.values()) if (s.node != null && s.node !== false && (!best || s.order > best.order)) best = s;
+    if (best) {
+      if (statusGrace !== null) timers.clear(statusGrace);
+      statusGrace = null;
+      if (snapshot.status !== best.node) emit({ ...snapshot, status: best.node });
+      return;
+    }
+    if (snapshot.status === null || statusGrace !== null) return;
+    statusGrace = timers.set(() => {
+      statusGrace = null;
+      emit({ ...snapshot, status: null });
+    }, GRACE_MS);
+  }
+
   return {
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -115,6 +141,15 @@ export function createPillStore(timers: { set: (fn: () => void, ms: number) => u
     },
     release(slotId: string) {
       if (slots.delete(slotId)) reconcile();
+    },
+    /** Claim or update the status row above the controls; null lets it fold. */
+    setStatus(slotId: string, node: ReactNode | null) {
+      const was = statuses.get(slotId);
+      statuses.set(slotId, { node, order: was ? was.order : ++order });
+      reconcileStatus();
+    },
+    releaseStatus(slotId: string) {
+      if (statuses.delete(slotId)) reconcileStatus();
     },
     /** The outlet calls this once an exiting layer has faded out. */
     drop(id: number) {

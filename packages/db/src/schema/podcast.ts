@@ -32,6 +32,11 @@ export const episode = pgTable(
     /** The engine, model and voices, e.g. `kokoro-v1.0:af_heart+am_michael` or `polly-neural:Olivia+Matthew`. */
     voiceKey: text("voice_key").notNull(),
     status: episodeStatus("status").default("queued").notNull(),
+    /**
+     * How far along it is, 0 → 1, for the app's progress ring: the script is 0 → 0.25, voicing 0.25 → 0.95
+     * (per chunk voiced), encoding and storing 0.95 → 1. Written by the worker as it goes.
+     */
+    progress: real("progress").default(0).notNull(),
 
     /** The script that was voiced. Its `format` is `reading` when the model's script kept failing its checks. */
     script: jsonb("script").$type<EpisodeScript>(),

@@ -10,6 +10,7 @@ import { MenuSheet } from "@/components/pager/MenuSheet";
 import { MenuToggle, Pill, PillLabel, PillOutlet, PillProvider } from "@/components/pager/Pill";
 import { PageState } from "@/components/pager/PagerScreen";
 import { useItem, useSaved, useTodayLetter } from "@/lib/letters";
+import { keepOnTouchElsewhere } from "@/lib/listen";
 
 /** One piece on its own (from the Library or an author's "In your reading"), in the same reader. */
 export default function ItemReader() {
@@ -54,7 +55,7 @@ export default function ItemReader() {
 
   return (
     <PillProvider>
-      <View style={{ flex: 1, backgroundColor: palette.surface }}>
+      <View style={{ flex: 1, backgroundColor: palette.surface }} onStartShouldSetResponderCapture={keepOnTouchElsewhere}>
         <Reader
           meta={meta}
           next={{ kicker: "Done", title: "Back to your library", short: "Library", onPress: back }}

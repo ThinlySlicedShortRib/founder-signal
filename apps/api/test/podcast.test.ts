@@ -52,6 +52,7 @@ afterAll(async () => {
 
 const get = (id: string, c = cookie, app = ctx) => app.app.request(`${BASE_URL}/items/${id}/episode`, { headers: { cookie: c } });
 const post = (id: string) => ctx.app.request(`${BASE_URL}/items/${id}/episode`, { method: "POST", headers: { cookie, origin: BASE_URL } });
+const del = (id: string, c = cookie) => ctx.app.request(`${BASE_URL}/items/${id}/episode`, { method: "DELETE", headers: { cookie: c, origin: BASE_URL } });
 
 describe("/items/:id/episode", () => {
   it("has none until asked, then queues one once and shares it", async () => {
@@ -61,7 +62,7 @@ describe("/items/:id/episode", () => {
     const first = await post(id);
     expect(first.status).toBe(202);
     const { episode: made } = (await first.json()) as { episode: { id: string } };
-    expect(made).toMatchObject({ status: "queued", format: "conversation", audioUrl: null, chapters: [] });
+    expect(made).toMatchObject({ status: "queued", format: "conversation", audioUrl: null, chapters: [], progress: 0 });
     expect(queued).toContain(made.id);
 
     const again = await post(id);
@@ -81,7 +82,32 @@ describe("/items/:id/episode", () => {
       audioUrl: `/podcast/audio/podcast/items/${id}/${made.id}.m4a`,
       durationSeconds: 61.5,
       chapters: [{ title: "Opening", startSeconds: 0 }],
+      progress: 1,
     });
+  });
+
+  it("stops one that's being made (only for whoever asked), and leaves finished ones alone", async () => {
+    const id = await seedItem();
+    const { episode: made } = (await (await post(id)).json()) as { episode: { id: string } };
+    await ctx.db.update(episode).set({ status: "voicing", progress: 0.6 }).where(eq(episode.id, made.id));
+    expect(((await (await get(id)).json()) as { episode: unknown }).episode).toMatchObject({ status: "voicing", progress: 0.6 });
+
+    // Someone else can't stop it.
+    const other = await signIn(ctx, "podcast-other@example.com");
+    const theirs = await del(id, other);
+    expect(theirs.status).toBe(200);
+    expect(await theirs.json()).toMatchObject({ cancelled: false, episode: { id: made.id, status: "voicing" } });
+
+    const stopped = await del(id);
+    expect(await stopped.json()).toEqual({ cancelled: true, episode: null });
+    expect(await ctx.db.select().from(episode).where(eq(episode.id, made.id))).toHaveLength(0);
+    expect(await (await get(id)).json()).toEqual({ episode: null, available: true });
+
+    // Asking again makes a new one; once it's finished, Stop does nothing.
+    const { episode: again } = (await (await post(id)).json()) as { episode: { id: string } };
+    expect(again.id).not.toBe(made.id);
+    await ctx.db.update(episode).set({ status: "ready", audioKey: "podcast/items/x.m4a" }).where(eq(episode.id, again.id));
+    expect(await (await del(id)).json()).toMatchObject({ cancelled: false, episode: { id: again.id, status: "ready" } });
   });
 
   it("refuses pieces the app can't show in full, and unknown items", async () => {

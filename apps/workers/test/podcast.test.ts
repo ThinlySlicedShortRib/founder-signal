@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { EpisodeScriptWriter, ScriptInput, ScriptResult } from "@fs/ai";
 import { type EpisodeScript, episodeVoiceKey } from "@fs/core";
-import { createDb, requestEpisode, schema } from "@fs/db";
+import { cancelEpisode, createDb, requestEpisode, schema } from "@fs/db";
 import type { Block } from "@fs/schema";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import { memoryQueues } from "../src/lib/queues.ts";
 import type { PipelineDeps } from "../src/pipeline/deps.ts";
 import { dispatch } from "../src/pipeline/dispatch.ts";
 import { memoryAudioStore } from "../src/podcast/audio-store.ts";
+import { PROGRESS, scriptProgress, voiceProgress } from "../src/podcast/generate.ts";
 import { ffmetadata, wavEncoder } from "../src/podcast/encode.ts";
 import { runQueuedEpisodes } from "../src/podcast/local.ts";
 import type { SpeechSynth } from "../src/podcast/synth.ts";
@@ -177,6 +178,54 @@ describe("generateEpisode", () => {
     expect(await dispatch(deps, "podcast", { episodeId: row.id })).toMatchObject({ status: "failed", error: "voice broke" });
     expect(events.map((e) => e.event)).toContain("episode_failed");
     expect(await requestEpisode(db, identity(itemId))).toMatchObject({ queued: true, episode: { id: row.id, status: "queued", error: null } });
+  });
+
+  it("reports progress as it voices, chunk by chunk, and ends at 1", async () => {
+    const { itemId, store } = await seed();
+    const { writer } = fakeWriter([goodScript()]);
+    const synth = fakeSynth();
+    const { deps } = depsFor(store, writer, synth);
+    const { episode: row } = (await requestEpisode(db, identity(itemId)))!;
+    const seen: number[] = [];
+    const inner = synth.synthesize.bind(synth);
+    synth.synthesize = async (text, speaker) => {
+      const [r] = await db.select({ status: episode.status, progress: episode.progress }).from(episode).where(eq(episode.id, row.id));
+      expect(r!.status).toBe("voicing");
+      seen.push(r!.progress);
+      return inner(text, speaker);
+    };
+
+    await dispatch(deps, "podcast", { episodeId: row.id });
+    expect(seen[0]).toBe(PROGRESS.script);
+    // Never backwards, and short of done until the file is stored.
+    expect(seen).toEqual([...seen].sort((x, y) => x - y));
+    expect(seen.at(-1)!).toBeLessThan(PROGRESS.voiced);
+    const [done] = await db.select({ progress: episode.progress }).from(episode).where(eq(episode.id, row.id));
+    expect(done!.progress).toBe(1);
+    expect(scriptProgress(0)).toBe(0);
+    expect(scriptProgress(10 * 60_000)).toBeLessThan(PROGRESS.script);
+    expect(voiceProgress(3, 6)).toBeCloseTo(0.6);
+  });
+
+  it("stops when the episode is cancelled mid-way, leaving no file and no row", async () => {
+    const { itemId, store } = await seed();
+    const { writer } = fakeWriter([goodScript()]);
+    const synth = fakeSynth();
+    const { deps, audio, events } = depsFor(store, writer, synth);
+    const { episode: row } = (await requestEpisode(db, identity(itemId)))!;
+    const inner = synth.synthesize.bind(synth);
+    synth.synthesize = async (text, speaker) => {
+      // The reader taps Stop while the third chunk is being voiced.
+      if (synth.spoken.length === 2) expect(await cancelEpisode(db, { ...identity(itemId), userId: "anyone" })).toMatchObject({ cancelled: true });
+      return inner(text, speaker);
+    };
+
+    expect(await dispatch(deps, "podcast", { episodeId: row.id })).toMatchObject({ status: "skipped", error: "cancelled" });
+    expect(synth.spoken).toHaveLength(3);
+    expect(audio.objects.size).toBe(0);
+    expect(await db.select().from(episode).where(eq(episode.id, row.id))).toHaveLength(0);
+    expect(events.map((e) => e.event)).toContain("episode_cancelled");
+    expect(events.map((e) => e.event)).not.toContain("episode_failed");
   });
 
   it("won't make an episode of a piece the app can't show in full", async () => {

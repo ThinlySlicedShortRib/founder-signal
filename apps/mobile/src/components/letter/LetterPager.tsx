@@ -6,6 +6,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { palette } from "@/components/onboarding/kit";
 import { MenuSheet } from "@/components/pager/MenuSheet";
 import { MenuToggle, Pill, PillButton, PillLabel, PillOutlet, PillProvider } from "@/components/pager/Pill";
+import { keepOnTouchElsewhere } from "@/lib/listen";
 import { lastPage, letterWithLocal, setPieceState, track, useLocalVersion } from "@/lib/letters";
 import { AuthorSheet } from "./Author";
 import { CoverPage } from "./CoverPage";
@@ -115,7 +116,8 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
 
   return (
     <PillProvider>
-      <View style={{ flex: 1, backgroundColor: palette.ground }}>
+      {/* A touch anywhere but an open "Stop this episode?" keeps the episode going (and still does what it was for). */}
+      <View style={{ flex: 1, backgroundColor: palette.ground }} onStartShouldSetResponderCapture={keepOnTouchElsewhere}>
         {/* The cover sets its own, from its art. */}
         {page !== 0 && <StatusBar style={inArticle ? "dark" : "light"} />}
         {/* Keyed by page only: opening the article's drawer and closing it happens in place. */}
@@ -130,7 +132,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
               onMenu={() => setMenuOpen(true)}
               onAuthor={() => piece.author && setAuthor(piece.author)}
               onReadingChange={setReading}
-              lead={({ height, progress, onRead, onPlay, onListen }) => (
+              lead={({ height, progress, onRead, onPlay, onListen, listening }) => (
                 <PiecePage
                   piece={piece}
                   letterNumber={letter.number}
@@ -142,6 +144,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
                   onRead={onRead}
                   onPlay={onPlay}
                   onListen={onListen}
+                  listening={listening}
                   onSkip={() => skip(piece)}
                   onAuthor={() => piece.author && setAuthor(piece.author)}
                 />

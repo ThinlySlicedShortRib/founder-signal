@@ -1,6 +1,6 @@
 import { Children, createContext, isValidElement, type ReactNode, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
-import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { Easing, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { font, palette } from "@/components/onboarding/kit";
@@ -19,14 +19,32 @@ import { createPillStore, type PillLayer, type PillStore } from "./pill-store";
  * `<Pill mode=…>` (a slot, which draws nothing itself), the newest claim wins,
  * and `<PillOutlet />` draws the pill. A `<Pill>` with no provider above it
  * draws its own (and still morphs when its `mode` changes).
+ *
+ * Above the controls the pill can grow a status row for a background task
+ * (`<PillStatusSlot>`): it's claimed on its own, so it stays put, without
+ * re-animating, while the controls under it morph or change hands. While it
+ * shows, the pill is at least `STATUS_W` wide and the controls sit centred
+ * under it, with a hairline between.
  */
+
+/** The status row: its comfortable width, and its height with the hairline under it. */
+export const STATUS_W = 264;
+export const STATUS_H = 45;
+/** The row grows and folds in this long (instantly with Reduce Motion). */
+const STATUS_MS = 220;
+const noSubscribe = () => () => {};
 
 export function usePillSpace() {
   const insets = useSafeAreaInsets();
+  const store = useContext(PillContext);
+  const status = useSyncExternalStore(store?.subscribe ?? noSubscribe, () => (store ? store.getSnapshot().status != null : false));
+  const statusH = status ? STATUS_H : 0;
   const bottom = insets.bottom > 0 ? insets.bottom + 6 : 22;
   /** Padding to leave under scrolling content so its end clears the pill (the boards' 104–110px). */
-  return { bottom, space: bottom + 88 };
+  return { bottom, space: bottom + 88 + statusH, statusH };
 }
+
+const PillContext = createContext<PillStore | null>(null);
 
 // ── Motion ───────────────────────────────────────────────────────────────────
 /** Old contents: fade out, scaling to 0.96. */
@@ -46,7 +64,6 @@ const SPRING = { duration: 340, dampingRatio: 0.88 } as const;
 const ENTRANCE_MS = IN_DELAY + IN_MS + 4 * STAGGER_MS;
 const EASE_OUT = Easing.out(Easing.cubic);
 
-const PillContext = createContext<PillStore | null>(null);
 
 /** One pill for everything under it (a screen whose pill changes hands between components). Put `<PillOutlet />` where the pill should be drawn. */
 export function PillProvider({ children }: { children: ReactNode }) {
@@ -66,6 +83,20 @@ export function Pill(props: PillProps) {
 }
 
 type PillProps = { children: ReactNode; label: string; mode?: string; hidden?: boolean; z?: number };
+
+/**
+ * Claims the pill's status row with these contents (null: none, and the row folds). Independent of the
+ * pill's mode: whoever owns the controls, the row stays. Needs a `PillProvider` (does nothing without one).
+ */
+export function PillStatusSlot({ children }: { children: ReactNode | null }) {
+  const store = useContext(PillContext);
+  const id = useId();
+  useLayoutEffect(() => {
+    store?.setStatus(id, children ?? null);
+  });
+  useLayoutEffect(() => () => store?.releaseStatus(id), [store, id]);
+  return null;
+}
 
 function StandalonePill(props: PillProps) {
   const [store] = useState(createPillStore);
@@ -207,7 +238,11 @@ export function PillOutlet() {
     shown.set(withTiming(visible ? 1 : 0, { duration: visible ? IN_MS : OUT_MS, easing: EASE_OUT, reduceMotion: ReduceMotion.Never }));
   }, [current, visible, shown]);
 
-  const boxStyle = useAnimatedStyle(() => ({ width: width.get(), height: height.get(), opacity: shown.get() }));
+  const boxStyle = useAnimatedStyle(() => ({ width: width.get(), height: height.get() }));
+  const pillStyle = useAnimatedStyle(() => ({ opacity: shown.get() }));
+  /** The live controls' width, for the status row to grow from. */
+  const ctlW = useSharedValue(0);
+  const onLiveWidth = useCallback((w: number) => ctlW.set(w), [ctlW]);
 
   const layers = [...snap.exiting, ...(current ? [current] : [])].sort((a, b) => a.id - b.id);
 
@@ -218,30 +253,73 @@ export function PillOutlet() {
           {
             pointerEvents: visible ? "auto" : "none",
             backgroundColor: palette.pill,
-            borderRadius: 999,
+            // 27 is a full pill at the controls' 54pt, and keeps rounded corners once the status row makes it taller.
+            borderRadius: 27,
             boxShadow: "0 12px 30px rgba(18,19,22,0.22)",
             // Clips the contents to the rounded shape (the shadow is drawn outside the clip).
             overflow: "hidden",
             alignItems: "center",
-            justifyContent: "center",
           },
-          boxStyle,
+          pillStyle,
         ]}
       >
-        {layers.map((layer) => (
-          <PillLayerView
-            key={layer.id}
-            layer={layer}
-            live={layer === current}
-            initial={layer.id === firstId}
-            reduce={reduce}
-            stageW={stageW}
-            onMeasure={onMeasure}
-            onGone={onGone}
-          />
-        ))}
+        <PillStatusArea node={snap.status} reduce={reduce} ctlW={ctlW} maxW={Math.round(stageW * 0.94)} />
+        {/* The controls, sized as before (live contents, or pinned mid-morph). Clipped on their own, so an outgoing mode never shows over the row. */}
+        <Animated.View style={[{ overflow: "hidden", alignItems: "center", justifyContent: "center" }, boxStyle]}>
+          {layers.map((layer) => (
+            <PillLayerView
+              key={layer.id}
+              layer={layer}
+              live={layer === current}
+              initial={layer.id === firstId}
+              reduce={reduce}
+              stageW={stageW}
+              onMeasure={onMeasure}
+              onLiveWidth={layer === current ? onLiveWidth : undefined}
+              onGone={onGone}
+            />
+          ))}
+        </Animated.View>
       </Animated.View>
     </View>
+  );
+}
+
+/**
+ * The status row above the controls. It grows (height and opacity, 220ms) when a status is claimed and folds
+ * when it's let go, keeping its last contents while it folds. Its contents lay out at a fixed width, centred,
+ * so nothing in them moves while the pill's width changes under the controls' morphs.
+ */
+function PillStatusArea({ node, reduce, ctlW, maxW }: { node: ReactNode | null; reduce: boolean; ctlW: SharedValue<number>; maxW: number }) {
+  const on = node != null;
+  /** What it shows: the latest contents, or the last ones while it folds. */
+  const [held, setHeld] = useState<ReactNode | null>(node);
+  if (on && held !== node) setHeld(node);
+  const open = useSharedValue(on ? 1 : 0);
+  const w = Math.min(STATUS_W, maxW);
+
+  const folded = useCallback(() => setHeld(null), []);
+  useEffect(() => {
+    const cfg = { duration: reduce ? 0 : STATUS_MS, easing: EASE_OUT, reduceMotion: ReduceMotion.Never };
+    open.set(
+      withTiming(on ? 1 : 0, cfg, (done) => {
+        if (done && !on) scheduleOnRN(folded);
+      }),
+    );
+  }, [on, reduce, open, folded]);
+
+  const style = useAnimatedStyle(() => {
+    const p = open.get();
+    // Grows from the controls' width to the row's, so the pill widens with it (never narrower than the controls).
+    const from = Math.min(ctlW.get(), w);
+    return { height: p * STATUS_H, opacity: Math.min(1, p * 1.25), width: from + (w - from) * p };
+  });
+
+  if (held == null) return null;
+  return (
+    <Animated.View style={[{ overflow: "hidden", alignItems: "center", justifyContent: "flex-start" }, style]}>
+      <View style={{ width: w, height: STATUS_H, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)", flexShrink: 0 }}>{held}</View>
+    </Animated.View>
   );
 }
 
@@ -253,6 +331,7 @@ function PillLayerView({
   reduce,
   stageW,
   onMeasure,
+  onLiveWidth,
   onGone,
 }: {
   layer: PillLayer;
@@ -262,6 +341,7 @@ function PillLayerView({
   reduce: boolean;
   stageW: number;
   onMeasure: (layer: number, s: Size) => void;
+  onLiveWidth?: (w: number) => void;
   onGone: (layer: number) => void;
 }) {
   const opacity = useSharedValue(1);
@@ -321,7 +401,10 @@ function PillLayerView({
       <View
         accessibilityRole={live ? "toolbar" : undefined}
         accessibilityLabel={live ? layer.label : undefined}
-        onLayout={(e) => onMeasure(id, { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        onLayout={(e) => {
+          onMeasure(id, { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height });
+          onLiveWidth?.(e.nativeEvent.layout.width);
+        }}
         style={{ pointerEvents: "box-none", flexDirection: "row", alignItems: "center", flexShrink: 0, gap: 2, padding: 5, maxWidth: Math.round(stageW * 0.94) }}
       >
         {Children.toArray(layer.node).map((child, i) => (

@@ -15,7 +15,7 @@ import {
 } from "@fs/core";
 import { type EpisodeRow, schema } from "@fs/db";
 import type { Block, Rights } from "@fs/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { logger, type PipelineDeps } from "../pipeline/deps.ts";
 import { type AudioStore, episodeAudioKey } from "./audio-store.ts";
 import type { AudioEncoder } from "./encode.ts";
@@ -37,6 +37,24 @@ export interface Podcast {
 const LEASE_MINUTES = 20;
 /** The model gets this many tries to pass the checks before the piece's own words are read instead. */
 const SCRIPT_ATTEMPTS = 2;
+
+/**
+ * The episode's `progress` (the app's ring) by step: the script is one call, so it creeps toward 0.25 on a time
+ * estimate; voicing is measured, chunk by chunk, 0.25 → 0.95; encoding and storing take it to 1.
+ */
+export const PROGRESS = { script: 0.25, voiced: 0.95 } as const;
+/** How the script step creeps: most of the way in about this long, and never quite to the voicing step. */
+const SCRIPT_CREEP_MS = 25_000;
+const CREEP_EVERY_MS = 2_000;
+export const scriptProgress = (ms: number) => Math.min(PROGRESS.script - 0.01, PROGRESS.script * (1 - Math.exp(-ms / SCRIPT_CREEP_MS)));
+export const voiceProgress = (done: number, total: number) => PROGRESS.script + (PROGRESS.voiced - PROGRESS.script) * (total ? done / total : 1);
+
+/** Thrown when the episode's row is gone: someone stopped it (DELETE /items/:id/episode). */
+class Cancelled extends Error {
+  constructor() {
+    super("cancelled");
+  }
+}
 
 export interface EpisodeOutcome {
   episodeId: string;
@@ -67,7 +85,7 @@ export async function generateEpisode(deps: PipelineDeps, { episodeId }: { episo
 
   const [row] = await db
     .update(episode)
-    .set({ status: "scripting", startedAt: sql`now()`, attempts: sql`${episode.attempts} + 1`, error: null })
+    .set({ status: "scripting", progress: 0, startedAt: sql`now()`, attempts: sql`${episode.attempts} + 1`, error: null })
     .where(
       sql`${episode.id} = ${episodeId} and (${episode.status} = 'queued'
         or (${episode.status} in ('scripting', 'voicing') and ${episode.startedAt} < now() - make_interval(mins => ${LEASE_MINUTES})))`,
@@ -78,6 +96,16 @@ export async function generateEpisode(deps: PipelineDeps, { episodeId }: { episo
     return { episodeId, status: "skipped", error: "not_queued" };
   }
 
+  /**
+   * Records progress, and is how a stopped episode is noticed: its row is gone, so nothing is updated and this
+   * throws. Called at every step and after every chunk voiced.
+   */
+  const stillWanted = async (set: Partial<typeof episode.$inferInsert>) => {
+    const [kept] = await db.update(episode).set(set).where(eq(episode.id, row.id)).returning({ id: episode.id });
+    if (!kept) throw new Cancelled();
+  };
+
+  let creep: ReturnType<typeof setInterval> | null = null;
   try {
     const format = row.format as ScriptInput["format"];
     if (episodeVoiceKey(podcast.synth.engine, format) !== row.voiceKey) throw new Error(`This worker voices ${podcast.synth.engine}, not ${row.voiceKey}`);
@@ -107,6 +135,14 @@ export async function generateEpisode(deps: PipelineDeps, { episodeId }: { episo
     const title = piece.title ?? piece.url;
     const scriptStarted = Date.now();
     const source = episodeSourceText(paragraphs);
+    // The script is one call: creep on a time estimate while it's written (a stopped episode is noticed after).
+    creep = setInterval(() => {
+      void db
+        .update(episode)
+        .set({ progress: scriptProgress(Date.now() - scriptStarted) })
+        .where(and(eq(episode.id, row.id), eq(episode.status, "scripting")))
+        .catch(() => {});
+    }, CREEP_EVERY_MS);
     const script = await writeScript(podcast.scriptWriter, {
       format,
       title,
@@ -116,26 +152,28 @@ export async function generateEpisode(deps: PipelineDeps, { episodeId }: { episo
       truncated: source.truncated,
     }, paragraphs, (event, data) => log(event, { episodeId, ...data }));
 
-    await db.update(episode).set({ status: "voicing", script: script.script, scriptMethod: script.method, scriptModel: script.model, scriptProblems: script.problems }).where(eq(episode.id, row.id));
+    clearInterval(creep);
+    creep = null;
+    await stillWanted({ status: "voicing", progress: PROGRESS.script, script: script.script, scriptMethod: script.method, scriptModel: script.model, scriptProblems: script.problems });
 
     const voiceStarted = Date.now();
-    // Voice every chunk of every line, in order.
+    // Voice every chunk of every line, in order, counting them for the progress.
     const synth = podcast.synth;
+    const chunks = script.script.chapters.flatMap((chapter, c) =>
+      chapter.lines.flatMap((line, l) => splitForSpeech(speakable(line.text)).map((text) => ({ c, l, speaker: line.speaker, text }))),
+    );
     const clips: Int16Array[] = [];
     const info: ClipInfo[] = [];
     let sampleRate = 0;
     let characters = 0;
-    for (const [c, chapter] of script.script.chapters.entries()) {
-      for (const [l, line] of chapter.lines.entries()) {
-        for (const chunk of splitForSpeech(speakable(line.text))) {
-          const pcm = await synth.synthesize(chunk, line.speaker);
-          sampleRate ||= pcm.sampleRate;
-          const samples = resample(pcm, sampleRate).samples;
-          clips.push(samples);
-          info.push({ chapter: c, line: l, speaker: line.speaker, samples: samples.length });
-          characters += chunk.length;
-        }
-      }
+    for (const [i, chunk] of chunks.entries()) {
+      const pcm = await synth.synthesize(chunk.text, chunk.speaker);
+      sampleRate ||= pcm.sampleRate;
+      const samples = resample(pcm, sampleRate).samples;
+      clips.push(samples);
+      info.push({ chapter: chunk.c, line: chunk.l, speaker: chunk.speaker, samples: samples.length });
+      characters += chunk.text.length;
+      await stillWanted({ progress: voiceProgress(i + 1, chunks.length) });
     }
     if (!clips.length) throw new Error("Nothing to voice");
 
@@ -150,6 +188,8 @@ export async function generateEpisode(deps: PipelineDeps, { episodeId }: { episo
       durationSeconds,
     });
     const audioKey = episodeAudioKey(row.itemId, row.id, encoded.ext);
+    // Last look before the file is written: a stopped episode leaves nothing behind.
+    await stillWanted({ progress: PROGRESS.voiced + 0.03 });
     await podcast.audio.put(audioKey, encoded.bytes, encoded.contentType);
 
     const timings = { scriptMs: voiceStarted - scriptStarted, voiceMs: encodeStarted - voiceStarted, encodeMs: Date.now() - encodeStarted };
@@ -167,6 +207,7 @@ export async function generateEpisode(deps: PipelineDeps, { episodeId }: { episo
       .update(episode)
       .set({
         status: "ready",
+        progress: 1,
         chapters: plan.chapters,
         ttsEngine: synth.engine,
         ttsModel: synth.model,
@@ -183,15 +224,22 @@ export async function generateEpisode(deps: PipelineDeps, { episodeId }: { episo
       })
       .where(eq(episode.id, row.id))
       .returning();
+    if (!done) throw new Cancelled();
     const silence = silenceStats(pcm);
     const checks = { longestSilenceSeconds: silence.longestSeconds, silentFraction: silence.silentFraction, expectedSeconds: Math.round((words / 165) * 60) };
     log("episode_ready", { episodeId, durationSeconds, words, costUsd: cost.totalUsd, ms: Date.now() - started, method: script.method, ...checks, ...timings });
     return { episodeId, status: "ready", row: done, checks, timings };
   } catch (err) {
+    if (err instanceof Cancelled) {
+      log("episode_cancelled", { episodeId, ms: Date.now() - started });
+      return { episodeId, status: "skipped", error: "cancelled" };
+    }
     const message = (err as Error).message.slice(0, 500);
     await db.update(episode).set({ status: "failed", error: message, finishedAt: sql`now()` }).where(eq(episode.id, row.id));
     log("episode_failed", { episodeId, error: message });
     return { episodeId, status: "failed", error: message };
+  } finally {
+    if (creep) clearInterval(creep);
   }
 }
 

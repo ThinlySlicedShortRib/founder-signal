@@ -40,6 +40,7 @@ export function episodeView(row: EpisodeRow, audioUrl: (key: string) => string):
     audioUrl: ready ? audioUrl(row.audioKey!) : null,
     durationSeconds: ready ? row.durationSeconds : null,
     chapters: ready ? (row.chapters ?? []) : [],
+    progress: ready ? 1 : Math.max(0, Math.min(1, row.progress ?? 0)),
   };
 }
 

@@ -21,16 +21,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import { font, InlineError, palette } from "@/components/onboarding/kit";
 import { PagerIcon, type PagerIconName, ProgressRing } from "@/components/pager/icons";
-import { Pill, PillAction, PillButton, PillStatus, PillStatusText, usePillSpace } from "@/components/pager/Pill";
+import { Pill, PillAction, PillButton, PillStatus, PillStatusSlot, PillStatusText, usePillSpace } from "@/components/pager/Pill";
 import { AgentLine, Display, Mono } from "@/components/pager/PagerScreen";
 import { Sheet } from "@/components/pager/Sheet";
 import { timestamp } from "@/lib/format";
 import { DISLIKE_LABELS, LIKE_LABELS, setPieceState, track, usePieceState, useItem, useSectionSummary, useToggleSave } from "@/lib/letters";
-import { useRequestEpisode } from "@/lib/podcast";
+import { tasks as episodeTasks, useEpisodeTask, usePauseOnLeave } from "@/lib/listen";
 import { useReview } from "@/lib/profile";
 import { DRAWER_ROW, DrawerHeader, useArticleDrawer } from "./ArticleDrawer";
 import { AuthorCardView, AuthorChip, SheetButton } from "./Author";
 import { BlockView, TEXT_SIZES, type TextSize } from "./BlockRenderer";
+import { EpisodeStatusRow } from "./EpisodeStatus";
 import { FOCUS_STYLE_LABEL, FocusBlock, FocusProvider, nextFocusSetting, useFocusSetting, useFocusTracker } from "./Focus";
 import { ListenCard } from "./Listen";
 import { PhotoBackdrop, TINTS } from "./Photo";
@@ -70,8 +71,10 @@ export type ReaderLead = {
   onRead: () => void;
   /** Opens the video on YouTube. */
   onPlay: () => void;
-  /** Articles: asks for the piece as an episode and opens the drawer, whose article starts with its player. */
+  /** Articles: starts making the piece's episode (the pill grows its status row); once there is one, goes to its Listen card. */
   onListen?: () => void;
+  /** The piece's episode is on the go (the headphones button shows it). */
+  listening?: boolean;
 };
 
 const HEAD_MAX = 200;
@@ -125,7 +128,9 @@ export function Reader({
   const toggleSave = useToggleSave();
   const review = useReview();
   const summarize = useSectionSummary(meta.itemId);
-  const requestEpisode = useRequestEpisode(meta.itemId);
+  const episode = useEpisodeTask(meta.itemId);
+  // One player for the app: leaving the piece stops its audio; opening and closing the drawer doesn't.
+  usePauseOnLeave(meta.itemId);
 
   const data = item.data;
   const kind = data?.kind ?? meta.kind;
@@ -187,6 +192,8 @@ export function Reader({
   const onTick = useCallback(
     (y: number, view: number, content: number) => {
       yRef.current = y;
+      // A scroll counts as Keep for an open "Stop this episode?".
+      if (episodeTasks.anyConfirm()) episodeTasks.dismiss({ scroll: true });
       if (view > 0) viewH.current = view;
       if (content > 0) contentH.current = content;
       recompute();
@@ -307,6 +314,19 @@ export function Reader({
     const targets = sectionTops().filter((v) => v > yRef.current + headMin + 8).sort((a, b) => a - b);
     const target = targets[0] ?? (endY.current !== null ? bodyTop.current + endY.current : null);
     if (target !== null) scrollToY(target - headMin - 12);
+  }
+
+  /** Where the Listen card is within the article, and a counter that rings it once. */
+  const listenY = useRef<number | null>(null);
+  const [listenFlash, setListenFlash] = useState(0);
+  /** The pill's status row was tapped: open the drawer if it's down, and bring the Listen card into view. */
+  function goToListen() {
+    if (flow && !compact) {
+      markOpen();
+      drawer.open();
+    }
+    if (listenY.current !== null) scrollToY(bodyTop.current + listenY.current - headMin - 16);
+    setListenFlash((n) => n + 1);
   }
 
   /** Read on the piece page: up comes the drawer. */
@@ -459,7 +479,11 @@ export function Reader({
               </Pressable>
             )}
           </View>
-          {!video && <ListenCard itemId={meta.itemId} />}
+          {!video && (
+            <View onLayout={(e) => (listenY.current = e.nativeEvent.layout.y)}>
+              <ListenCard itemId={meta.itemId} flash={listenFlash} />
+            </View>
+          )}
           {meta.image?.credit && (
             <Pressable accessibilityRole="link" disabled={!meta.image.creditUrl} onPress={() => meta.image?.creditUrl && void Linking.openURL(meta.image.creditUrl)} style={{ marginTop: -10 }}>
               <Text style={{ fontFamily: font.body, fontSize: 12.5, color: palette.offText }}>
@@ -572,12 +596,14 @@ export function Reader({
                 progress: drawer.openness,
                 onRead: read,
                 onPlay,
-                onListen: video
-                  ? undefined
-                  : () => {
-                      requestEpisode.mutate();
-                      read();
-                    },
+                onListen:
+                  video || !episode.available
+                    ? undefined
+                    : () => {
+                        if (episode.phase === "idle") episode.start();
+                        else goToListen();
+                      },
+                listening: episode.phase !== "idle" && episode.phase !== "stopped",
               })}
             </Animated.View>
           </GestureDetector>
@@ -660,7 +686,7 @@ export function Reader({
             accessibilityLabel="More"
             style={{
               position: "absolute",
-              bottom: pill.bottom + 66,
+              bottom: pill.bottom + 66 + pill.statusH,
               alignSelf: "center",
               width: 290,
               zIndex: 21,
@@ -729,6 +755,9 @@ export function Reader({
         </>
       )}
 
+      {/* The episode's status row, above whichever controls the pill has (the pager's on the cover, these once reading). */}
+      <PillStatusSlot>{!video && episode.row ? <EpisodeStatusRow itemId={meta.itemId} onOpen={goToListen} /> : null}</PillStatusSlot>
+
       {/* The pill: reading → verdict → next (under a lead, only once reading). One <Pill> in one place, so it morphs
           between modes; in a letter it's drawn by the pager's PillOutlet. It fades out under the verdict sheet. */}
       {!pillOn ? null : showNextPill ? (
@@ -776,7 +805,7 @@ export function Reader({
         </Pill>
       )}
       {reviewError && (
-        <View style={{ pointerEvents: "none", position: "absolute", left: 20, right: 20, bottom: pill.bottom + 62, zIndex: 18 }}>
+        <View style={{ pointerEvents: "none", position: "absolute", left: 20, right: 20, bottom: pill.bottom + 62 + pill.statusH, zIndex: 18 }}>
           <InlineError message="Couldn't save your verdict. Try again." />
         </View>
       )}

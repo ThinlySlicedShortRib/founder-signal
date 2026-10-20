@@ -803,6 +803,8 @@ export const episodeViewSchema = z.object({
   audioUrl: z.string().nullable(),
   durationSeconds: z.number().nullable(),
   chapters: z.array(z.object({ title: z.string(), startSeconds: z.number() })),
+  /** How far along making it is, 0 → 1 (1 once ready): the script to 0.25, voicing to 0.95, then encoding. */
+  progress: z.number().min(0).max(1),
 });
 export type EpisodeView = z.infer<typeof episodeViewSchema>;
 

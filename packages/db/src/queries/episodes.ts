@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { contentVersion } from "../schema/ingestion.ts";
 import { episode } from "../schema/podcast.ts";
@@ -60,7 +60,7 @@ export async function requestEpisode(
 
   const [requeued] = await db
     .update(episode)
-    .set({ status: "queued", error: null, startedAt: null })
+    .set({ status: "queued", progress: 0, error: null, startedAt: null })
     .where(and(sameEpisode(versionId, id), eq(episode.status, "failed")))
     .returning();
   if (requeued) return { episode: requeued, queued: true };
@@ -70,4 +70,34 @@ export async function requestEpisode(
   const stale = existing.status === "queued" && now.getTime() - existing.updatedAt.getTime() > RESEND_AFTER_MS;
   if (stale) await db.update(episode).set({ updatedAt: sql`now()` }).where(eq(episode.id, existing.id));
   return { episode: existing, queued: stale };
+}
+
+const BUSY = ["queued", "scripting", "voicing"] as const;
+
+/**
+ * Stops an episode that's still being made (the app's Stop): its row is
+ * deleted, so the piece goes back to having none, and a worker making it
+ * notices at its next step and stops (see the podcast job's `stillWanted`).
+ * Episodes are shared, so only the user who asked for it (or nobody, for one
+ * made from the CLI) may stop it. A finished or failed one is left alone.
+ */
+export async function cancelEpisode(
+  db: Db,
+  id: EpisodeIdentity & { userId: string },
+): Promise<{ cancelled: true; episode: null } | { cancelled: false; episode: EpisodeRow | null }> {
+  const versionId = await latestVersionId(db, id.itemId);
+  if (!versionId) return { cancelled: false, episode: null };
+  const [gone] = await db
+    .delete(episode)
+    .where(
+      and(
+        sameEpisode(versionId, id),
+        inArray(episode.status, [...BUSY]),
+        or(eq(episode.requestedBy, id.userId), isNull(episode.requestedBy)),
+      ),
+    )
+    .returning({ id: episode.id });
+  if (gone) return { cancelled: true, episode: null };
+  const [existing] = await db.select().from(episode).where(sameEpisode(versionId, id));
+  return { cancelled: false, episode: existing ?? null };
 }

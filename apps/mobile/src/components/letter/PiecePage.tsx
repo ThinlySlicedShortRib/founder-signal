@@ -28,6 +28,7 @@ export function PiecePage({
   onRead,
   onPlay,
   onListen,
+  listening = false,
   onSkip,
   onAuthor,
 }: {
@@ -44,11 +45,20 @@ export function PiecePage({
   onPlay: () => void;
   /** Articles: hear it as a short episode instead. */
   onListen?: () => void;
+  /** Its episode is being made, ready or playing: the headphones button turns blue. */
+  listening?: boolean;
   onSkip: () => void;
   onAuthor: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { space } = usePillSpace();
+  const { space, statusH } = usePillSpace();
+  const reduceMotion = useReducedMotion();
+  // The text lifts to clear the pill, and again (with the row, 220ms) while the pill carries a status.
+  const lift = useSharedValue(statusH);
+  useEffect(() => {
+    lift.set(withTiming(statusH, { duration: reduceMotion ? 0 : 220, easing: Easing.bezier(0.2, 0.8, 0.2, 1) }));
+  }, [statusH, reduceMotion, lift]);
+  const liftStyle = useAnimatedStyle(() => ({ paddingBottom: space - statusH - 6 + lift.get() }));
   const video = piece.kind === "video";
   const len = `${piece.minutes} min`;
   const label = video ? "Watch" : "Read article";
@@ -86,7 +96,7 @@ export function PiecePage({
         )}
       </View>
 
-      <View style={{ zIndex: 2, gap: 14, paddingHorizontal: 20, paddingBottom: space - 6 }}>
+      <Animated.View style={[{ zIndex: 2, gap: 14, paddingHorizontal: 20 }, liftStyle]}>
         <Mono color="rgba(255,255,255,0.85)">
           {video ? "Video" : "Article"} · {len} · {piece.topic}
         </Mono>
@@ -123,9 +133,20 @@ export function PiecePage({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Listen"
-              accessibilityHint="Makes a short two-host episode of the piece"
+              accessibilityHint={listening ? "Goes to the episode's Listen card" : "Makes a short two-host episode of the piece"}
+              accessibilityState={{ selected: listening }}
               onPress={onListen}
-              style={({ pressed }) => ({ width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.18)", borderWidth: 1, borderColor: "rgba(255,255,255,0.35)", opacity: pressed ? 0.8 : 1 })}
+              style={({ pressed }) => ({
+                width: 52,
+                height: 52,
+                borderRadius: 26,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: listening ? palette.blue : "rgba(255,255,255,0.18)",
+                borderWidth: 1,
+                borderColor: listening ? palette.blue : "rgba(255,255,255,0.35)",
+                opacity: pressed ? 0.8 : 1,
+              })}
             >
               <PagerIcon name="headphones" size={22} color="#FFFFFF" />
             </Pressable>
@@ -134,7 +155,7 @@ export function PiecePage({
             <Text style={{ fontFamily: font.body, fontSize: 14, color: "rgba(255,255,255,0.75)", textDecorationLine: "underline" }}>Skip this one</Text>
           </Pressable>
         </Animated.View>
-      </View>
+      </Animated.View>
     </View>
   );
 }

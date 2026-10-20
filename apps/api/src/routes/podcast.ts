@@ -1,4 +1,4 @@
-import { type Db, findEpisode, requestEpisode, schema } from "@fs/db";
+import { cancelEpisode, type Db, findEpisode, requestEpisode, schema } from "@fs/db";
 import type { Rights } from "@fs/schema";
 import { zValidator } from "@hono/zod-validator";
 import { desc, eq } from "drizzle-orm";
@@ -38,8 +38,9 @@ async function canHaveEpisode(db: Db, itemId: string): Promise<"ok" | "not_found
 
 /**
  * /items/:id/episode (the podcast experiment): GET says whether there's one
- * and how far along it is; POST asks for it. Episodes are shared, so asking
- * for one someone else asked for returns theirs.
+ * and how far along it is; POST asks for it; DELETE stops one that's still
+ * being made (the app's Stop). Episodes are shared, so asking for one someone
+ * else asked for returns theirs, and only the one who asked may stop it.
  */
 export function episodeRoutes({ db, podcast }: PodcastRouteDeps) {
   // Each new episode is a model call and a minute or two of a worker; this keeps a stuck client in check.
@@ -73,5 +74,13 @@ export function episodeRoutes({ db, podcast }: PodcastRouteDeps) {
         });
       }
       return c.json({ episode: episodeView(out.episode, podcast.audioUrl) }, out.queued ? 202 : 200);
+    })
+    // Stop: the row goes, and the worker stops at its next step. `cancelled: false` (with the episode as it is)
+    // when it had already finished or failed, or someone else asked for it.
+    .delete("/:id/episode", zValidator("param", idParam, itemNotFound), async (c) => {
+      if (!podcast) return apiError(c, 422, "VALIDATION_FAILED", "Episodes are off");
+      const out = await cancelEpisode(db, { itemId: c.req.valid("param").id, format: podcast.format, promptVersion: podcast.promptVersion, voiceKey: podcast.voiceKey, userId: c.get("user").id });
+      if (out.cancelled) console.info(JSON.stringify({ level: "info", message: "episode cancelled", itemId: c.req.valid("param").id }));
+      return c.json({ cancelled: out.cancelled, episode: out.episode ? episodeView(out.episode, podcast.audioUrl) : null });
     });
 }

@@ -22,17 +22,47 @@ const DRIFT_SCALE = 1.08;
  * style's `scrim` opacity, enough for 4.5:1 whatever is drawn behind them.
  * The art is decorative: hidden from screen readers. `drift` moves it slowly
  * (not with Reduce Motion).
+ *
+ * `band` is a piece page's version: the hero takes the room its page leaves
+ * (`flex: 1`, no minimum), the art is drawn at the cover's size (HERO.share of
+ * the window) and pinned to the top, so the masthead keeps the same clear
+ * zone as on the cover, and its foot fades into the art's own paper
+ * (`band.fade`), the colour the page carries on below. `middle` sits in the
+ * space between the masthead and the text (a video's play button). A page
+ * that needs the paper colour first draws the band's scene itself
+ * (`useBandScene`) and passes it in as `band.scene`.
  */
-export function ArtHero({ art, drift, masthead, onHeight, children }: { art: ArtPick; drift?: boolean; masthead?: ReactNode; onHeight?: (h: number) => void; children: ReactNode }) {
+export function ArtHero({
+  art,
+  drift,
+  masthead,
+  middle,
+  band,
+  onHeight,
+  children,
+}: {
+  art: ArtPick;
+  drift?: boolean;
+  masthead?: ReactNode;
+  middle?: ReactNode;
+  band?: { fade: number; bottomPad: number; scene?: Scene };
+  onHeight?: (h: number) => void;
+  children: ReactNode;
+}) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const style = STYLES[art.style];
-  const scene = useMemo(
-    () => (size ? drawArt(art.style, { ...art, width: size.width, height: size.height }) : null),
+  const coverHeight = Math.round(windowHeight * HERO.share);
+  // A band always draws at the cover's height, whatever its own; the cover at its own size.
+  const drawHeight = band ? coverHeight : size?.height;
+  const given = band?.scene ?? null;
+  const drawn = useMemo(
+    () => (size && drawHeight && !given ? drawArt(art.style, { ...art, width: size.width, height: drawHeight }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [art.style, art.seed, art.date, art.number, size?.width, size?.height],
+    [art.style, art.seed, art.date, art.number, size?.width, drawHeight, given],
   );
+  const scene = given ?? drawn;
   const bg = scene?.background ?? style.base;
   const a = style.scrim;
 
@@ -43,14 +73,15 @@ export function ArtHero({ art, drift, masthead, onHeight, children }: { art: Art
         if (!size || Math.round(width) !== size.width || Math.round(height) !== size.height) setSize({ width: Math.round(width), height: Math.round(height) });
         onHeight?.(height);
       }}
-      style={{ minHeight: Math.round(windowHeight * HERO.share), backgroundColor: style.base, overflow: "hidden" }}
+      style={band ? { flex: 1, minHeight: 0, backgroundColor: bg, overflow: "hidden" } : { minHeight: coverHeight, backgroundColor: style.base, overflow: "hidden" }}
     >
-      {scene && <ArtCanvas scene={scene} drift={drift} />}
+      {scene && size && <ArtCanvas scene={scene} box={size} drift={drift} />}
+      {band && <LinearGradient pointerEvents="none" colors={[rgba(bg, 0), rgba(bg, 1)]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: band.fade }} />}
       <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: insets.top + HERO.mastHeight, backgroundColor: rgba(bg, a) }} />
       <LinearGradient pointerEvents="none" colors={[rgba(bg, a), rgba(bg, 0)]} style={{ position: "absolute", top: insets.top + HERO.mastHeight, left: 0, right: 0, height: HERO.fade }} />
       <View style={{ minHeight: insets.top + HERO.mastHeight, paddingTop: insets.top + 14, paddingHorizontal: 20 }}>{masthead}</View>
-      <View style={{ flex: 1, minHeight: 80 }} />
-      <View style={{ gap: 12, paddingTop: 8, paddingHorizontal: 20, paddingBottom: HERO.bottomPad }}>
+      <View style={{ flex: 1, minHeight: band ? 12 : 80, alignItems: "center", justifyContent: "center", pointerEvents: "box-none" }}>{middle}</View>
+      <View style={{ gap: band ? 10 : 12, paddingTop: 8, paddingHorizontal: 20, paddingBottom: band ? band.bottomPad : HERO.bottomPad }}>
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: rgba(bg, a) }]} />
         <LinearGradient pointerEvents="none" colors={[rgba(bg, 0), rgba(bg, a)]} style={{ position: "absolute", top: -HERO.fade, left: 0, right: 0, height: HERO.fade }} />
         {children}
@@ -59,8 +90,21 @@ export function ArtHero({ art, drift, masthead, onHeight, children }: { art: Art
   );
 }
 
-/** The scene as SVG, behind everything; with `drift`, slowly breathing and sliding. */
-function ArtCanvas({ scene, drift }: { scene: Scene; drift?: boolean }) {
+/** A band's scene: drawn at the window's width and the cover's height (HERO.share), as ArtHero's `band` draws it. */
+export function useBandScene(art: ArtPick): Scene {
+  const { width, height } = useWindowDimensions();
+  const h = Math.round(height * HERO.share);
+  const w = Math.round(width);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => drawArt(art.style, { ...art, width: w, height: h }), [art.style, art.seed, art.date, art.number, w, h]);
+}
+
+/**
+ * The scene as SVG, behind everything, covering `box` from the top: scaled up
+ * (centred) only if the box is taller or wider than what was drawn, cropped
+ * from the bottom if it's shorter. With `drift`, slowly breathing and sliding.
+ */
+function ArtCanvas({ scene, box, drift }: { scene: Scene; box: { width: number; height: number }; drift?: boolean }) {
   const xml = useMemo(() => toSvg(scene, FONTS), [scene]);
   const reduceMotion = useReducedMotion();
   const moving = !!drift && !reduceMotion;
@@ -73,9 +117,11 @@ function ArtCanvas({ scene, drift }: { scene: Scene; drift?: boolean }) {
   const animated = useAnimatedStyle(() => ({
     transform: moving ? [{ scale: DRIFT_SCALE + t.value * 0.03 }, { translateX: (t.value - 0.5) * 18 }, { translateY: (0.5 - t.value) * 10 }] : [],
   }));
+  const k = Math.max(1, box.width / scene.width, box.height / scene.height);
+  const [w, h] = [scene.width * k, scene.height * k];
   return (
     <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden style={[StyleSheet.absoluteFill, animated]}>
-      <SvgXml xml={xml} width={scene.width} height={scene.height} />
+      <SvgXml xml={xml} width={w} height={h} style={{ position: "absolute", top: 0, left: (box.width - w) / 2 }} />
     </Animated.View>
   );
 }

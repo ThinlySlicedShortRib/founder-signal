@@ -5,7 +5,7 @@ import { contrast, GROUNDS, hex, LINES } from "./colors.ts";
 import { minScrim, worstContrast } from "./contrast.ts";
 import { rng } from "./random.ts";
 import { type ArtNode, elementCount, type Scene, toSvg } from "./scene.ts";
-import { drawArt, pickStyle, STYLE_ORDER, STYLES, type StyleId, styleSet } from "./styles.ts";
+import { drawArt, pickPieceArt, pickStyle, pieceStyles, STYLE_ORDER, STYLES, type StyleId, styleSet } from "./styles.ts";
 
 const FONTS = { display: "D", mono: "M" };
 const SIZES = [
@@ -118,4 +118,31 @@ test("consecutive letters, and consecutive days, never share a style", () => {
   }
   // Over the month boundary too.
   assert.notEqual(pickStyle({ seed: "2026-09-30", date: "2026-09-30" }), pickStyle({ seed: "2026-10-01", date: "2026-10-01" }));
+});
+
+test("a letter's pieces: no repeats, never the cover's style, the same picture for the same piece, and a fifth wraps", () => {
+  const date = "2026-10-20";
+  for (let n = 1; n <= 200; n++) {
+    const letterId = `ltr-${n}`;
+    const sequence = n % 7 === 0 ? null : n; // test letters fall back to the day
+    const cover = pickStyle({ seed: letterId, date, sequence });
+    const art = (position: number, itemId = `itm-${n}-${position}`) => pickPieceArt({ letterId, date, sequence, itemId, position });
+    const four = [1, 2, 3, 4].map((p) => art(p).style);
+    assert.equal(new Set(four).size, 4, `${letterId}: ${four.join()}`);
+    assert.ok(!four.includes(cover), `${letterId}: cover ${cover} in ${four.join()}`);
+    assert.deepEqual([...four].sort(), [...pieceStyles({ letterId, date, sequence })].sort());
+    // A fifth (and sixth) wraps to places 1 and 2: still never next to its own style.
+    assert.equal(art(5).style, four[0]);
+    assert.equal(art(6).style, four[1]);
+    assert.notEqual(art(5).style, art(4).style);
+  }
+  // Stable: the same letter and piece always give the same pick, seeded by the piece, with its number for Letterhead.
+  const a = pickPieceArt({ letterId: "ltr_9c41e2", date, sequence: 14, itemId: "itm_8e24a7", position: 2 });
+  assert.deepEqual(a, pickPieceArt({ letterId: "ltr_9c41e2", date, sequence: 14, itemId: "itm_8e24a7", position: 2 }));
+  assert.equal(a.seed, "piece:itm_8e24a7");
+  assert.equal(a.number, 2);
+  const draw = () => toSvg(drawArt(a.style, { ...a, width: 390, height: 506 }), FONTS);
+  assert.equal(draw(), draw());
+  // The shuffle depends on the letter: different letters order the set differently.
+  assert.ok(new Set(SEEDS.map((s) => pieceStyles({ letterId: s, date, sequence: 14 }).join())).size >= 6);
 });

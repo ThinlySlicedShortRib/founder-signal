@@ -49,7 +49,8 @@ export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "piece
  * ↑ and ↓ move between pages (dragging up on a piece means "read", so it doesn't page).
  * A piece is its page with the article in a drawer over it (the Reader with
  * the PiecePage as its `lead`). Once the drawer is up the Reader takes the
- * pill and the status bar goes dark; when it goes back down, the pager's pill returns.
+ * pill; when it goes back down, the pager's pill returns. The status bar is dark on
+ * a piece either way (its page is light now), light on the P.S.'s photo.
  * Both share one pill (the PillProvider), so it morphs from one to the other.
  */
 export function LetterPager({ letter: base, today }: { letter: LetterView; today: boolean }) {
@@ -118,8 +119,8 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
     <PillProvider>
       {/* A touch anywhere but an open "Stop this episode?" keeps the episode going (and still does what it was for). */}
       <View style={{ flex: 1, backgroundColor: palette.ground }} onStartShouldSetResponderCapture={keepOnTouchElsewhere}>
-        {/* The cover sets its own, from its art. */}
-        {page !== 0 && <StatusBar style={inArticle ? "dark" : "light"} />}
+        {/* The cover sets its own, from its art. Piece pages are light (their art on paper), and so is the article; the P.S. is on a photo. */}
+        {page !== 0 && <StatusBar style={piece ? "dark" : "light"} />}
         {/* Keyed by page only: opening the article's drawer and closing it happens in place. */}
         <Animated.View key={page} entering={FadeIn.duration(220)} style={{ flex: 1 }}>
           {page === 0 ? (
@@ -135,6 +136,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
               lead={({ height, progress, onRead, onPlay, onListen, listening }) => (
                 <PiecePage
                   piece={piece}
+                  letter={{ id: letter.id, date: letter.localDate, sequence: letter.isTest ? null : letter.number }}
                   letterNumber={letter.number}
                   pieceCount={n}
                   page={page}
@@ -145,7 +147,6 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
                   onPlay={onPlay}
                   onListen={onListen}
                   listening={listening}
-                  onSkip={() => skip(piece)}
                   onAuthor={() => piece.author && setAuthor(piece.author)}
                 />
               )}

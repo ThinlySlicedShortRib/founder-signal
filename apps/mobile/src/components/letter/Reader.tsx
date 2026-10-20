@@ -484,7 +484,8 @@ export function Reader({
               <ListenCard itemId={meta.itemId} flash={listenFlash} />
             </View>
           )}
-          {meta.image?.credit && (
+          {/* The photo's credit, under the standalone reader's photo header; a piece page in a letter shows its art instead. */}
+          {!flow && meta.image?.credit && (
             <Pressable accessibilityRole="link" disabled={!meta.image.creditUrl} onPress={() => meta.image?.creditUrl && void Linking.openURL(meta.image.creditUrl)} style={{ marginTop: -10 }}>
               <Text style={{ fontFamily: font.body, fontSize: 12.5, color: palette.offText }}>
                 {meta.image.source === "stock" ? "Stock photo" : "Photo"}: {meta.image.credit}
@@ -580,7 +581,7 @@ export function Reader({
 
   return (
     <View style={{ flex: 1, backgroundColor: flow ? "#000000" : palette.surface }}>
-      {/* In a letter the pager sets the status bar, from onReadingChange. */}
+      {/* In a letter the pager sets the status bar (dark on a piece page, which is light now). */}
       {!flow && <StatusBar style={compact ? "dark" : "light"} />}
       {lead ? (
         <>

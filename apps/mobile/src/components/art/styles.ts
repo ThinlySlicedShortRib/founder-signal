@@ -99,3 +99,32 @@ export function drawArt(style: StyleId, input: ArtInput): Scene {
   const h = Math.max(1, Math.round(input.height));
   return STYLES[style].draw(rng(`${style}:${input.seed}`), { ...input, width: w, height: h });
 }
+
+/**
+ * The styles for a letter's pieces, in piece order: the other set from the
+ * cover's (so no piece shares the cover's style), shuffled once per letter,
+ * seeded by the letter's id. `sequence` and `date` are the cover's, so the
+ * pieces follow the cover's set whether it came from the number or the day.
+ */
+export function pieceStyles({ letterId, date, sequence }: { letterId: string; date: string; sequence?: number | null }): StyleId[] {
+  const set = [...styleSet((sequence ?? dayNumber(date)) + 1)];
+  const r = rng(`pieces:${letterId}`);
+  for (let i = set.length - 1; i > 0; i--) {
+    const j = Math.floor(r.next() * (i + 1));
+    [set[i], set[j]] = [set[j]!, set[i]!];
+  }
+  return set;
+}
+
+/**
+ * A piece page's art: piece n (from 1) takes place n in its letter's
+ * `pieceStyles`, wrapping after the last, so four pieces get four styles and
+ * a fifth starts again (still unlike its neighbour). The details are seeded
+ * by the piece, so it always has the same picture, and Letterhead prints the
+ * piece's number.
+ */
+export function pickPieceArt({ letterId, date, sequence, itemId, position }: { letterId: string; date: string; sequence?: number | null; itemId: string; position: number }) {
+  const order = pieceStyles({ letterId, date, sequence });
+  const place = (((position - 1) % order.length) + order.length) % order.length;
+  return { style: order[place]!, seed: `piece:${itemId}`, date, number: position };
+}

@@ -30,12 +30,10 @@ function Stats({ stats, tile }: { stats: Author["stats"]; tile: string }) {
 }
 
 /**
- * The compact author pill: avatar, name and headline, tap for the full dialog. `onPhoto` is the
- * piece page's frosted version over the photo; otherwise it sits on the reader's white page.
+ * The compact author pill: avatar, name and headline, tap for the full dialog. On a light page
+ * (the reader's, the cover's contents and a piece page's paper).
  */
-export function AuthorChip({ author, onPress, onPhoto }: { author: Author; onPress: () => void; onPhoto?: boolean }) {
-  const ink = onPhoto ? "#FFFFFF" : palette.ink;
-  const sub = onPhoto ? "rgba(255,255,255,0.78)" : palette.muted;
+export function AuthorChip({ author, onPress }: { author: Author; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -47,9 +45,9 @@ export function AuthorChip({ author, onPress, onPhoto }: { author: Author; onPre
         gap: 10,
         alignSelf: "flex-start",
         maxWidth: "100%",
-        backgroundColor: onPhoto ? "rgba(255,255,255,0.14)" : "#F6F7F9",
+        backgroundColor: "#F6F7F9",
         borderWidth: 1,
-        borderColor: onPhoto ? "rgba(255,255,255,0.2)" : palette.rule,
+        borderColor: palette.rule,
         borderRadius: 999,
         paddingVertical: 5,
         paddingLeft: 5,
@@ -59,14 +57,14 @@ export function AuthorChip({ author, onPress, onPhoto }: { author: Author; onPre
     >
       <Avatar initials={author.initials} keyStr={author.key} />
       <View style={{ flexShrink: 1, minWidth: 0 }}>
-        <Text style={{ fontFamily: font.bodySemi, fontSize: 14, lineHeight: 18, color: ink }}>{author.name}</Text>
+        <Text style={{ fontFamily: font.bodySemi, fontSize: 14, lineHeight: 18, color: palette.ink }}>{author.name}</Text>
         {author.headline && (
-          <Text numberOfLines={1} style={{ fontFamily: font.body, fontSize: 12.5, lineHeight: 16, color: sub }}>
+          <Text numberOfLines={1} style={{ fontFamily: font.body, fontSize: 12.5, lineHeight: 16, color: palette.muted }}>
             {author.headline}
           </Text>
         )}
       </View>
-      <PagerIcon name="chevron-right" size={16} color={onPhoto ? "rgba(255,255,255,0.8)" : palette.muted} />
+      <PagerIcon name="chevron-right" size={16} color={palette.muted} />
     </Pressable>
   );
 }

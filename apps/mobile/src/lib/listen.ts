@@ -30,6 +30,29 @@ export const tasks = createEpisodeTasks();
 export const nowPlaying = createNowPlaying();
 
 // ── The one player ───────────────────────────────────────────────────────────
+/**
+ * The app's only audio player, created on first use. Its handle is also kept on `globalThis`, because Fast
+ * Refresh re-runs this module with fresh module state: without that, each edit would make another native
+ * player while the old one kept playing. When the module runs again, the previous player is stopped, taken
+ * off the lock screen and released before anything else, so there is never more than one.
+ */
+const SLOT = "__foundersignal_listen_player__";
+const slot = globalThis as unknown as Record<typeof SLOT, AudioPlayer | undefined>;
+releasePlayer(slot[SLOT]);
+slot[SLOT] = undefined;
+
+function releasePlayer(p: AudioPlayer | undefined) {
+  if (!p) return;
+  try {
+    p.pause();
+    p.clearLockScreenControls();
+    p.removeAllListeners("playbackStatusUpdate");
+    p.remove();
+  } catch {
+    // Already gone with its runtime.
+  }
+}
+
 let player: AudioPlayer | null = null;
 let loaded: { itemId: string; url: string } | null = null;
 /** Coarse playback: which piece, playing or not, started or not. Changes rarely. */
@@ -58,7 +81,9 @@ function onStatus(s: AudioStatus) {
 
 function getPlayer(): AudioPlayer {
   if (!player) {
+    releasePlayer(slot[SLOT]);
     player = createAudioPlayer(null, { updateInterval: 250 });
+    slot[SLOT] = player;
     player.addListener("playbackStatusUpdate", onStatus);
     // Keeps playing in the background and when locked; `doNotMix` is what the lock screen's controls need.
     void setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: "doNotMix" }).catch(() => {});

@@ -146,14 +146,14 @@ export function PiecePage({
         <Text numberOfLines={3} style={{ fontFamily: font.body, fontSize: 16.5, lineHeight: 24, color: palette.promptInk }}>
           {piece.summary}
         </Text>
-        {/* Read takes the row's width, with the round Listen button at its end (skipping is in the reader's More tray). */}
+        {/* Read at its own width, with the round Listen button beside it (skipping is in the reader's More tray). */}
         <Animated.View style={[{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 }, actionsStyle]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={label}
             accessibilityHint={video ? "Opens the chapters" : "Opens the article"}
             onPress={onRead}
-            style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 52, borderRadius: 999, backgroundColor: palette.ink, paddingHorizontal: 20, opacity: pressed ? 0.88 : 1 })}
+            style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 52, borderRadius: 999, backgroundColor: palette.ink, paddingHorizontal: 20, opacity: pressed ? 0.88 : 1 })}
           >
             <RisingDot />
             <Text style={{ fontFamily: font.bodySemi, fontSize: 16, color: "#FFFFFF" }}>{label}</Text>

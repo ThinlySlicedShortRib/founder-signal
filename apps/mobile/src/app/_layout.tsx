@@ -6,7 +6,9 @@ import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { NowPlayingStatus } from "@/components/letter/EpisodeStatus";
 import { font, ONBOARDING_FONTS, palette } from "@/components/onboarding/kit";
+import { PillOutlet, PillProvider } from "@/components/pager/Pill";
 import { Body, Button, Screen, Title } from "@/components/ui";
 import { authClient } from "@/lib/auth";
 import { installGlobalErrorHandlers, reportError, setErrorContext } from "@/lib/error-reporting";
@@ -32,7 +34,10 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <AppStack />
+          {/* One pill for the whole app, so it (and the now-playing row on it) persists from screen to screen. */}
+          <PillProvider>
+            <AppStack />
+          </PillProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -40,6 +45,9 @@ export default function RootLayout() {
 }
 
 /** Layout 6 has no tab bar: Today, Library, Activity and Preferences are reached from the pill's menu. */
+
+/** The routes with the pill (the rest have a header, and the pill fades out over them). */
+const PILL_ROUTE = /^\/($|library$|activity$|preferences$|dev$|letters\/|items\/)/;
 const PAGER = { headerShown: false, animation: "fade" as const };
 
 function AppStack() {
@@ -97,6 +105,13 @@ function AppStack() {
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
         </Stack.Protected>
       </Stack>
+      {/* The app's pill, over every screen: each screen claims its controls; the now-playing row sits above them. */}
+      {signedIn && onboarded && (
+        <>
+          <NowPlayingStatus />
+          <PillOutlet suppressed={!PILL_ROUTE.test(pathname)} />
+        </>
+      )}
     </>
   );
 }

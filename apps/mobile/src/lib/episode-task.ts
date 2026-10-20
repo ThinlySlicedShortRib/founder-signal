@@ -130,7 +130,7 @@ export const CONFIRM_MS = 5000;
 /** "Stopped" shows this long, then the row folds. */
 export const STOPPED_MS = 1500;
 /** "Listened" shows this long, then the row folds. */
-export const DONE_MS = 3600;
+export const DONE_MS = 2600;
 /** A scroll this soon after the confirm opened is the tap that opened it settling, not a scroll away. */
 const SCROLL_GRACE_MS = 300;
 

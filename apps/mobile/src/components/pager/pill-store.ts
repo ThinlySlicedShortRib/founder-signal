@@ -21,6 +21,12 @@ import type { ReactNode } from "react";
  * (`setStatus`), not with a mode, so it stays put while the controls under it
  * change hands or morph. The newest status claim wins; letting go of it is
  * held for `GRACE_MS` like the pill, so a handover doesn't fold and regrow it.
+ *
+ * There is one store for the whole app (the provider is in the root layout), so
+ * the pill and its row persist across routes: a new screen claims the same
+ * pill and only its controls morph. A dialog drawn over the pill's place
+ * (a sheet above the pill's layer) covers it (`setCover`), and the pill fades
+ * out under it, row and all.
  */
 
 export const GRACE_MS = 100;
@@ -48,6 +54,8 @@ export type PillSnapshot = {
   exiting: readonly PillLayer[];
   /** The status row's contents, or null for none. */
   status: ReactNode | null;
+  /** A dialog covers the pill: it fades out, keeping its place and contents. */
+  covered: boolean;
 };
 
 type Slot = PillEntry & { order: number };
@@ -59,13 +67,14 @@ export function createPillStore(timers: { set: (fn: () => void, ms: number) => u
   const listeners = new Set<() => void>();
   let order = 0;
   let layerId = 0;
-  let snapshot: PillSnapshot = { current: null, exiting: [], status: null };
+  let snapshot: PillSnapshot = { current: null, exiting: [], status: null, covered: false };
+  const covers = new Set<string>();
   let grace: unknown = null;
   const statuses = new Map<string, { node: ReactNode; order: number }>();
   let statusGrace: unknown = null;
 
-  function emit(next: Omit<PillSnapshot, "status"> & { status?: ReactNode | null }) {
-    snapshot = { ...next, status: next.status === undefined ? snapshot.status : next.status };
+  function emit(next: Omit<PillSnapshot, "status" | "covered"> & { status?: ReactNode | null }) {
+    snapshot = { ...next, status: next.status === undefined ? snapshot.status : next.status, covered: covers.size > 0 };
     for (const l of listeners) l();
   }
 
@@ -150,6 +159,14 @@ export function createPillStore(timers: { set: (fn: () => void, ms: number) => u
     },
     releaseStatus(slotId: string) {
       if (statuses.delete(slotId)) reconcileStatus();
+    },
+    /** A dialog over the pill opens (true) or closes (false). */
+    setCover(id: string, on: boolean) {
+      const had = covers.has(id);
+      if (on === had) return;
+      if (on) covers.add(id);
+      else covers.delete(id);
+      emit(snapshot);
     },
     /** The outlet calls this once an exiting layer has faded out. */
     drop(id: number) {

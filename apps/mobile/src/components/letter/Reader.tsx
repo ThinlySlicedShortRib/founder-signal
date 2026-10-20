@@ -21,17 +21,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import { font, InlineError, palette } from "@/components/onboarding/kit";
 import { PagerIcon, type PagerIconName, ProgressRing } from "@/components/pager/icons";
-import { Pill, PillAction, PillButton, PillStatus, PillStatusSlot, PillStatusText, usePillSpace } from "@/components/pager/Pill";
+import { Pill, PillAction, PillButton, PillStatus, PillStatusText, usePillSpace } from "@/components/pager/Pill";
 import { AgentLine, Display, Mono } from "@/components/pager/PagerScreen";
 import { Sheet } from "@/components/pager/Sheet";
 import { timestamp } from "@/lib/format";
 import { DISLIKE_LABELS, LIKE_LABELS, setPieceState, track, usePieceState, useItem, useSectionSummary, useToggleSave } from "@/lib/letters";
-import { tasks as episodeTasks, useEpisodeTask, usePauseOnLeave } from "@/lib/listen";
+import { describeNowPlaying, tasks as episodeTasks, useEpisodeTask } from "@/lib/listen";
+import { lockSubtitle, type NowPlayingMeta } from "@/lib/now-playing";
 import { useReview } from "@/lib/profile";
 import { DRAWER_ROW, DrawerHeader, useArticleDrawer } from "./ArticleDrawer";
 import { AuthorCardView, AuthorChip, SheetButton } from "./Author";
 import { BlockView, TEXT_SIZES, type TextSize } from "./BlockRenderer";
-import { EpisodeStatusRow } from "./EpisodeStatus";
 import { FOCUS_STYLE_LABEL, FocusBlock, FocusProvider, nextFocusSetting, useFocusSetting, useFocusTracker } from "./Focus";
 import { ListenCard } from "./Listen";
 import { PhotoBackdrop, TINTS } from "./Photo";
@@ -53,6 +53,8 @@ export type ReaderMeta = {
   originalUrl: string | null;
   /** In a letter: "Piece 2 of 3". */
   position: number | null;
+  /** In a letter: its number ("No. 14"), for the lock screen. */
+  letterNumber?: number | null;
   pieceCount: number | null;
   saved: boolean;
   verdict: ReviewVote | null;
@@ -83,6 +85,8 @@ const HEAD_MIN = 72;
 const COMPACT_AT = 96;
 const PLAYER = 220;
 
+const ITEM_HOME: NowPlayingMeta["home"] = { kind: "item" };
+
 type SummaryState = { status: "loading" } | { status: "error" } | { status: "done"; summary: SectionSummary };
 
 /**
@@ -107,6 +111,8 @@ export function Reader({
   onAuthor,
   lead,
   onReadingChange,
+  home = ITEM_HOME,
+  listen,
 }: {
   meta: ReaderMeta;
   next: UpNext;
@@ -119,6 +125,10 @@ export function Reader({
   /** The piece page, under the article's drawer. */
   lead?: (l: ReaderLead) => ReactNode;
   onReadingChange?: (reading: boolean) => void;
+  /** Where the pill's row goes back to when this piece's episode is playing elsewhere in the app. */
+  home?: NowPlayingMeta["home"];
+  /** A nonce: the pill's row was tapped to come back here. The article comes up at its Listen card, which flashes. */
+  listen?: number;
 }) {
   const insets = useSafeAreaInsets();
   const pill = usePillSpace();
@@ -129,8 +139,18 @@ export function Reader({
   const review = useReview();
   const summarize = useSectionSummary(meta.itemId);
   const episode = useEpisodeTask(meta.itemId);
-  // One player for the app: leaving the piece stops its audio; opening and closing the drawer doesn't.
-  usePauseOnLeave(meta.itemId);
+  // One player for the app: the episode keeps playing when you leave the piece. Say what the piece is, for the
+  // pill's row (going back to it) and the lock screen.
+  const homeKey = JSON.stringify(home);
+  useEffect(() => {
+    describeNowPlaying({
+      itemId: meta.itemId,
+      title: meta.title,
+      home: JSON.parse(homeKey) as NowPlayingMeta["home"],
+      subtitle: lockSubtitle(meta.letterNumber ?? null, meta.position, meta.sourceName),
+      artworkUrl: meta.image?.url ?? null,
+    });
+  }, [meta.itemId, meta.title, meta.letterNumber, meta.position, meta.sourceName, meta.image?.url, homeKey]);
 
   const data = item.data;
   const kind = data?.kind ?? meta.kind;
@@ -328,6 +348,17 @@ export function Reader({
     if (listenY.current !== null) scrollToY(bodyTop.current + listenY.current - headMin - 16);
     setListenFlash((n) => n + 1);
   }
+
+  // The row was tapped elsewhere and brought us here: once the page has faded in, the article comes up at the card.
+  const goToListenNow = useRef(goToListen);
+  useEffect(() => {
+    goToListenNow.current = goToListen;
+  });
+  useEffect(() => {
+    if (!listen) return;
+    const t = setTimeout(() => goToListenNow.current(), flow ? 200 : 0);
+    return () => clearTimeout(t);
+  }, [listen, flow]);
 
   /** Read on the piece page: up comes the drawer. */
   function read() {
@@ -756,9 +787,7 @@ export function Reader({
         </>
       )}
 
-      {/* The episode's status row, above whichever controls the pill has (the pager's on the cover, these once reading). */}
-      <PillStatusSlot>{!video && episode.row ? <EpisodeStatusRow itemId={meta.itemId} onOpen={goToListen} /> : null}</PillStatusSlot>
-
+      {/* The episode's status row is the app's (NowPlayingStatus, in the root layout): it sits above these controls. */}
       {/* The pill: reading → verdict → next (under a lead, only once reading). One <Pill> in one place, so it morphs
           between modes; in a letter it's drawn by the pager's PillOutlet. It fades out under the verdict sheet. */}
       {!pillOn ? null : showNextPill ? (

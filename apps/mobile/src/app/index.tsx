@@ -1,10 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { EmptyToday } from "@/components/letter/EmptyToday";
 import { LetterPager } from "@/components/letter/LetterPager";
 import { PreparingLetter } from "@/components/letter/PreparingLetter";
 import { PageState } from "@/components/pager/PagerScreen";
 import type { ApiError } from "@/lib/api";
+import { listenParams } from "@/lib/now-playing-nav";
 import { inProgress, LETTER_KEYS, untrackLetter, useLetterProgress, useTodayLetter, useTrackedLetter } from "@/lib/letters";
 
 /**
@@ -14,6 +16,8 @@ import { inProgress, LETTER_KEYS, untrackLetter, useLetterProgress, useTodayLett
  */
 export default function Today() {
   const qc = useQueryClient();
+  // The pill's row was tapped elsewhere: open at that piece, at its Listen card.
+  const focus = listenParams(useLocalSearchParams<{ page?: string; listen?: string }>());
   const today = useTodayLetter();
   const trackedId = useTrackedLetter();
   const progress = useLetterProgress(trackedId);
@@ -39,5 +43,5 @@ export default function Today() {
   // It ended without a letter: say so here (with a way to try again) until another one is asked for.
   const ended = following && (stage === "empty" || stage === "failed") ? stage : null;
   if (!today.data) return <EmptyToday ended={ended} />;
-  return <LetterPager letter={today.data} today />;
+  return <LetterPager letter={today.data} today focus={focus} />;
 }

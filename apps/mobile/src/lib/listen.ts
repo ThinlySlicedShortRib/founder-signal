@@ -4,6 +4,7 @@ import { type AudioPlayer, type AudioStatus, createAudioPlayer, setAudioModeAsyn
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { GestureResponderEvent } from "react-native";
 import { createEpisodeTasks, ETA_DONE, ETA_EARLY, type Eta, isBusy, minutesLabel, newEta, type Phase, phaseOf, type PlayState, rawSecondsLeft, rowShows, tickEta } from "./episode-task";
+import { createNowPlaying, type NowPlayingMeta } from "./now-playing";
 import { cancelEpisode, episodeAudioUrl, episodeKey, type EpisodeResponse, requestEpisode, useEpisode } from "./podcast";
 
 /**
@@ -15,14 +16,18 @@ import { cancelEpisode, episodeAudioUrl, episodeKey, type EpisodeResponse, reque
  *   - the server's view, in the query cache (`useEpisode`, polled while making);
  *   - what the reader did here (asked, Stop confirm, Stopped, Listened, folded):
  *     `tasks`, from episode-task.ts;
- *   - the one audio player, at module level, so playback carries on while the
- *     drawer opens and closes and the pill's controls change hands.
+ *   - the one audio player, at module level, so playback carries on across
+ *     the whole app (between pieces, out of the letter, on every screen), in
+ *     the background and on the lock screen;
+ *   - which episode the pill's status row carries (`nowPlaying`, from
+ *     now-playing.ts): the one last asked for or played, whatever the screen.
  *
  * Playback time ticks four times a second; only `usePlayTime` hears it, so
  * the Reader and the pill don't re-render with it.
  */
 
 export const tasks = createEpisodeTasks();
+export const nowPlaying = createNowPlaying();
 
 // ── The one player ───────────────────────────────────────────────────────────
 let player: AudioPlayer | null = null;
@@ -55,9 +60,64 @@ function getPlayer(): AudioPlayer {
   if (!player) {
     player = createAudioPlayer(null, { updateInterval: 250 });
     player.addListener("playbackStatusUpdate", onStatus);
-    void setAudioModeAsync({ playsInSilentMode: true });
+    // Keeps playing in the background and when locked; `doNotMix` is what the lock screen's controls need.
+    void setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: "doNotMix" }).catch(() => {});
   }
   return player;
+}
+
+// ── The lock screen ──────────────────────────────────────────────────────────
+/** Which piece the lock screen shows, and with what (so it's only told about changes). */
+let lockShown: { itemId: string; key: string } | null = null;
+const LOCK_OPTIONS = { showSeekForward: true, showSeekBackward: true };
+
+function lockMetadata(meta: NowPlayingMeta | null) {
+  return { title: meta?.title ?? "Listen", artist: meta?.subtitle ?? "Founder Signal", albumTitle: "Founder Signal", ...(meta?.artworkUrl ? { artworkUrl: meta.artworkUrl } : {}) };
+}
+
+/** The lock screen's now playing card (and Control Center, headphone buttons) follows the loaded episode. */
+function showOnLockScreen(itemId: string) {
+  if (!player) return;
+  const md = lockMetadata(nowPlaying.meta(itemId));
+  const key = JSON.stringify(md);
+  if (lockShown?.itemId === itemId && lockShown.key === key) return;
+  try {
+    if (lockShown) player.updateLockScreenMetadata(md);
+    else player.setActiveForLockScreen(true, md, LOCK_OPTIONS);
+    lockShown = { itemId, key };
+  } catch {
+    // Not in this build: playback still works without the card.
+  }
+}
+
+function clearLockScreen() {
+  if (!player || !lockShown) return;
+  try {
+    player.clearLockScreenControls();
+  } catch {
+    // As above.
+  }
+  lockShown = null;
+}
+
+/** What a piece is, for the row's "go to the piece" and the lock screen. Its reader says, when it shows. */
+export function describeNowPlaying(meta: NowPlayingMeta) {
+  nowPlaying.describe(meta);
+  if (loaded?.itemId === meta.itemId && lockShown) showOnLockScreen(meta.itemId);
+}
+
+/** The row's episode folded away (Listened or Stopped): the row falls back or goes, and so does the lock screen card. */
+export function rowFolded(itemId: string) {
+  nowPlaying.folded(itemId);
+  if (loaded?.itemId === itemId && !player?.playing) clearLockScreen();
+}
+
+const subscribeNowPlaying = (l: () => void) => nowPlaying.subscribe(l);
+/** The piece whose episode the pill's row carries, app-wide (null: no row). */
+export function useNowPlaying(): { itemId: string | null; meta: NowPlayingMeta | null } {
+  const itemId = useSyncExternalStore(subscribeNowPlaying, nowPlaying.subject);
+  const meta = useSyncExternalStore(subscribeNowPlaying, () => nowPlaying.meta(itemId));
+  return { itemId, meta };
 }
 
 function load(itemId: string, episode: EpisodeView) {
@@ -67,16 +127,12 @@ function load(itemId: string, episode: EpisodeView) {
   if (loaded?.itemId !== itemId || loaded.url !== url) {
     p.replace({ uri: url });
     loaded = { itemId, url };
+    nowPlaying.loaded(itemId);
     fine = { at: 0, duration: episode.durationSeconds ?? 0, scrub: null };
     setCoarse({ itemId, playing: false, at: 0, duration: 0 });
     emit(fineListeners);
   }
   return p;
-}
-
-/** The reader left the piece (another page, or out of the letter): its audio stops. */
-export function pauseIfPlaying(itemId: string) {
-  if (loaded?.itemId === itemId && player?.playing) player.pause();
 }
 
 const subscribeCoarse = (l: () => void) => (coarseListeners.add(l), () => void coarseListeners.delete(l));
@@ -149,6 +205,8 @@ const subscribeEta = (l: () => void) => (etaListeners.add(l), () => void etaList
 
 export type EpisodeTask = {
   itemId: string;
+  /** The server has answered (until then `available` and `row` are false because nothing is known). */
+  loaded: boolean;
   /** The piece may have an episode at all (articles the app shows in full, with episodes on). */
   available: boolean;
   episode: EpisodeView | null;
@@ -185,6 +243,8 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
 
   const start = useCallback(() => {
     tasks.begin(itemId);
+    // Being made: it takes the pill's row on every screen.
+    nowPlaying.claim(itemId);
     requestEpisode(itemId).then(
       (e) => {
         qc.setQueryData<EpisodeResponse>(episodeKey(itemId), { episode: e, available: true });
@@ -208,16 +268,21 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
     if (!episode || episode.status !== "ready") return;
     const p = load(itemId, episode);
     if (!p) return;
-    if (p.playing) return p.pause();
+    // At the end the player stays there (and may still report playing): start again from the top.
+    const atEnd = !!p.duration && p.currentTime >= p.duration - 0.5;
+    if (p.playing && !atEnd) return p.pause();
     tasks.show(itemId);
-    // At the end the player stays there; start again from the top.
-    if (p.duration && p.currentTime >= p.duration - 0.5) void p.seekTo(0);
+    // Playing: it takes the row (replacing another episode in place) and the lock screen.
+    nowPlaying.claim(itemId);
+    showOnLockScreen(itemId);
+    if (atEnd) void p.seekTo(0);
     p.play();
   }, [itemId, episode]);
 
   return useMemo(
     () => ({
       itemId,
+      loaded: query.data !== undefined,
       available: !!query.data?.available,
       episode,
       phase,
@@ -232,7 +297,7 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
       stop,
       toggle,
     }),
-    [itemId, query.data?.available, episode, phase, local, eta, start, stop, toggle],
+    [itemId, query.data, episode, phase, local, eta, start, stop, toggle],
   );
 }
 
@@ -250,9 +315,4 @@ export function scrubTo(itemId: string, seconds: number | null, commit = false) 
   if (commit && seconds !== null) void player.seekTo(seconds);
   fine = { ...fine, scrub: commit ? null : seconds, at: commit && seconds !== null ? seconds : fine.at };
   emit(fineListeners);
-}
-
-/** Pauses the piece's audio when the component that plays it goes (the Reader, when the page changes). */
-export function usePauseOnLeave(itemId: string) {
-  useEffect(() => () => pauseIfPlaying(itemId), [itemId]);
 }

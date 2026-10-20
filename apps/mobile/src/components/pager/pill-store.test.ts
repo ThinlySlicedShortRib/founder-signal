@@ -158,3 +158,31 @@ test("the status row is claimed on its own, survives mode changes, and folds aft
   assert.equal(store.getSnapshot().status, null);
   assert.equal(store.getSnapshot().current?.mode, "reading");
 });
+
+test("app-wide: a new screen's controls replace the old ones while the status row stays exactly as it was", () => {
+  const t = fakeTimers();
+  const s = createPillStore(t);
+  s.setStatus("now-playing", "row");
+  s.set("library", e("screen"));
+  const row = s.getSnapshot().status;
+  // Library is replaced by Activity: the new screen claims, then the old one unmounts.
+  s.set("activity", e("screen"));
+  s.release("library");
+  t.advance(GRACE_MS * 3);
+  assert.equal(s.getSnapshot().current!.key, "activity:screen");
+  assert.equal(s.getSnapshot().status, row);
+});
+
+test("a dialog over the pill covers it until it closes", () => {
+  const s = createPillStore(fakeTimers());
+  s.set("pager", e("pager"));
+  assert.equal(s.getSnapshot().covered, false);
+  s.setCover("author", true);
+  s.setCover("verdict", true);
+  assert.equal(s.getSnapshot().covered, true);
+  s.setCover("author", false);
+  assert.equal(s.getSnapshot().covered, true, "still one open");
+  s.setCover("verdict", false);
+  assert.equal(s.getSnapshot().covered, false);
+  assert.equal(s.getSnapshot().current!.mode, "pager", "the controls were kept");
+});

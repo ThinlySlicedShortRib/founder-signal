@@ -5,7 +5,7 @@ import { ActivityIndicator, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { palette } from "@/components/onboarding/kit";
 import { MenuSheet } from "@/components/pager/MenuSheet";
-import { MenuToggle, Pill, PillButton, PillLabel, PillOutlet, PillProvider } from "@/components/pager/Pill";
+import { MenuToggle, Pill, PillButton, PillLabel } from "@/components/pager/Pill";
 import { keepOnTouchElsewhere } from "@/lib/listen";
 import { lastPage, letterWithLocal, setPieceState, track, useLocalVersion } from "@/lib/letters";
 import { AuthorSheet } from "./Author";
@@ -22,7 +22,7 @@ function startPage(l: LetterView): number {
   return open ? open.position : l.pieces.length + 1;
 }
 
-export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "pieces">): ReaderMeta {
+export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "pieces" | "number">): ReaderMeta {
   return {
     itemId: p.itemId,
     letterId: letter.id,
@@ -37,6 +37,7 @@ export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "piece
     sourceName: p.sourceName,
     originalUrl: p.originalUrl,
     position: p.position,
+    letterNumber: letter.number,
     pieceCount: letter.pieces.length,
     saved: p.saved,
     verdict: p.verdict,
@@ -51,9 +52,13 @@ export function pieceMeta(p: LetterPiece, letter: Pick<LetterView, "id" | "piece
  * the PiecePage as its `lead`). Once the drawer is up the Reader takes the
  * pill; when it goes back down, the pager's pill returns. The status bar is dark on
  * a piece either way (its page is light now), light on the P.S.'s photo.
- * Both share one pill (the PillProvider), so it morphs from one to the other.
+ * Both share the app's one pill (the PillProvider in the root layout), so it morphs from one to the other,
+ * under the app's status row.
+ *
+ * `focus` comes from the pill's row being tapped elsewhere (now playing): the letter opens at that piece,
+ * and its article comes up at the Listen card.
  */
-export function LetterPager({ letter: base, today }: { letter: LetterView; today: boolean }) {
+export function LetterPager({ letter: base, today, focus = null }: { letter: LetterView; today: boolean; focus?: { page: number | null; listen: number } | null }) {
   useLocalVersion();
   const letter = letterWithLocal(base);
   const n = letter.pieces.length;
@@ -63,13 +68,16 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
   const [reading, setReading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [author, setAuthor] = useState<AuthorCard | null>(null);
+  /** The row asked for this page's Listen card (a nonce, cleared when the page changes). */
+  const [listenAt, setListenAt] = useState<{ page: number; n: number } | null>(null);
+  const focusPage = focus?.page != null && focus.page >= 0 && focus.page < pageCount ? focus.page : null;
 
-  // Open where the user left off: the saved page, else the first piece still to read.
+  // Open where the user left off: the saved page, else the first piece still to read (or where the row asked for).
   useEffect(() => {
     let live = true;
     void lastPage.get(base.id).then((saved) => {
       if (!live) return;
-      setPage(saved !== null && saved >= 0 && saved < pageCount ? saved : startPage(base));
+      setPage((p) => p ?? (saved !== null && saved >= 0 && saved < pageCount ? saved : startPage(base)));
     });
     return () => {
       live = false;
@@ -83,10 +91,27 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
       const p = Math.max(0, Math.min(pageCount - 1, to));
       setPage(p);
       setReading(false);
+      setListenAt(null);
       lastPage.set(base.id, p);
     },
     [base.id, pageCount],
   );
+
+  // The row was tapped (now playing): to that piece, then its article at the Listen card. Once per tap.
+  const focusN = focus?.listen ?? 0;
+  const [seenFocus, setSeenFocus] = useState(0);
+  if (focusN && focusN !== seenFocus && focusPage !== null) {
+    setSeenFocus(focusN);
+    if (page !== focusPage) {
+      setPage(focusPage);
+      setReading(false);
+    }
+    setMenuOpen(false);
+    setListenAt({ page: focusPage, n: focusN });
+  }
+  useEffect(() => {
+    if (listenAt) lastPage.set(base.id, listenAt.page);
+  }, [listenAt, base.id]);
 
   if (page === null) {
     return (
@@ -116,7 +141,7 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
   const kicker = isPs ? "Postscript" : today ? "Today" : `No. ${letter.number}`;
 
   return (
-    <PillProvider>
+    <>
       {/* A touch anywhere but an open "Stop this episode?" keeps the episode going (and still does what it was for). */}
       <View style={{ flex: 1, backgroundColor: palette.ground }} onStartShouldSetResponderCapture={keepOnTouchElsewhere}>
         {/* The cover sets its own, from its art. Piece pages are light (their art on paper), and so is the article; the P.S. is on a photo. */}
@@ -133,6 +158,8 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
               onMenu={() => setMenuOpen(true)}
               onAuthor={() => piece.author && setAuthor(piece.author)}
               onReadingChange={setReading}
+              home={{ kind: "letter", letterId: letter.id, today, page }}
+              listen={listenAt?.page === page ? listenAt.n : undefined}
               lead={({ height, progress, onRead, onPlay, onListen, listening }) => (
                 <PiecePage
                   piece={piece}
@@ -173,11 +200,10 @@ export function LetterPager({ letter: base, today }: { letter: LetterView; today
             </Pill>
           )
         )}
-        {/* The one pill: the pager's (above) or, once the drawer is up, the Reader's. */}
-        <PillOutlet />
+        {/* The one pill (drawn in the root layout): the pager's (above) or, once the drawer is up, the Reader's. */}
 
         <AuthorSheet author={author} onClose={() => setAuthor(null)} />
       </View>
-    </PillProvider>
+    </>
   );
 }

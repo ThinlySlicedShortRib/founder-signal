@@ -1,5 +1,6 @@
 import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
+import { usePathname } from "expo-router";
 import { useEffect, useId, useRef, useState } from "react";
 import { type GestureResponderEvent, Platform, Pressable, StyleSheet, Text, type TextStyle, View } from "react-native";
 import Animated, {
@@ -23,8 +24,10 @@ import Animated, {
 import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { font, palette } from "@/components/onboarding/kit";
+import { PillStatusSlot } from "@/components/pager/Pill";
 import { fmtTime, type Phase, STEP_ENDS, STEPS, stepOf } from "@/lib/episode-task";
-import { type EpisodeTask, scrubTo, setConfirmRect, useEpisodeTask, usePlayTime } from "@/lib/listen";
+import { type EpisodeTask, nowPlaying, rowFolded, scrubTo, setConfirmRect, useEpisodeTask, useNowPlaying, usePlayTime } from "@/lib/listen";
+import { goToNowPlaying } from "@/lib/now-playing-nav";
 import { POLL_MS } from "@/lib/podcast";
 
 /**
@@ -766,12 +769,69 @@ function Scrubber({ itemId, at, duration, dragging, tone }: { itemId: string; at
   );
 }
 
-/** The pill's status row: the strip at the pill's width, under which the controls sit. */
+/**
+ * The pill's status row: the strip at the pill's width, under which the controls sit. Once its row has closed
+ * (folding after Listened or Stopped) it keeps its last look, so the fold doesn't flash another state.
+ */
 export function EpisodeStatusRow({ itemId, onOpen }: { itemId: string; onOpen: () => void }) {
   const task = useEpisodeTask(itemId);
+  const [last, setLast] = useState(task);
+  if (task.row && last !== task) setLast(task);
   return (
     <View style={{ height: STATUS_ROW_H, paddingLeft: 10, paddingRight: 9, flexDirection: "row", alignItems: "center" }}>
-      <EpisodeStrip task={task} tone="dark" onOpen={onOpen} />
+      <EpisodeStrip task={task.row ? task : last} tone="dark" onOpen={onOpen} />
+    </View>
+  );
+}
+
+// ── Now playing: the row on every pill ───────────────────────────────────────
+
+/** Another episode takes the row: the old text and progress fade out (130ms), the new rise in after them (200ms). */
+const SWAP_OUT = new Keyframe({ 0: { opacity: 1 }, 100: { opacity: 0, easing: Easing.in(Easing.ease) } }).duration(130);
+const SWAP_IN = new Keyframe({ 0: { opacity: 0, transform: [{ translateY: 3 }] }, 100: { opacity: 1, transform: [{ translateY: 0 }], easing: EASE } })
+  .delay(130)
+  .duration(200);
+
+/**
+ * The app's one status row (now-playing.html), in the root layout: whichever episode is now playing (or being
+ * made) claims the pill's row, on every screen. Screens only change the controls under it, so moving around
+ * the app never folds, regrows or re-animates the row. It folds only when its episode's row closes
+ * (Listened or Stopped); another episode starting crossfades it in place.
+ */
+export function NowPlayingStatus() {
+  const { itemId } = useNowPlaying();
+  // Unmounts (letting the row fold) only once nothing is playing; a new episode keeps the same slot.
+  return itemId ? <NowPlayingSlot itemId={itemId} /> : null;
+}
+
+function NowPlayingSlot({ itemId }: { itemId: string }) {
+  const task = useEpisodeTask(itemId);
+  const closed = task.loaded && !task.row;
+  // Its row closed: let go (the row falls back to the episode still in the player, or folds).
+  useEffect(() => {
+    if (closed) rowFolded(itemId);
+  }, [closed, itemId]);
+  return <PillStatusSlot>{task.row ? <NowPlayingRow itemId={itemId} /> : null}</PillStatusSlot>;
+}
+
+function NowPlayingRow({ itemId }: { itemId: string }) {
+  const reduce = useReducedMotion();
+  const mounted = useMounted();
+  const pathname = usePathname();
+  const open = () => {
+    const meta = nowPlaying.meta(itemId);
+    if (meta) goToNowPlaying(meta, pathname);
+  };
+  return (
+    <View style={{ height: STATUS_ROW_H }}>
+      <Animated.View
+        key={itemId}
+        entering={mounted && !reduce ? SWAP_IN : undefined}
+        exiting={mounted && !reduce ? SWAP_OUT : undefined}
+        style={StyleSheet.absoluteFill}
+      >
+        <EpisodeStatusRow itemId={itemId} onOpen={open} />
+      </Animated.View>
     </View>
   );
 }

@@ -3,6 +3,10 @@ import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, View, type Vi
 import Animated, { FadeIn, SlideInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette } from "@/components/onboarding/kit";
+import { usePillCover } from "./Pill";
+
+/** The pill's own layer: a sheet above it covers the pill, which fades out under it. */
+const PILL_Z = 20;
 
 /**
  * A bottom sheet over a scrim (.scrim + .fb / .adlg / .msheet on the boards).
@@ -32,6 +36,7 @@ export function Sheet({
   grab?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  usePillCover(open && z > PILL_Z);
 
   useEffect(() => {
     if (!open || Platform.OS !== "android") return;

@@ -7,14 +7,17 @@ import { pieceMeta } from "@/components/letter/LetterPager";
 import { Reader, type ReaderMeta } from "@/components/letter/Reader";
 import { palette } from "@/components/onboarding/kit";
 import { MenuSheet } from "@/components/pager/MenuSheet";
-import { MenuToggle, Pill, PillLabel, PillOutlet, PillProvider } from "@/components/pager/Pill";
+import { MenuToggle, Pill, PillLabel } from "@/components/pager/Pill";
 import { PageState } from "@/components/pager/PagerScreen";
 import { useItem, useSaved, useTodayLetter } from "@/lib/letters";
 import { keepOnTouchElsewhere } from "@/lib/listen";
+import { listenParams } from "@/lib/now-playing-nav";
 
 /** One piece on its own (from the Library or an author's "In your reading"), in the same reader. */
 export default function ItemReader() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ...params } = useLocalSearchParams<{ id: string; listen?: string }>();
+  // The pill's row was tapped elsewhere: up to the Listen card.
+  const listen = listenParams(params)?.listen;
   const today = useTodayLetter();
   const saved = useSaved();
   const item = useItem(id);
@@ -54,7 +57,7 @@ export default function ItemReader() {
   }
 
   return (
-    <PillProvider>
+    <>
       <View style={{ flex: 1, backgroundColor: palette.surface }} onStartShouldSetResponderCapture={keepOnTouchElsewhere}>
         <Reader
           meta={meta}
@@ -63,6 +66,7 @@ export default function ItemReader() {
           backLabel="Back"
           onMenu={() => setMenuOpen(true)}
           onAuthor={() => meta.author && setAuthor(meta.author)}
+          listen={listen}
         />
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} current={null} />
         {menuOpen && (
@@ -71,10 +75,9 @@ export default function ItemReader() {
             <MenuToggle open onPress={() => setMenuOpen(false)} />
           </Pill>
         )}
-        {/* One pill for the Reader's modes and the menu's, so it morphs between them. */}
-        <PillOutlet />
+        {/* The app's one pill (root layout) takes the Reader's modes and the menu's, so it morphs between them. */}
         <AuthorSheet author={author} onClose={() => setAuthor(null)} />
       </View>
-    </PillProvider>
+    </>
   );
 }

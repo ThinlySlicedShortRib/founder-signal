@@ -12,13 +12,14 @@ import { createPillStore, type PillLayer, type PillStore } from "./pill-store";
  * while reading, every action. It sits 22px above the bottom edge, or just
  * above the home indicator.
  *
- * There is one pill per screen, and it morphs between modes like the Dynamic
- * Island: the old contents fade out and shrink a touch, the pill springs to
- * the new contents' size, and they fade up in place. Owners in different
- * components share it through a `PillProvider`: each renders a
- * `<Pill mode=…>` (a slot, which draws nothing itself), the newest claim wins,
- * and `<PillOutlet />` draws the pill. A `<Pill>` with no provider above it
- * draws its own (and still morphs when its `mode` changes).
+ * There is one pill for the whole app, and it morphs between modes like the
+ * Dynamic Island: the old contents fade out and shrink a touch, the pill
+ * springs to the new contents' size, and they fade up in place. The
+ * `PillProvider` and `<PillOutlet />` sit in the root layout, over every
+ * route, so the pill (and its status row) persists from screen to screen:
+ * each owner renders a `<Pill mode=…>` (a slot, which draws nothing itself)
+ * and the newest claim wins. A `<Pill>` with no provider above it draws its
+ * own (and still morphs when its `mode` changes).
  *
  * Above the controls the pill can grow a status row for a background task
  * (`<PillStatusSlot>`): it's claimed on its own, so it stays put, without
@@ -68,7 +69,7 @@ const ENTRANCE_MS = IN_DELAY + IN_MS + 4 * STAGGER_MS;
 const EASE_OUT = Easing.out(Easing.cubic);
 
 
-/** One pill for everything under it (a screen whose pill changes hands between components). Put `<PillOutlet />` where the pill should be drawn. */
+/** One pill for everything under it (the app: it's in the root layout). Put `<PillOutlet />` where the pill should be drawn. */
 export function PillProvider({ children }: { children: ReactNode }) {
   const [store] = useState(createPillStore);
   return <PillContext value={store}>{children}</PillContext>;
@@ -99,6 +100,20 @@ export function PillStatusSlot({ children }: { children: ReactNode | null }) {
   });
   useLayoutEffect(() => () => store?.releaseStatus(id), [store, id]);
   return null;
+}
+
+/**
+ * A dialog drawn over the pill's place (a sheet above the pill's layer): while `open`, the pill fades out under
+ * it, status row and all. The app-level pill is drawn above every screen, so a screen's own z-order can't put
+ * anything over it.
+ */
+export function usePillCover(open: boolean) {
+  const store = useContext(PillContext);
+  const id = useId();
+  useLayoutEffect(() => {
+    store?.setCover(id, open);
+  }, [store, id, open]);
+  useLayoutEffect(() => () => store?.setCover(id, false), [store, id]);
 }
 
 function StandalonePill(props: PillProps) {
@@ -135,7 +150,7 @@ const STAGE_H = 200;
  * for every update within a mode). Only a morph pins the size: when the mode changes, the pill is held at the
  * outgoing contents' size, springs to the new contents' size once they've laid out, and goes back to "auto".
  */
-export function PillOutlet() {
+export function PillOutlet({ suppressed = false }: { /** A route with no pill (a pushed screen with a header): the pill fades out, keeping its contents. */ suppressed?: boolean } = {}) {
   const store = useContext(PillContext);
   if (!store) throw new Error("PillOutlet needs a PillProvider");
   const snap = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
@@ -157,7 +172,7 @@ export function PillOutlet() {
 
   const current = snap.current;
   const id = current?.id ?? null;
-  const visible = !!current && !current.hidden;
+  const visible = !!current && !current.hidden && !snap.covered && !suppressed;
   if (firstId === null && id !== null) setFirstId(id);
 
   const unpinned = useCallback(() => {

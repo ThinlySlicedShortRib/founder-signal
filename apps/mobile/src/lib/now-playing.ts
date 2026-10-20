@@ -24,6 +24,10 @@ export type NowPlayingMeta = {
   /** Under the title on the lock screen: "Founder Signal · No. 14 · Piece 2". */
   subtitle: string;
   artworkUrl: string | null;
+  /** For the Library's Podcasts tab: "Author · No. 14 · Piece 2" (the author, or the source outside a letter). */
+  author?: string | null;
+  letterNumber?: number | null;
+  position?: number | null;
 };
 
 export type NowPlaying = ReturnType<typeof createNowPlaying>;

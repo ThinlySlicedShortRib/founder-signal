@@ -12,6 +12,7 @@ import { PillOutlet, PillProvider } from "@/components/pager/Pill";
 import { Body, Button, Screen, Title } from "@/components/ui";
 import { authClient } from "@/lib/auth";
 import { installGlobalErrorHandlers, reportError, setErrorContext } from "@/lib/error-reporting";
+import { openPodcastLibrary } from "@/lib/podcasts";
 import { useProfile } from "@/lib/profile";
 import { queryClient } from "@/lib/query";
 
@@ -55,6 +56,9 @@ function AppStack() {
   const pathname = usePathname();
   useEffect(() => setErrorContext(pathname), [pathname]);
   const signedIn = !!session;
+  // The Podcasts tab's list is kept per user on the device.
+  const userId = session?.user.id ?? null;
+  useEffect(() => openPodcastLibrary(userId), [userId]);
   const profile = useProfile({ enabled: signedIn });
   // Text falls back to the system font if these fail; don't hold the app on them.
   const [fontsLoaded, fontError] = useFonts(ONBOARDING_FONTS);

@@ -149,8 +149,11 @@ export function Reader({
       home: JSON.parse(homeKey) as NowPlayingMeta["home"],
       subtitle: lockSubtitle(meta.letterNumber ?? null, meta.position, meta.sourceName),
       artworkUrl: meta.image?.url ?? null,
+      author: meta.author?.name ?? meta.sourceName ?? null,
+      letterNumber: meta.letterNumber ?? null,
+      position: meta.position,
     });
-  }, [meta.itemId, meta.title, meta.letterNumber, meta.position, meta.sourceName, meta.image?.url, homeKey]);
+  }, [meta.itemId, meta.title, meta.letterNumber, meta.position, meta.sourceName, meta.image?.url, meta.author?.name, homeKey]);
 
   const data = item.data;
   const kind = data?.kind ?? meta.kind;

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { GestureResponderEvent } from "react-native";
 import { createEpisodeTasks, ETA_DONE, ETA_EARLY, type Eta, isBusy, minutesLabel, newEta, type Phase, phaseOf, type PlayState, rawSecondsLeft, rowShows, tickEta } from "./episode-task";
 import { createNowPlaying, type NowPlayingMeta } from "./now-playing";
+import { resumeAt } from "./podcast-library";
+import { podcastLibrary } from "./podcasts";
 import { cancelEpisode, episodeAudioUrl, episodeKey, type EpisodeResponse, requestEpisode, useEpisode } from "./podcast";
 
 /**
@@ -71,12 +73,29 @@ function setCoarse(next: PlayState) {
   emit(coarseListeners);
 }
 
+/** Where a just-loaded episode picks up (the Podcasts tab's saved spot), once the player has it loaded. */
+let pendingSeek: number | null = null;
+
 function onStatus(s: AudioStatus) {
   if (!loaded) return;
+  if (pendingSeek !== null) {
+    if (!s.isLoaded) return;
+    const to = pendingSeek;
+    pendingSeek = null;
+    if (Math.abs(s.currentTime - to) > 1) {
+      void player?.seekTo(to);
+      return;
+    }
+  }
   fine = { ...fine, at: s.currentTime, duration: s.duration || fine.duration };
   emit(fineListeners);
   setCoarse({ itemId: loaded.itemId, playing: s.playing, at: s.currentTime, duration: s.duration });
-  if (s.didJustFinish) tasks.finish(loaded.itemId);
+  // The Podcasts tab keeps where you are in it (and whether you've listened).
+  podcastLibrary.progress(loaded.itemId, s.currentTime, s.duration, s.playing);
+  if (s.didJustFinish) {
+    tasks.finish(loaded.itemId);
+    podcastLibrary.finished(loaded.itemId);
+  }
 }
 
 function getPlayer(): AudioPlayer {
@@ -128,6 +147,7 @@ function clearLockScreen() {
 /** What a piece is, for the row's "go to the piece" and the lock screen. Its reader says, when it shows. */
 export function describeNowPlaying(meta: NowPlayingMeta) {
   nowPlaying.describe(meta);
+  podcastLibrary.describe(meta);
   if (loaded?.itemId === meta.itemId && lockShown) showOnLockScreen(meta.itemId);
 }
 
@@ -151,6 +171,7 @@ function load(itemId: string, episode: EpisodeView) {
   const p = getPlayer();
   if (loaded?.itemId !== itemId || loaded.url !== url) {
     p.replace({ uri: url });
+    pendingSeek = null;
     loaded = { itemId, url };
     nowPlaying.loaded(itemId);
     fine = { at: 0, duration: episode.durationSeconds ?? 0, scrub: null };
@@ -161,6 +182,15 @@ function load(itemId: string, episode: EpisodeView) {
 }
 
 const subscribeCoarse = (l: () => void) => (coarseListeners.add(l), () => void coarseListeners.delete(l));
+/** The piece whose audio is in the player (playing, paused or ended), or null. */
+export function usePlayerItem(): string | null {
+  return useSyncExternalStore(subscribeCoarse, () => coarse.itemId);
+}
+
+/** On the Podcasts tab: asked for or played (with what its reader said about it, when it showed). */
+function rememberEpisode(itemId: string) {
+  podcastLibrary.remember(nowPlaying.meta(itemId) ?? { itemId, title: "Untitled piece", home: { kind: "item" } });
+}
 const subscribeFine = (l: () => void) => (fineListeners.add(l), () => void fineListeners.delete(l));
 
 // ── Tapping elsewhere keeps going ─────────────────────────────────────────────
@@ -268,6 +298,7 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
 
   const start = useCallback(() => {
     tasks.begin(itemId);
+    rememberEpisode(itemId);
     // Being made: it takes the pill's row on every screen.
     nowPlaying.claim(itemId);
     requestEpisode(itemId).then(
@@ -281,6 +312,8 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
 
   const stop = useCallback(() => {
     tasks.stop(itemId);
+    // It was never made, so it leaves the Podcasts tab too.
+    podcastLibrary.forget(itemId);
     // The card goes straight back to its start button; the job is deleted on the server.
     qc.setQueryData<EpisodeResponse>(episodeKey(itemId), (d) => (d ? { ...d, episode: null } : d));
     cancelEpisode(itemId).then(
@@ -291,6 +324,7 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
 
   const toggle = useCallback(() => {
     if (!episode || episode.status !== "ready") return;
+    const fresh = loaded?.itemId !== itemId;
     const p = load(itemId, episode);
     if (!p) return;
     // At the end the player stays there (and may still report playing): start again from the top.
@@ -300,7 +334,17 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
     // Playing: it takes the row (replacing another episode in place) and the lock screen.
     nowPlaying.claim(itemId);
     showOnLockScreen(itemId);
+    rememberEpisode(itemId);
     if (atEnd) void p.seekTo(0);
+    else if (fresh) {
+      // Part-way through (from the Podcasts tab, or another day): carry on from there.
+      const from = resumeAt(podcastLibrary.get(itemId));
+      if (from) {
+        pendingSeek = from;
+        fine = { ...fine, at: from };
+        emit(fineListeners);
+      }
+    }
     p.play();
   }, [itemId, episode]);
 

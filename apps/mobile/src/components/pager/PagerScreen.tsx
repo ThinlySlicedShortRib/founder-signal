@@ -53,7 +53,7 @@ export function Display({ size, lineHeight, color, style, ...props }: TextProps 
   );
 }
 
-/** .seg2: the two-way switch (Saved / Letters, Month grid / List). */
+/** .seg2: the switch (Saved / Letters / Podcasts, Month grid / List). */
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
   return (
     <View

@@ -26,8 +26,9 @@ import { scheduleOnRN } from "react-native-worklets";
 import { font, palette } from "@/components/onboarding/kit";
 import { PillStatusSlot } from "@/components/pager/Pill";
 import { fmtTime, type Phase, STEP_ENDS, STEPS, stepOf } from "@/lib/episode-task";
-import { type EpisodeTask, nowPlaying, rowFolded, scrubTo, setConfirmRect, useEpisodeTask, useNowPlaying, usePlayTime } from "@/lib/listen";
+import { type EpisodeTask, nowPlaying, rowFolded, scrubTo, setConfirmRect, useEpisodeTask, useNowPlaying, usePlayerItem, usePlayTime } from "@/lib/listen";
 import { goToNowPlaying } from "@/lib/now-playing-nav";
+import { usePillRowPlaybackOnly } from "@/lib/podcasts";
 import { POLL_MS } from "@/lib/podcast";
 
 /**
@@ -118,7 +119,7 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
  * interval, so it keeps moving between polls, and never goes backwards. As it crosses a tick it gives one
  * small beat and tells the strip (`onStep`), so the step text changes at that moment.
  */
-function ProgressRing({
+export function ProgressRing({
   progress,
   size,
   tone,
@@ -459,7 +460,7 @@ const line2 = (color: string, making: boolean): TextStyle => ({
 });
 
 /** Making: "step · time left". The time left never cuts off (the step gives way first), and a new estimate crossfades in. */
-function MakingLine({ step, eta, tone, quiet }: { step: number; eta: string; tone: Tone; quiet: boolean }) {
+export function MakingLine({ step, eta, tone, quiet }: { step: number; eta: string; tone: Tone; quiet: boolean }) {
   const reduce = useReducedMotion();
   const t = TONES[tone];
   const mounted = useMounted();
@@ -527,7 +528,7 @@ const ICON_LABEL: Record<Phase, string> = {
  * The phase as the strip shows it: the same as the task's, except that when the episode is ready while the
  * ring is still filling, it stays "making" until the ring has closed and held for a beat (at once with Reduce Motion).
  */
-function useShownPhase(phase: Phase, reduce: boolean): Phase {
+export function useShownPhase(phase: Phase, reduce: boolean): Phase {
   const [shown, setShown] = useState(phase);
   const holding = phase === "ready" && shown === "making" && !reduce;
   if (phase !== shown && !holding) setShown(phase);
@@ -800,18 +801,26 @@ const SWAP_IN = new Keyframe({ 0: { opacity: 0, transform: [{ translateY: 3 }] }
  */
 export function NowPlayingStatus() {
   const { itemId } = useNowPlaying();
+  // On the Podcasts tab the row is for playback only: it follows the episode in the player.
+  const playbackOnly = usePillRowPlaybackOnly();
+  const playerItem = usePlayerItem();
+  const id = playbackOnly ? playerItem : itemId;
   // Unmounts (letting the row fold) only once nothing is playing; a new episode keeps the same slot.
-  return itemId ? <NowPlayingSlot itemId={itemId} /> : null;
+  return id ? <NowPlayingSlot itemId={id} playbackOnly={playbackOnly} /> : null;
 }
 
-function NowPlayingSlot({ itemId }: { itemId: string }) {
+/** What the pill's row may show on the Podcasts tab (being made, ready or failed show in the episode's own list row). */
+const PLAYBACK: Phase[] = ["playing", "paused", "done"];
+
+function NowPlayingSlot({ itemId, playbackOnly }: { itemId: string; playbackOnly: boolean }) {
   const task = useEpisodeTask(itemId);
   const closed = task.loaded && !task.row;
   // Its row closed: let go (the row falls back to the episode still in the player, or folds).
   useEffect(() => {
     if (closed) rowFolded(itemId);
   }, [closed, itemId]);
-  return <PillStatusSlot>{task.row ? <NowPlayingRow itemId={itemId} /> : null}</PillStatusSlot>;
+  const shows = task.row && (!playbackOnly || PLAYBACK.includes(task.phase));
+  return <PillStatusSlot>{shows ? <NowPlayingRow itemId={itemId} /> : null}</PillStatusSlot>;
 }
 
 function NowPlayingRow({ itemId }: { itemId: string }) {

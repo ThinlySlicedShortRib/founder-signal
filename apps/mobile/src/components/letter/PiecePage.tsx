@@ -1,7 +1,7 @@
 import type { LetterPiece } from "@fs/schema";
 import { useEffect, useMemo } from "react";
 import { Pressable, Text, View } from "react-native";
-import Animated, { cancelAnimation, Easing, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import { ArtHero, useBandScene } from "@/components/art/ArtHero";
 import { pickPieceArt, STYLES } from "@/components/art/styles";
 import { font, palette } from "@/components/onboarding/kit";
@@ -186,23 +186,32 @@ export function PiecePage({
   );
 }
 
+/** The mock's `cubic-bezier(.4,0,.2,1)`, applied per keyframe segment as CSS does. */
+const dotEase = Easing.bezierFn(0.4, 0, 0.2, 1);
+
 /**
  * The hint to swipe up, in the Read button: a small light-blue dot that keeps rising (fades in over
  * the first 15%, rises 11px by 65%, fades out by the end, every 1.6s). Still, 5px up, with Reduce Motion.
+ *
+ * The clock runs linearly from 0 to 1 and every cycle starts by snapping back to 0. A bare
+ * `withRepeat(withTiming(1))` restarts from wherever the value was left, so once Fast Refresh (or any
+ * re-run of the effect) cancelled it near the end of a cycle, it looped over the last sliver only: the
+ * dot sat risen and nearly transparent, a dark speck on the ink button.
  */
 function RisingDot() {
   const reduceMotion = useReducedMotion();
   const t = useSharedValue(0);
   useEffect(() => {
     if (reduceMotion) return;
-    t.set(withRepeat(withTiming(1, { duration: 1600, easing: Easing.bezier(0.4, 0, 0.2, 1) }), -1, false));
+    t.set(withRepeat(withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: 1600, easing: Easing.linear })), -1, false));
     return () => cancelAnimation(t);
   }, [reduceMotion, t]);
   const style = useAnimatedStyle(() => {
     if (reduceMotion) return { opacity: 1, transform: [{ translateY: -5 }] };
     const p = t.get();
-    const opacity = p < 0.15 ? p / 0.15 : p < 0.65 ? 1 : 1 - (p - 0.65) / 0.35;
-    const rise = p < 0.65 ? 11 * (p / 0.65) : 11 + (p - 0.65) / 0.35;
+    // Keyframes: opacity 0 → 1 (15%) → 1 (65%) → 0 (100%); rise 0 → 11 (65%) → 12 (100%).
+    const opacity = p < 0.15 ? dotEase(p / 0.15) : p < 0.65 ? 1 : 1 - dotEase((p - 0.65) / 0.35);
+    const rise = p < 0.65 ? 11 * dotEase(p / 0.65) : 11 + dotEase((p - 0.65) / 0.35);
     return { opacity, transform: [{ translateY: -rise }] };
   });
   return (

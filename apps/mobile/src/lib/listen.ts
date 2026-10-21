@@ -4,10 +4,11 @@ import { type AudioPlayer, type AudioStatus, createAudioPlayer, setAudioModeAsyn
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { GestureResponderEvent } from "react-native";
 import { createEpisodeTasks, ETA_DONE, ETA_EARLY, type Eta, isBusy, minutesLabel, newEta, type Phase, phaseOf, type PlayState, rawSecondsLeft, rowShows, tickEta } from "./episode-task";
-import { createNowPlaying, type NowPlayingMeta } from "./now-playing";
+import { createNowPlaying, type NowPlayingMeta, type PlayerView } from "./now-playing";
 import { resumeAt } from "./podcast-library";
 import { podcastLibrary } from "./podcasts";
 import { cancelEpisode, episodeAudioUrl, episodeKey, type EpisodeResponse, requestEpisode, useEpisode } from "./podcast";
+import { queryClient } from "./query";
 
 /**
  * The one source of truth for Listen episodes: everything that shows a
@@ -21,8 +22,8 @@ import { cancelEpisode, episodeAudioUrl, episodeKey, type EpisodeResponse, reque
  *   - the one audio player, at module level, so playback carries on across
  *     the whole app (between pieces, out of the letter, on every screen), in
  *     the background and on the lock screen;
- *   - which episode the pill's status row carries (`nowPlaying`, from
- *     now-playing.ts): the one last asked for or played, whatever the screen.
+ *   - what the pill's row and its expandable panel show (`nowPlaying`, from
+ *     now-playing.ts): what's playing, Up next, and the episodes it tracks.
  *
  * Playback time ticks four times a second; only `usePlayTime` hears it, so
  * the Reader and the pill don't re-render with it.
@@ -93,8 +94,12 @@ function onStatus(s: AudioStatus) {
   // The Podcasts tab keeps where you are in it (and whether you've listened).
   podcastLibrary.progress(loaded.itemId, s.currentTime, s.duration, s.playing);
   if (s.didJustFinish) {
-    tasks.finish(loaded.itemId);
-    podcastLibrary.finished(loaded.itemId);
+    const ended = loaded.itemId;
+    tasks.finish(ended);
+    podcastLibrary.finished(ended);
+    // The reader asked for what comes next: it plays now. Otherwise nothing starts on its own.
+    const next = nowPlaying.advance();
+    if (next) playNow(next);
   }
 }
 
@@ -151,18 +156,24 @@ export function describeNowPlaying(meta: NowPlayingMeta) {
   if (loaded?.itemId === meta.itemId && lockShown) showOnLockScreen(meta.itemId);
 }
 
-/** The row's episode folded away (Listened or Stopped): the row falls back or goes, and so does the lock screen card. */
+/** An episode's row folded away (Listened or Stopped): it stops offering itself to the row, and the lock screen card goes if it was this one's. */
 export function rowFolded(itemId: string) {
   nowPlaying.folded(itemId);
   if (loaded?.itemId === itemId && !player?.playing) clearLockScreen();
 }
 
 const subscribeNowPlaying = (l: () => void) => nowPlaying.subscribe(l);
-/** The piece whose episode the pill's row carries, app-wide (null: no row). */
-export function useNowPlaying(): { itemId: string | null; meta: NowPlayingMeta | null } {
-  const itemId = useSyncExternalStore(subscribeNowPlaying, nowPlaying.subject);
-  const meta = useSyncExternalStore(subscribeNowPlaying, () => nowPlaying.meta(itemId));
-  return { itemId, meta };
+/** What the pill shows: the row, the panel's lists and the handle's hint (`playbackOnly`: the Podcasts tab). */
+export function usePlayerView(playbackOnly: boolean): PlayerView {
+  return useSyncExternalStore(subscribeNowPlaying, () => nowPlaying.view(playbackOnly));
+}
+/** What a piece is, as its reader last said (null until it has). */
+export function useNowPlayingMeta(itemId: string | null): NowPlayingMeta | null {
+  return useSyncExternalStore(subscribeNowPlaying, () => nowPlaying.meta(itemId));
+}
+/** Up next, in order. */
+export function useUpNext(): readonly string[] {
+  return useSyncExternalStore(subscribeNowPlaying, nowPlaying.queue);
 }
 
 function load(itemId: string, episode: EpisodeView) {
@@ -192,6 +203,54 @@ function rememberEpisode(itemId: string) {
   podcastLibrary.remember(nowPlaying.meta(itemId) ?? { itemId, title: "Untitled piece", home: { kind: "item" } });
 }
 const subscribeFine = (l: () => void) => (fineListeners.add(l), () => void fineListeners.delete(l));
+
+/**
+ * Plays a ready episode in the one player (replacing whatever was in it, which keeps its place in Podcasts): it
+ * becomes what's playing, on the row and the lock screen. Part-way through, it carries on from there; at the
+ * end, from the top.
+ */
+function playItem(itemId: string, episode: EpisodeView) {
+  const fresh = loaded?.itemId !== itemId;
+  const p = load(itemId, episode);
+  if (!p) return;
+  const atEnd = !!p.duration && p.currentTime >= p.duration - 0.5;
+  tasks.show(itemId);
+  nowPlaying.played(itemId);
+  showOnLockScreen(itemId);
+  rememberEpisode(itemId);
+  if (atEnd) void p.seekTo(0);
+  else if (fresh) {
+    // Part-way through (from the Podcasts tab, or another day): carry on from there.
+    const from = resumeAt(podcastLibrary.get(itemId));
+    if (from) {
+      pendingSeek = from;
+      fine = { ...fine, at: from };
+      emit(fineListeners);
+    }
+  }
+  p.play();
+}
+
+/** "Play now" (and Up next's turn): plays it if it's ready, from what the app last heard from the server. */
+export function playNow(itemId: string) {
+  const episode = queryClient.getQueryData<EpisodeResponse>(episodeKey(itemId))?.episode;
+  if (episode?.status === "ready") playItem(itemId, episode);
+}
+
+/** "Play after this": to the end of Up next. */
+export const playAfter = (itemId: string) => nowPlaying.playAfter(itemId);
+/** ✕ on Up next: back to Ready. */
+export const unqueue = (itemId: string) => nowPlaying.unqueue(itemId);
+
+/** ±15s on the episode in the player (nothing for any other piece). */
+export function skipBy(itemId: string, seconds: number) {
+  if (loaded?.itemId !== itemId || !player) return;
+  const duration = player.duration || fine.duration;
+  const to = Math.max(0, Math.min(duration ? duration - 0.5 : Infinity, (fine.scrub ?? fine.at) + seconds));
+  void player.seekTo(to);
+  fine = { ...fine, at: to, scrub: null };
+  emit(fineListeners);
+}
 
 // ── Tapping elsewhere keeps going ─────────────────────────────────────────────
 type Rect = { x: number; y: number; w: number; h: number };
@@ -299,8 +358,8 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
   const start = useCallback(() => {
     tasks.begin(itemId);
     rememberEpisode(itemId);
-    // Being made: it takes the pill's row on every screen.
-    nowPlaying.claim(itemId);
+    // Being made: with nothing playing, the pill's row shows it, on every screen.
+    nowPlaying.ask(itemId);
     requestEpisode(itemId).then(
       (e) => {
         qc.setQueryData<EpisodeResponse>(episodeKey(itemId), { episode: e, available: true });
@@ -324,28 +383,12 @@ export function useEpisodeTask(itemId: string): EpisodeTask {
 
   const toggle = useCallback(() => {
     if (!episode || episode.status !== "ready") return;
-    const fresh = loaded?.itemId !== itemId;
-    const p = load(itemId, episode);
-    if (!p) return;
-    // At the end the player stays there (and may still report playing): start again from the top.
-    const atEnd = !!p.duration && p.currentTime >= p.duration - 0.5;
-    if (p.playing && !atEnd) return p.pause();
-    tasks.show(itemId);
-    // Playing: it takes the row (replacing another episode in place) and the lock screen.
-    nowPlaying.claim(itemId);
-    showOnLockScreen(itemId);
-    rememberEpisode(itemId);
-    if (atEnd) void p.seekTo(0);
-    else if (fresh) {
-      // Part-way through (from the Podcasts tab, or another day): carry on from there.
-      const from = resumeAt(podcastLibrary.get(itemId));
-      if (from) {
-        pendingSeek = from;
-        fine = { ...fine, at: from };
-        emit(fineListeners);
-      }
-    }
-    p.play();
+    // At the end the player stays there (and may still report playing): play starts again from the top.
+    const p = loaded?.itemId === itemId ? player : null;
+    const atEnd = !!p?.duration && p.currentTime >= p.duration - 0.5;
+    if (p?.playing && !atEnd) return p.pause();
+    // Playing: it becomes what's playing (replacing another episode in the row, in place) and the lock screen.
+    playItem(itemId, episode);
   }, [itemId, episode]);
 
   return useMemo(

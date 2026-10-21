@@ -1,6 +1,18 @@
-import { Children, createContext, isValidElement, type ReactNode, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Pressable, Text, useWindowDimensions, View } from "react-native";
-import Animated, { Easing, ReduceMotion, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import { Children, createContext, isValidElement, type ReactNode, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Animated, {
+  cancelAnimation,
+  Easing,
+  ReduceMotion,
+  type SharedValue,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { font, palette } from "@/components/onboarding/kit";
@@ -26,11 +38,38 @@ import { createPillStore, type PillLayer, type PillStore } from "./pill-store";
  * re-animating, while the controls under it morph or change hands. While it
  * shows, the pill is at least `STATUS_W` wide (the row takes the pill's
  * width), the controls sit centred under it, and a hairline runs between.
+ *
+ * The status row can grow up into a panel (player-expand.html): its contents
+ * drive `usePillFrame()`'s `open` (0 collapsed → 1 open) and `panelH` (the
+ * open height), and the pill follows as one continuous shape, the row's part
+ * growing from STATUS_W × STATUS_H to STATUS_OPEN_W × panelH with the controls
+ * still underneath. While it's open the screen dims a little, and a tap
+ * outside closes it.
  */
 
-/** The status row: its least width, and its height with the hairline under it. */
+/** The status row: its least width, and its height with the hairline under it (the approved 44, plus room for the grab handle). */
 export const STATUS_W = 264;
-export const STATUS_H = 44;
+export const STATUS_H = 50;
+/** The status row's width once it has grown into its panel. */
+export const STATUS_OPEN_W = 284;
+
+/** The open panel's spring (the mock's: stiffness 300, damping 31, on 0 → 1). */
+const PANEL_SPRING = { stiffness: 300, damping: 31, mass: 1, reduceMotion: ReduceMotion.Never } as const;
+
+/** The status row's panel, shared between the pill (which takes its shape from it) and the row's contents (which drive it). */
+export type PillFrame = {
+  /** 0 collapsed → 1 open (past either end while a drag rubber-bands). */
+  open: SharedValue<number>;
+  /** The panel's height when open, hairline included. */
+  panelH: SharedValue<number>;
+  /** Springs open or closed (at once with Reduce Motion, or with `instant`); `velocity` is in `open` units per second. */
+  settle: (open: boolean, opts?: { velocity?: number; instant?: boolean }) => void;
+  reduce: boolean;
+};
+
+const PillFrameContext = createContext<PillFrame | null>(null);
+/** The status row's panel (inside the pill's status row only; null elsewhere). */
+export const usePillFrame = () => useContext(PillFrameContext);
 /** The row grows and folds in this long (its height at once with Reduce Motion), fading in or out in STATUS_FADE_MS (RM: STATUS_RM_FADE_MS). */
 const STATUS_MS = 220;
 const STATUS_FADE_MS = 180;
@@ -256,8 +295,41 @@ export function PillOutlet({ suppressed = false }: { /** A route with no pill (a
     shown.set(withTiming(visible ? 1 : 0, { duration: visible ? IN_MS : OUT_MS, easing: EASE_OUT, reduceMotion: ReduceMotion.Never }));
   }, [current, visible, shown]);
 
+  // The status row's panel: how open, and how tall when open.
+  const open = useSharedValue(0);
+  const panelH = useSharedValue(STATUS_H + 150);
+  const frame = useMemo<PillFrame>(
+    () => ({
+      open,
+      panelH,
+      reduce,
+      settle: (to, { velocity = 0, instant = false } = {}) => {
+        const target = to ? 1 : 0;
+        cancelAnimation(open);
+        if (instant || reduce) open.set(target);
+        else open.set(withSpring(target, { ...PANEL_SPRING, velocity: Math.max(-14, Math.min(14, velocity)) }));
+      },
+    }),
+    [open, panelH, reduce],
+  );
+  // Nothing to open (no row), or the pill's gone (a dialog, a screen without it): closed, at once.
+  const hasStatus = snap.status != null;
+  useEffect(() => {
+    if (!visible || !hasStatus) frame.settle(false, { instant: true });
+  }, [visible, hasStatus, frame]);
+  /** The scrim takes taps once the panel is on its way open. */
+  const [dimmed, setDimmed] = useState(false);
+  useAnimatedReaction(
+    () => open.get() > 0.05,
+    (on, was) => {
+      if (on !== was) scheduleOnRN(setDimmed, on);
+    },
+  );
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: 0.16 * Math.min(1, Math.max(0, open.get())) }));
+
   const boxStyle = useAnimatedStyle(() => ({ width: width.get(), height: height.get() }));
-  const pillStyle = useAnimatedStyle(() => ({ opacity: shown.get() }));
+  // A full pill at the controls' 54pt, a little squarer as the panel opens.
+  const pillStyle = useAnimatedStyle(() => ({ opacity: shown.get(), borderRadius: 27 - 5 * Math.min(1, Math.max(0, open.get())) }));
   /** The live controls' width, for the status row to grow from. */
   const ctlW = useSharedValue(0);
   // The row follows the controls' width as the pill springs between modes (at once the first time, or with Reduce Motion).
@@ -266,14 +338,17 @@ export function PillOutlet({ suppressed = false }: { /** A route with no pill (a
   const layers = [...snap.exiting, ...(current ? [current] : [])].sort((a, b) => a.id - b.id);
 
   return (
+    <>
+      {/* The open panel dims the screen a little; a tap outside it closes it. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.pill, zIndex: current?.z ?? 20, pointerEvents: dimmed ? "auto" : "none" }, scrimStyle]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close the player" onPress={() => frame.settle(false)} style={{ flex: 1 }} />
+      </Animated.View>
     <View style={{ pointerEvents: "box-none", position: "absolute", left: 0, right: 0, bottom, alignItems: "center", zIndex: current?.z ?? 20 }}>
       <Animated.View
         style={[
           {
             pointerEvents: visible ? "auto" : "none",
             backgroundColor: palette.pill,
-            // 27 is a full pill at the controls' 54pt, and keeps rounded corners once the status row makes it taller.
-            borderRadius: 27,
             boxShadow: "0 12px 30px rgba(18,19,22,0.22)",
             // Clips the contents to the rounded shape (the shadow is drawn outside the clip).
             overflow: "hidden",
@@ -282,7 +357,9 @@ export function PillOutlet({ suppressed = false }: { /** A route with no pill (a
           pillStyle,
         ]}
       >
-        <PillStatusArea node={snap.status} reduce={reduce} ctlW={ctlW} maxW={Math.round(stageW * 0.94)} />
+        <PillFrameContext value={frame}>
+          <PillStatusArea node={snap.status} reduce={reduce} ctlW={ctlW} maxW={Math.round(stageW * 0.94)} />
+        </PillFrameContext>
         {/* The controls, sized as before (live contents, or pinned mid-morph). Clipped on their own, so an outgoing mode never shows over the row. */}
         <Animated.View style={[{ overflow: "hidden", alignItems: "center", justifyContent: "center" }, boxStyle]}>
           {layers.map((layer) => (
@@ -301,13 +378,15 @@ export function PillOutlet({ suppressed = false }: { /** A route with no pill (a
         </Animated.View>
       </Animated.View>
     </View>
+    </>
   );
 }
 
 /**
  * The status row above the controls. It grows (height 220ms, fading in over 180ms) when a status is claimed and
  * folds when it's let go, keeping its last contents while it folds. It takes the pill's width: at least
- * `STATUS_W`, or the controls' if they're wider, and the pill widens with it as it grows.
+ * `STATUS_W`, or the controls' if they're wider, and the pill widens with it as it grows. As its panel opens
+ * (`PillFrame.open`) it grows to `STATUS_OPEN_W` and the panel's height, out of the same shape.
  */
 function PillStatusArea({ node, reduce, ctlW, maxW }: { node: ReactNode | null; reduce: boolean; ctlW: SharedValue<number>; maxW: number }) {
   const on = node != null;
@@ -317,6 +396,9 @@ function PillStatusArea({ node, reduce, ctlW, maxW }: { node: ReactNode | null; 
   const open = useSharedValue(on ? 1 : 0);
   const fade = useSharedValue(on ? 1 : 0);
   const w = Math.min(STATUS_W, maxW);
+  const w1 = Math.min(STATUS_OPEN_W, maxW);
+  const frame = useContext(PillFrameContext)!;
+  const { open: x, panelH } = frame;
 
   const folded = useCallback(() => setHeld(null), []);
   useEffect(() => {
@@ -333,17 +415,23 @@ function PillStatusArea({ node, reduce, ctlW, maxW }: { node: ReactNode | null; 
 
   const style = useAnimatedStyle(() => {
     const p = open.get();
+    const k = Math.min(1, Math.max(0, x.get()));
     const ctl = Math.min(ctlW.get(), maxW);
-    // The row's width; the pill grows from the controls' width to it.
-    const row = Math.max(ctl, w);
-    return { height: p * STATUS_H, opacity: fade.get(), width: ctl + (row - ctl) * p };
+    // The row's width (wider as its panel opens); the pill grows from the controls' width to it.
+    const row = Math.max(ctl, w + (w1 - w) * k);
+    // Past either end while a drag rubber-bands, so not clamped.
+    const h = STATUS_H + (panelH.get() - STATUS_H) * x.get();
+    return { height: p * h, opacity: fade.get(), width: ctl + (row - ctl) * p };
   });
-  const rowStyle = useAnimatedStyle(() => ({ width: Math.max(Math.min(ctlW.get(), maxW), w) }));
+  const rowStyle = useAnimatedStyle(() => {
+    const k = Math.min(1, Math.max(0, x.get()));
+    return { width: Math.max(Math.min(ctlW.get(), maxW), w + (w1 - w) * k), height: STATUS_H + (panelH.get() - STATUS_H) * x.get() };
+  });
 
   if (held == null) return null;
   return (
     <Animated.View style={[{ overflow: "hidden", alignItems: "center", justifyContent: "flex-start" }, style]}>
-      <Animated.View style={[{ height: STATUS_H, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)", flexShrink: 0 }, rowStyle]}>{held}</Animated.View>
+      <Animated.View style={[{ borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.1)", flexShrink: 0 }, rowStyle]}>{held}</Animated.View>
     </Animated.View>
   );
 }

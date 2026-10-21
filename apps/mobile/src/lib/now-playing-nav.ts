@@ -34,3 +34,14 @@ export function listenParams(p: { page?: string | string[]; listen?: string | st
   const page = Number(one(p.page));
   return { page: Number.isFinite(page) && page > 0 ? page : null, listen };
 }
+
+/**
+ * "All episodes in Podcasts ›" in the pill's panel: the Library, on its Podcasts tab. Library is one of the menu's
+ * destinations, so it replaces the screen like the menu does; already there, the tab changes in place. `tab` is
+ * a fresh nonce each time, so it switches even if the reader moved to another tab since.
+ */
+export function goToPodcasts(pathname: string) {
+  const params = { tab: "podcasts", at: String(Date.now()) };
+  if (pathname === "/library") router.setParams(params);
+  else router.replace({ pathname: "/library", params });
+}

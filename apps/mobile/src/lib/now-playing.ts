@@ -1,4 +1,5 @@
 import type { Phase } from "./episode-task.ts";
+import { type LibraryEpisode, STARTED_AT } from "./podcast-library.ts";
 
 /**
  * Now playing (player-expand.html): what the pill's row carries, what the
@@ -48,8 +49,11 @@ export type TrackedEpisode = {
   addedAt: number;
 };
 
-/** The phases in which the episode in the player is "what's playing". */
-export const PLAYER_PHASES: readonly Phase[] = ["playing", "paused", "done"];
+/**
+ * The phases in which the episode in the player is "what's playing". Ready is one: it's just been loaded and
+ * the player hasn't said it's playing yet (the row mustn't flick to another episode in between).
+ */
+export const PLAYER_PHASES: readonly Phase[] = ["ready", "playing", "paused", "done"];
 
 export type HintKind = "none" | "making" | "ready";
 
@@ -89,7 +93,8 @@ const isReady = (t: TrackedEpisode | undefined) => !!t && t.phase === "ready" &&
 export function selectView(s: PlayerState, { playbackOnly = false }: { playbackOnly?: boolean } = {}): PlayerView {
   const t = (id: string) => s.tracked.get(id);
   const p = s.player ? t(s.player) : undefined;
-  const now = s.player && p && p.open && PLAYER_PHASES.includes(p.phase) ? s.player : null;
+  // Not reported yet: it was only just loaded, so it's what's playing.
+  const now = s.player && (!p || (p.open && PLAYER_PHASES.includes(p.phase))) ? s.player : null;
   const fresh = (id: string) => s.readyAt.get(id) ?? 0;
 
   const tracked = [...s.tracked.values()].filter((e) => e.itemId !== now);
@@ -235,7 +240,7 @@ export function createNowPlaying(clock: () => number = Date.now) {
      * queue (the caller plays it), or null for none. Nothing plays on its own unless the reader queued it.
      */
     advance(): string | null {
-      const next = queue.find((id) => id !== player && (!tracked.get(id) || tracked.get(id)!.phase === "ready")) ?? null;
+      const next = queue.find((id) => id !== player && tracked.get(id)?.phase === "ready") ?? null;
       if (next) {
         queue = queue.filter((x) => x !== next);
         emit();
@@ -250,6 +255,22 @@ export function createNowPlaying(clock: () => number = Date.now) {
       return (views[k] ??= selectView(state(), { playbackOnly }));
     },
   };
+}
+
+/** At most this many of the Podcasts tab's New episodes are watched for the panel's Ready and Making. */
+export const WATCH_NEW = 12;
+
+/**
+ * The episodes the pill watches (each one reports with `report`): the one in the player, the ones asked for here,
+ * Up next, and the Podcasts tab's newest New ones (not started, not listened: being made, or ready and unplayed).
+ */
+export function watchList(
+  s: Pick<PlayerState, "player" | "asked" | "queue">,
+  library: readonly Pick<LibraryEpisode, "itemId" | "at" | "listened">[],
+  max = WATCH_NEW,
+): string[] {
+  const fresh = library.filter((e) => !e.listened && e.at <= STARTED_AT).slice(0, max).map((e) => e.itemId);
+  return [...new Set([...(s.player ? [s.player] : []), ...s.asked, ...s.queue, ...fresh])];
 }
 
 /** "Founder Signal · No. 14 · Piece 2" (or the source, for a piece outside a letter). */

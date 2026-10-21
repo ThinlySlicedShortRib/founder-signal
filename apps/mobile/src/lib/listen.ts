@@ -4,7 +4,7 @@ import { type AudioPlayer, type AudioStatus, createAudioPlayer, setAudioModeAsyn
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { GestureResponderEvent } from "react-native";
 import { createEpisodeTasks, ETA_DONE, ETA_EARLY, type Eta, isBusy, minutesLabel, newEta, type Phase, phaseOf, type PlayState, rawSecondsLeft, rowShows, tickEta } from "./episode-task";
-import { createNowPlaying, type NowPlayingMeta, type PlayerView } from "./now-playing";
+import { createNowPlaying, type NowPlayingMeta, type PlayerView, watchList } from "./now-playing";
 import { resumeAt } from "./podcast-library";
 import { podcastLibrary } from "./podcasts";
 import { cancelEpisode, episodeAudioUrl, episodeKey, type EpisodeResponse, requestEpisode, useEpisode } from "./podcast";
@@ -171,9 +171,45 @@ export function usePlayerView(playbackOnly: boolean): PlayerView {
 export function useNowPlayingMeta(itemId: string | null): NowPlayingMeta | null {
   return useSyncExternalStore(subscribeNowPlaying, () => nowPlaying.meta(itemId));
 }
-/** Up next, in order. */
-export function useUpNext(): readonly string[] {
-  return useSyncExternalStore(subscribeNowPlaying, nowPlaying.queue);
+
+/** What the pill says about an episode: its title, "No. 14 · Piece 1 · Author" and artwork (its reader's word, else the Podcasts tab's). */
+export type EpisodeInfo = { title: string; line: string; artworkUrl: string | null };
+const infos = new Map<string, { key: string; info: EpisodeInfo }>();
+function episodeInfo(itemId: string): EpisodeInfo | null {
+  const m = nowPlaying.meta(itemId);
+  const e = podcastLibrary.get(itemId);
+  if (!m && !e) return null;
+  const n = m?.letterNumber ?? e?.letterNumber ?? null;
+  const pos = m?.position ?? e?.position ?? null;
+  const author = m?.author ?? e?.author ?? null;
+  const info = {
+    title: m?.title ?? e?.title ?? "",
+    line: [n != null ? `No. ${n}` : null, pos != null ? `Piece ${pos}` : null, author].filter(Boolean).join(" · "),
+    artworkUrl: m?.artworkUrl ?? null,
+  };
+  // The same object until it changes (useSyncExternalStore).
+  const key = JSON.stringify(info);
+  const was = infos.get(itemId);
+  if (was?.key === key) return was.info;
+  infos.set(itemId, { key, info });
+  return info;
+}
+const subscribeInfo = (l: () => void) => {
+  const a = nowPlaying.subscribe(l);
+  const b = podcastLibrary.subscribe(l);
+  return () => (a(), b());
+};
+export function useEpisodeInfo(itemId: string | null): EpisodeInfo | null {
+  return useSyncExternalStore(subscribeInfo, () => (itemId ? episodeInfo(itemId) : null));
+}
+export function useEpisodeTitle(itemId: string | null): string | null {
+  return useEpisodeInfo(itemId)?.title || null;
+}
+
+/** The episodes the pill watches for its panel (now-playing.ts `watchList`). */
+export function useWatchList(): string[] {
+  const key = useSyncExternalStore(subscribeInfo, () => watchList(nowPlaying.state(), podcastLibrary.entries()).join("\n"));
+  return useMemo(() => (key ? key.split("\n") : []), [key]);
 }
 
 function load(itemId: string, episode: EpisodeView) {

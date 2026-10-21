@@ -54,7 +54,7 @@ export const STATUS_H = 50;
 export const STATUS_OPEN_W = 284;
 
 /** The open panel's spring (the mock's: stiffness 300, damping 31, on 0 → 1). */
-const PANEL_SPRING = { stiffness: 300, damping: 31, mass: 1, reduceMotion: ReduceMotion.Never } as const;
+export const PANEL_SPRING = { stiffness: 300, damping: 31, mass: 1, reduceMotion: ReduceMotion.Never } as const;
 
 /** The status row's panel, shared between the pill (which takes its shape from it) and the row's contents (which drive it). */
 export type PillFrame = {

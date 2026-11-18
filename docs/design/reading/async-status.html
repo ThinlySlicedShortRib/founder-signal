@@ -1,0 +1,1132 @@
+<title>Background Task Status</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a short header and two control rows, then two phones side by side (cover, drawer open) that share one task; a note under each. */
+:root {
+  --ground: #FBFBFA; --ink: #121316; --muted: #5B5F68; --line: #E2E4E8; --card: #FFFFFF; --accent: #2B4BFF; --bezel: #121316;
+  /* The app itself is light only; these stay the same in both page themes. */
+  --app-surface: #FFFFFF; --app-ink: #121316; --app-lede: #3A3D44; --app-muted: #5B5F68; --app-rule: #EEF0F4; --app-grab: #D6D8DE; --app-blue: #2B4BFF; --app-blue-mid: #8FA1FF; --app-tint: #EEF2FF; --app-tint-line: #DCE3FF; --app-orange: #FF5A1F; --app-photo: #25272B; --app-pill: #121316; --app-pill-muted: #9EA3AD;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --strip-ms: 220ms;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; color-scheme: dark } }
+:root[data-theme="dark"] { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; color-scheme: dark }
+
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.page { max-width: 1100px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+header { display: grid; gap: 12px; max-width: 70ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+.controls { display: grid; gap: 12px; }
+.crow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.clabel { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); min-width: 52px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+button.ctl { font: 600 13.5px/1 var(--body); border-radius: 999px; padding: 10px 15px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+button.ctl[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+button.ctl.primary { background: var(--accent); color: #FFFFFF; border-color: var(--accent); }
+:root[data-theme="dark"] button.ctl.primary { color: #121316; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.ctl.primary { color: #121316; } }
+button:focus-visible, [role="slider"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint-text { color: var(--muted); font-size: 13px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(316px, 100%), 1fr)); gap: 40px 28px; justify-items: center; max-width: 720px; }
+.variant { display: grid; gap: 14px; width: 316px; max-width: 100%; align-content: start; }
+.vhead { display: flex; gap: 10px; align-items: baseline; }
+.vname { font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+.vtag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; margin-left: auto; white-space: nowrap; }
+.vnote { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+/* ── The phone (from drawer.html) ─────────────────────────────── */
+.phone { box-sizing: border-box; width: 316px; max-width: 100%; padding: 8px; border-radius: 46px; background: var(--bezel); box-shadow: 0 18px 40px rgba(18,19,22,0.18); }
+.screen { position: relative; width: 300px; height: 620px; max-width: 100%; border-radius: 38px; overflow: hidden; background: #000; isolation: isolate; font-family: var(--body); color: var(--app-ink); }
+
+.cover { position: absolute; inset: 0; z-index: 1; background: var(--app-photo); color: #FFFFFF; transform-origin: 50% 0; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.photo { position: absolute; inset: -2px;
+  background:
+    linear-gradient(180deg, rgba(10,12,18,0) 30%, rgba(10,12,18,0.55) 55%, rgba(10,12,18,0.9) 100%),
+    radial-gradient(120px 90px at 72% 26%, rgba(255,196,140,0.95), rgba(255,140,90,0.35) 55%, transparent 75%),
+    radial-gradient(260px 120px at 30% 58%, rgba(40,52,70,0.9), transparent 70%),
+    linear-gradient(172deg, transparent 54%, #2b2f3a 54.5%, #1d2028 70%),
+    linear-gradient(186deg, transparent 47%, #4a4553 47.5%, #343440 60%),
+    linear-gradient(180deg, #24365e 0%, #5d5a86 28%, #c08a7c 46%, #e6a986 52%, #3a3a48 60%); }
+/* The cover lifts to clear the pill, and lifts again while the pill carries a status. */
+.content { position: absolute; inset: 0; display: flex; flex-direction: column; padding-bottom: 92px; transition: padding-bottom var(--strip-ms) cubic-bezier(.2,.8,.2,1); }
+.page[data-pill="grow"] .screen.task .content { padding-bottom: 136px; }
+.page[data-pill="stack"] .screen.task .content { padding-bottom: 140px; }
+.top { display: flex; justify-content: space-between; align-items: center; padding: 58px 20px 0; }
+.mono { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+.bars { display: flex; gap: 4px; }
+.bars i { width: 16px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.35); }
+.bars i.on { background: #FFFFFF; }
+.body { margin-top: auto; display: grid; gap: 11px; padding: 0 20px; }
+.body .mono { color: rgba(255,255,255,0.85); }
+.ltitle { font-family: var(--display); font-weight: 700; font-size: 27px; line-height: 1.08; letter-spacing: -0.035em; margin: 0; text-wrap: balance; }
+.chip { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.chip b { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #f0c8a8, #8a6a5c); }
+.why { display: flex; gap: 9px; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.18); border-radius: 14px; padding: 10px 11px; font-size: 13px; line-height: 1.42; }
+.why::before { content: ""; flex: none; width: 13px; height: 13px; border-radius: 50%; background: var(--app-orange); margin-top: 3px; }
+.actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.read { font: 600 15px/1 var(--body); color: var(--app-ink); background: #FFFFFF; border: 0; border-radius: 999px; padding: 15px 20px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+.skip { margin-left: auto; font-size: 12.5px; color: rgba(255,255,255,0.75); text-decoration: underline; }
+/* The Listen button beside Read article: glass when idle, blue while its episode is in the works. */
+.listen { flex: none; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.28); background: rgba(255,255,255,0.14); display: grid; place-items: center; cursor: pointer; padding: 0; color: #FFFFFF; transition: background-color 200ms, border-color 200ms; }
+.listen svg { width: 20px; height: 20px; }
+.listen.on { background: var(--app-blue); border-color: var(--app-blue); }
+.phoneico { position: relative; flex: none; width: 8px; height: 18px; }
+.phoneico i { position: absolute; left: 50%; bottom: 0; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--app-blue); animation: swipe 1.6s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes swipe { 0% { transform: translateY(0); opacity: 0 } 15% { opacity: 1 } 65% { transform: translateY(-11px); opacity: 1 } 100% { transform: translateY(-12px); opacity: 0 } }
+.dim { position: absolute; inset: 0; z-index: 2; background: #000; opacity: 0; pointer-events: none; }
+
+/* The drawer */
+.drawer { position: absolute; left: 0; right: 0; top: 0; height: 620px; z-index: 3; background: var(--app-surface); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.28); display: flex; flex-direction: column; overflow: hidden; touch-action: none; will-change: transform; }
+.drawer.open { touch-action: pan-y; }
+.grab { box-sizing: border-box; flex: none; position: relative; z-index: 4; background: var(--app-surface); display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 58px; cursor: grab; user-select: none; -webkit-user-select: none; }
+.handle { position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: var(--app-grab); }
+.htitle { flex: 1; min-width: 0; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.htitle, .info { opacity: 0; transform: translateY(6px); pointer-events: none; transition: opacity 180ms ease, transform 180ms ease; }
+.drawer.compact .htitle, .drawer.compact .info { opacity: 1; transform: none; pointer-events: auto; }
+.grab::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--app-rule); opacity: 0; transition: opacity 180ms; }
+.drawer.compact .grab::after { opacity: 1; }
+.info { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--app-grab); background: transparent; display: grid; place-items: center; cursor: pointer; padding: 0; font: 700 13px/1 Georgia, "Times New Roman", serif; font-style: italic; color: var(--app-ink); }
+.drawer.expanded .info { background: var(--app-ink); border-color: var(--app-ink); color: #FFFFFF; }
+/* Under the header: the info panel. It overlays the text, so nothing below it moves. */
+.hstack { position: absolute; left: 0; right: 0; top: 82px; z-index: 3; }
+.hinfo { display: grid; grid-template-rows: 0fr; background: var(--app-surface); box-shadow: 0 12px 24px rgba(18,19,22,0); transition: grid-template-rows 260ms cubic-bezier(.2,.8,.2,1), box-shadow 260ms; }
+.hinfo > div { overflow: hidden; }
+.hinfo .inner { display: grid; gap: 10px; padding: 12px 20px 16px; border-bottom: 1px solid var(--app-rule); opacity: 0; transform: translateY(-6px); transition: opacity 200ms, transform 220ms; }
+.drawer.expanded .hinfo { grid-template-rows: 1fr; box-shadow: 0 12px 24px rgba(18,19,22,0.08); }
+.drawer.expanded .hinfo .inner { opacity: 1; transform: none; transition-delay: 60ms; }
+.drawer:not(.expanded) .hinfo { pointer-events: none; }
+.hinfo p { margin: 0; font-size: 14.5px; line-height: 1.45; color: var(--app-lede); }
+.byline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--app-muted); }
+.byline b { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #f0c8a8, #8a6a5c); flex: none; }
+.byline strong { color: var(--app-ink); font-weight: 600; }
+.byline a { margin-left: auto; color: var(--app-blue); font-weight: 600; text-decoration: none; }
+.close { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 0; background: #EEF0F4; display: grid; place-items: center; cursor: pointer; opacity: 0; pointer-events: none; }
+.close svg { width: 14px; height: 14px; stroke: var(--app-ink); }
+.drawer.open .close { pointer-events: auto; }
+.dscroll { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+.dscroll::-webkit-scrollbar { display: none; }
+.drawer.open .dscroll { overflow-y: auto; }
+.article { padding: 6px 20px 120px; display: grid; gap: 14px; }
+/* The article ends with the same clearance above the pill when it carries a status. */
+.page[data-pill="grow"] .screen.task .article { padding-bottom: 164px; }
+.page[data-pill="stack"] .screen.task .article { padding-bottom: 168px; }
+.atitle { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.1; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.article .lede { font-size: 16px; line-height: 1.45; color: var(--app-lede); }
+.article p { margin: 0; font-size: 16px; line-height: 1.6; }
+.article h3 { margin: 6px 0 0; font-family: var(--display); font-weight: 700; font-size: 19px; letter-spacing: -0.02em; }
+.ring { position: absolute; left: 50%; top: 10px; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 1.5px solid var(--app-blue); opacity: 0; pointer-events: none; z-index: 5; }
+
+/* The inline Listen card, in the article's flow under the byline. */
+.lcard { background: var(--app-tint); border: 1px solid var(--app-tint-line); border-radius: 16px; padding: 11px 13px 12px; display: grid; gap: 9px; }
+.lhead { display: flex; align-items: center; gap: 7px; font: 600 14px/1.2 var(--body); }
+.lhead svg { width: 16px; height: 16px; flex: none; color: var(--app-blue); }
+.lhead .mono { margin-left: auto; color: var(--app-muted); font-size: 10px; }
+.lcard .strip { height: 40px; gap: 8px; }
+
+/* ── The status strip: one component, three homes ──────────────── */
+.strip { --ico: 28px; position: relative; height: 100%; flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: var(--s-ink); font: 500 13px/16px var(--body); }
+.strip.dark { --s-ink: #FFFFFF; --s-muted: var(--app-pill-muted); --s-track: rgba(255,255,255,0.18); --s-tick: rgba(255,255,255,0.5); --s-fill: var(--app-blue-mid); --s-shine: rgba(255,255,255,0.4); --s-x: rgba(255,255,255,0.1); --s-ghost: rgba(255,255,255,0.3); }
+.strip.light { --s-ink: var(--app-ink); --s-muted: var(--app-muted); --s-track: rgba(18,19,22,0.12); --s-tick: rgba(18,19,22,0.34); --s-fill: var(--app-blue); --s-shine: #A9ADB6; --s-x: rgba(18,19,22,0.06); --s-ghost: rgba(18,19,22,0.2); }
+.sico { position: relative; flex: none; width: var(--ico); height: var(--ico); padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.strip[data-s="making"] .sico, .strip[data-s="done"] .sico, .strip[data-s="stopped"] .sico { cursor: default; }
+.sico svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.sico svg > * { opacity: 0; transition: opacity 140ms; }
+/* The progress ring: about 21px across with a 2px stroke in every home (radius and stroke are set in script from the icon size). It fills clockwise from 12 o'clock; faint ticks mark where each step ends. */
+.pring { transform-box: view-box; transform-origin: 16px 16px; }
+.ptrack { fill: none; stroke: var(--s-track); }
+.ptick { stroke: var(--s-tick); stroke-linecap: butt; }
+.parc { fill: none; stroke: var(--app-blue); stroke-linecap: round; stroke-dasharray: 0 100; }
+.disc { fill: var(--app-blue); transform-box: fill-box; transform-origin: center; transition: fill 200ms; }
+.gl { fill: #FFFFFF; transform-box: fill-box; transform-origin: center; }
+.g-check { fill: none; stroke: #FFFFFF; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 100; }
+.strip[data-s="idle"] :is(.disc, .g-wave),
+.strip[data-s="making"] .pring,
+.strip[data-s="ready"] :is(.disc, .g-play),
+.strip[data-s="paused"] :is(.disc, .g-play),
+.strip[data-s="playing"] :is(.disc, .g-pause),
+.strip[data-s="failed"] :is(.disc, .g-bang),
+.strip[data-s="done"] :is(.disc, .g-check),
+.strip[data-s="stopped"] :is(.pring, .g-stop) { opacity: 1; }
+.strip[data-s="stopped"] :is(.pticks, .parc) { display: none; }
+.strip[data-s="failed"] .disc { fill: var(--app-orange); }
+.pulse { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--app-blue); opacity: 0; pointer-events: none; }
+.strip.dark .pulse { border-color: var(--app-blue-mid); }
+
+.smain { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.l1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.t1 { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm { flex: none; padding-left: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--s-muted); font-variant-numeric: tabular-nums; }
+.strip:not([data-s="playing"]):not([data-s="paused"]) .tm { display: none; }
+.l2 { position: relative; height: 12px; display: flex; align-items: center; min-width: 0; }
+/* The second line is set in the body face so "Writing the script · ~1 min left" fits the narrowest home (147px) on one line.
+   While making it reads "step · time left"; the ring already shows how far along it is, so there's no percentage. */
+.t2 { flex: 0 1 auto; font: 500 11px/12px var(--body); color: var(--s-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* Time left: never cut off (the step gives way first), in tabular figures so the count never jitters. */
+.tl { display: none; flex: none; align-items: baseline; font: 500 11px/12px var(--body); color: var(--s-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tl::before { content: "·"; margin: 0 3px; }
+.strip[data-s="making"] .tl { display: flex; }
+/* A hair tighter while making, so the longest line ("Writing the script · ~1 min left") clears 147px. */
+.strip[data-s="making"] :is(.t2, .tl) { letter-spacing: -0.015em; }
+/* Two copies in one cell, so a new estimate crossfades over the old one. */
+.tlw { display: grid; }
+.tlw > span { grid-area: 1 / 1; }
+/* A soft light passes over the title while the episode is being made. */
+.strip[data-s="making"] .t1 { background: linear-gradient(90deg, var(--s-ink) 0 38%, var(--s-shine) 50%, var(--s-ink) 62% 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+
+/* The scrubber: a thin line with a knob; it grows a little while you hold it. */
+.sbar { display: none; position: relative; flex: 1; height: 14px; margin: -1px 0; cursor: pointer; touch-action: none; }
+.strip:is([data-s="playing"], [data-s="paused"]) .sbar { display: block; }
+.strip:is([data-s="playing"], [data-s="paused"]) .t2 { display: none; }
+.sbar::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-track); }
+.sbar .fill { position: absolute; left: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-fill); width: calc(var(--pct, 0) * 100%); }
+.sbar .knob { position: absolute; top: 50%; left: calc(var(--pct, 0) * 100%); width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--s-fill); transition: transform 120ms; }
+.strip.dark .sbar .knob { background: #FFFFFF; }
+.strip.drag .sbar .knob { transform: scale(1.45); }
+
+.sx { display: none; flex: none; width: 26px; height: 26px; border-radius: 50%; border: 0; padding: 0; background: var(--s-x); color: var(--s-muted); cursor: pointer; place-items: center; }
+.sx svg { width: 12px; height: 12px; }
+.strip[data-s="making"] .sx { display: grid; }
+.sretry { display: none; flex: none; font: 600 12.5px/1 var(--body); padding: 7px 10px; border-radius: 999px; border: 0; background: var(--app-blue); color: #FFFFFF; cursor: pointer; }
+.strip[data-s="failed"] .sretry { display: block; }
+/* Failed: the message gets both lines, so it never cuts off beside Retry. */
+.strip[data-s="failed"] .t1 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 15px; }
+.strip[data-s="failed"] .l2 { display: none; }
+/* Stopped: one short line while the row folds away. */
+.strip .g-stop { fill: var(--s-muted); }
+.strip[data-s="stopped"] .l2 { display: none; }
+.strip[data-s="stopped"] .t1 { color: var(--s-muted); }
+
+/* The stop confirm: it takes over the row in place, so the row's height never changes. */
+.strip > :not(.sconfirm) { transition: opacity 160ms ease, transform 160ms ease; }
+.strip.confirming > :not(.sconfirm) { opacity: 0; transform: translateY(-4px); pointer-events: none; }
+.sconfirm { position: absolute; inset: 0; display: flex; align-items: center; gap: 5px; opacity: 0; transform: translateY(4px); visibility: hidden; pointer-events: none; transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms; }
+.strip.confirming .sconfirm { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.strip.dark .sconfirm { padding-left: 4px; }
+/* One line in every home, down to the narrowest capsule. */
+.cq { flex: 1; min-width: 0; font: 600 12.5px/15px var(--body); color: var(--s-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sconfirm button { flex: none; font: 600 12px/1 var(--body); padding: 7px 9px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.ckeep { background: transparent; color: var(--s-ink); border: 1px solid var(--s-ghost); }
+.cstop { background: var(--app-orange); color: var(--app-ink); border: 1px solid var(--app-orange); }
+.sconfirm button:focus-visible { outline: 2px solid var(--s-fill); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── The pill (from Pill.tsx), with room for the strip ───────────── */
+/* One pill in both modes. The status row (or capsule) depends only on the task, so opening or closing the drawer never moves it; only the buttons under it crossfade. */
+.dockwrap { position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.dockwrap > * { pointer-events: auto; }
+.dockwrap { --ease: cubic-bezier(.2,.8,.2,1); }
+/* The pill hugs its buttons; with a status row it takes the wider of the buttons and the row (capped), measured in script as --pw. */
+.pill { box-sizing: border-box; width: var(--pw, 240px); max-width: 94%; border-radius: 27px; background: var(--app-pill); box-shadow: 0 12px 30px rgba(18,19,22,0.22); overflow: hidden; transition: width var(--strip-ms) var(--ease); }
+/* Main version: the pill grows a row on top. */
+.prow { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--strip-ms) cubic-bezier(.2,.8,.2,1), opacity 180ms; }
+.prow > div { overflow: hidden; min-height: 0; }
+.prow-in { box-sizing: border-box; width: var(--pw, 240px); max-width: none; margin-left: calc((100% - var(--pw, 240px)) / 2); height: 44px; padding: 0 9px 0 10px; display: flex; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
+.page[data-pill="grow"] .screen.task .prow { grid-template-rows: 1fr; opacity: 1; }
+/* Other version: a matching capsule stacked above the pill. */
+.capwrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--strip-ms) cubic-bezier(.2,.8,.2,1), opacity 180ms; }
+.capwrap > div { overflow: hidden; min-height: 0; padding-inline: 20px; margin-inline: -20px; display: flex; justify-content: center; }
+.capsule { box-sizing: border-box; width: var(--cw, 240px); transition: width var(--strip-ms) var(--ease); height: 40px; margin-bottom: 8px; border-radius: 20px; background: var(--app-pill); box-shadow: 0 8px 20px rgba(18,19,22,0.2); padding: 0 8px 0 6px; display: flex; align-items: center; cursor: pointer; }
+.capsule .strip { --ico: 28px; }
+.page[data-pill="stack"] .screen.task .capwrap { grid-template-rows: 1fr; opacity: 1; }
+.screen:not(.task) .prow, .screen:not(.task) .capwrap { pointer-events: none; }
+
+.pbtns { position: relative; height: 54px; }
+.pset { position: absolute; top: 0; bottom: 0; left: 50%; width: max-content; translate: -50% 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 5px; transition: opacity 180ms cubic-bezier(.2,.8,.2,1), transform 180ms cubic-bezier(.2,.8,.2,1); }
+.screen.reading .pset.mode-piece, .screen:not(.reading) .pset.mode-read { opacity: 0; transform: scale(0.96); pointer-events: none; transition-duration: 120ms; }
+.pb { width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: #FFFFFF; cursor: pointer; padding: 0; flex: none; }
+.pb svg { width: 20px; height: 20px; }
+.pb.blue { background: var(--app-blue); }
+.pb.saved svg path { fill: currentColor; }
+.plabel { box-sizing: border-box; min-width: 92px; padding: 0 6px; display: grid; justify-items: center; }
+.plabel .k { font-family: var(--mono); font-size: 10px; line-height: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-pill-muted); }
+.plabel .v { font: 600 15px/18px var(--body); color: #FFFFFF; }
+.pstatus { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 6px; min-width: 120px; box-sizing: border-box; font: 600 14.5px/18px var(--body); color: #FFFFFF; white-space: nowrap; }
+.pstatus svg { width: 22px; height: 22px; flex: none; transform: rotate(-90deg); }
+
+.status { position: absolute; top: 0; left: 0; right: 0; height: 44px; z-index: 8; display: flex; justify-content: space-between; align-items: center; padding: 6px 28px 0; font: 600 13px/1 var(--body); color: #FFFFFF; pointer-events: none; transition: color 160ms; }
+.screen.reading .status { color: var(--app-ink); }
+.notch { position: absolute; left: 50%; top: 9px; width: 86px; height: 24px; margin-left: -43px; border-radius: 14px; background: #000; z-index: 9; }
+.home { position: absolute; left: 50%; bottom: 7px; width: 110px; height: 4px; margin-left: -55px; border-radius: 3px; background: var(--app-ink); z-index: 9; pointer-events: none; }
+.screen:not(.reading) .home { background: rgba(255,255,255,0.85); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --strip-ms: 0ms; }
+  .status, .htitle, .info, .grab::after, .hinfo, .hinfo .inner, .pset, .content { transition: none; }
+  .prow, .capwrap { transition: opacity 120ms; }
+  .phoneico i { animation: none; opacity: 1; transform: translateY(-5px); }
+  .sico svg > * { transition: none; }
+  .strip[data-s="making"] .t1 { animation: none; background: none; color: var(--s-ink); }
+  .strip > :not(.sconfirm), .sconfirm, .strip.confirming .sconfirm { transition: none; }
+  .strip.confirming > :not(.sconfirm), .sconfirm { transform: none; }
+}
+</style>
+
+<div class="page" data-pill="grow" id="page">
+  <header>
+    <div class="eyebrow">Founder Signal · Reader · background tasks</div>
+    <h1>Where background work shows its status</h1>
+    <p>Making a Listen episode takes about a minute, so it runs in the background. One small strip shows how it's going, and it lives in the same place in both modes. It sits in the bottom pill as a row above the buttons, on the cover and in the article alike. Opening or closing the article swaps the buttons under it, and the strip stays where it is. While the episode is being made, a small ring fills clockwise with the real steps: writing the script takes the first quarter, recording the voices fills most of the rest one line at a time, and finishing closes it. The step and an estimate of the time left sit beside it (“Recording voices · ~40s left”), counting down steadily. When the ring closes, it turns into the blue play button. The Listen card under the byline is still where a reader starts an episode, and it shows the same ring at the same point. Both phones share the same task, so the buttons below move them together. Tapping ✕ while an episode is being made asks first: the row turns into “Stop this episode?” with Keep and Stop, and it goes back to making on its own after five seconds, or when you tap elsewhere or scroll.</p>
+  </header>
+  <div class="controls">
+    <div class="crow">
+      <span class="clabel">State</span>
+      <div class="seg" id="stateBtns" role="group" aria-label="Task state"></div>
+      <button class="ctl primary" id="flowBtn" type="button">Auto-play the whole flow</button>
+    </div>
+    <div class="crow">
+      <span class="clabel">Pill</span>
+      <div class="seg" role="group" aria-label="Pill design">
+        <button class="ctl" type="button" data-pill="grow" aria-pressed="true">Pill grows a row</button>
+        <button class="ctl" type="button" data-pill="stack" aria-pressed="false">Stacked capsule</button>
+      </div>
+      <button class="ctl" id="resetBtn" type="button">Reset phones</button>
+    </div>
+    <span class="hint-text">Or start it the way a reader would: tap the headphones on the cover, or the blue button in the Listen card. Drag the drawers and scroll the article as usual.</span>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+
+<template id="stripTpl">
+  <div class="strip" data-s="idle">
+    <button class="sico" type="button" aria-label="Make the episode">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <g class="pring"><circle class="ptrack" cx="16" cy="16"/><g class="pticks"></g><circle class="parc" cx="16" cy="16" pathLength="100" transform="rotate(-90 16 16)"/></g>
+        <circle class="disc" cx="16" cy="16" r="16"/>
+        <path class="gl g-play" d="M13 10.6v10.8l8.6-5.4z"/>
+        <g class="gl g-pause"><rect x="11.4" y="10.5" width="3.3" height="11" rx="1"/><rect x="17.3" y="10.5" width="3.3" height="11" rx="1"/></g>
+        <path class="gl g-check" d="M10.4 16.4l3.8 3.8 7.4-7.7" pathLength="100"/>
+        <g class="gl g-bang"><rect x="14.6" y="8.8" width="2.8" height="9.6" rx="1.4"/><circle cx="16" cy="22.4" r="1.75"/></g>
+        <rect class="gl g-stop" x="11.6" y="11.6" width="8.8" height="8.8" rx="2"/>
+        <g class="gl g-wave"><rect x="9.8" y="13" width="2.5" height="6" rx="1.25"/><rect x="14.75" y="9.5" width="2.5" height="13" rx="1.25"/><rect x="19.7" y="12" width="2.5" height="8" rx="1.25"/></g>
+      </svg>
+      <span class="pulse"></span>
+    </button>
+    <div class="smain">
+      <div class="l1"><span class="t1"></span></div>
+      <div class="l2"><span class="t2"></span><span class="tl"><span class="tlw"><span></span><span></span></span></span><div class="sbar" role="slider" tabindex="0" aria-label="Episode position" aria-valuemin="0" aria-valuemax="243"><i class="fill"></i><i class="knob"></i></div><span class="tm"></span></div>
+    </div>
+    <button class="sx" type="button" aria-label="Stop making the episode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+    <button class="sretry" type="button">Retry</button>
+    <div class="sconfirm" role="alertdialog" aria-modal="false" inert>
+      <span class="cq">Stop this episode?</span>
+      <button class="ckeep" type="button">Keep</button>
+      <button class="cstop" type="button">Stop</button>
+    </div>
+  </div>
+</template>
+
+<template id="phoneTpl">
+  <section class="variant">
+    <div class="vhead"><span class="vname"></span><span class="vtag"></span></div>
+    <div class="phone">
+      <div class="screen">
+        <div class="cover">
+          <div class="photo"></div>
+          <div class="content">
+            <div class="top"><span class="mono">No. 14 · Piece 2 of 4</span><span class="bars"><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
+            <div class="body">
+              <span class="mono">Article · 8 min · Pricing</span>
+              <h2 class="ltitle">Why usage-based pricing keeps winning at the seed stage</h2>
+              <div class="chip"><b></b>Maya Okafor · The Unit Economist</div>
+              <div class="why">You said you're rethinking your per-seat plan before the raise. This one has the numbers from 40 seed-stage companies.</div>
+              <div class="actions">
+                <button class="read" type="button"><span class="phoneico" aria-hidden="true"><i></i></span>Read article</button>
+                <button class="listen" type="button" aria-label="Listen to this piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 14h3v6H5.5A1.5 1.5 0 0 1 4 18.5zM20 14h-3v6h1.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg></button>
+                <span class="skip">Skip</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dim"></div>
+        <div class="drawer">
+          <span class="ring"></span><span class="ring"></span>
+          <div class="grab">
+            <span class="handle"></span>
+            <span class="htitle">Why usage-based pricing keeps winning</span>
+            <button class="info" type="button" aria-label="About this piece" aria-expanded="false">i</button>
+            <button class="close" type="button" aria-label="Back to the cover"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
+          </div>
+          <div class="hstack">
+            <div class="hinfo"><div><div class="inner">
+              <p>Charging by usage lowers the first yes, grows with the customer, and gives you a cleaner story for investors. The catch is forecasting.</p>
+              <div class="byline"><b></b><span><strong>Maya Okafor</strong> · The Unit Economist</span><a href="#" tabindex="-1">Original ↗</a></div>
+            </div></div></div>
+          </div>
+          <div class="dscroll">
+            <div class="article">
+              <h2 class="atitle">Why usage-based pricing keeps winning at the seed stage</h2>
+              <p class="lede">Charging by usage lowers the first yes, grows with the customer, and gives you a cleaner story for investors. The catch is forecasting.</p>
+              <div class="byline"><b></b><span><strong>Maya Okafor</strong> · The Unit Economist · 8 min</span><a href="#" tabindex="-1">Original ↗</a></div>
+              <div class="lcard">
+                <div class="lhead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 14h3v6H5.5A1.5 1.5 0 0 1 4 18.5zM20 14h-3v6h1.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>Listen to this piece<span class="mono">Two hosts</span></div>
+              </div>
+              <p>Most founders pick a per-seat price because it's what the last tool they bought used. It's easy to explain and easy to forecast. It is also, for a lot of early products, the wrong shape.</p>
+              <p>Over the past year I looked at pricing pages and first-year revenue for forty seed-stage B2B companies. The ones that charged for usage closed their first ten customers about five weeks sooner on average.</p>
+              <h3>The first yes is cheaper</h3>
+              <p>A per-seat plan asks a buyer to guess how many people will use the product before anyone has. Usage pricing asks them to try it. The first invoice is small, and nobody needs a budget meeting to approve it.</p>
+              <p>That matters most when your buyer is a team lead with a card, not a procurement department with a process.</p>
+              <h3>It grows without a sales call</h3>
+              <p>When a customer gets more value, they use more, and the bill follows. Net revenue retention in the usage group sat around 128 percent, against 104 for per-seat.</p>
+              <p>Investors read that number before almost anything else on the deck.</p>
+              <h3>The catch is forecasting</h3>
+              <p>Revenue that moves with usage also moves with your customers' slow months. The teams that handled it best sold a committed minimum each quarter and billed usage above it.</p>
+            </div>
+          </div>
+        </div>
+        <div class="dockwrap">
+          <div class="capwrap"><div><div class="capsule" role="button" tabindex="-1" aria-label="Open the Listen card"></div></div></div>
+          <div class="pill">
+            <div class="prow"><div><div class="prow-in" role="button" tabindex="-1" aria-label="Open the Listen card"></div></div></div>
+            <div class="pbtns">
+              <div class="pset mode-piece" role="toolbar" aria-label="Pager">
+                <button class="pb" type="button" aria-label="Previous piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+                <div class="plabel"><span class="k">No. 14</span><span class="v">2 / 5</span></div>
+                <button class="pb" type="button" aria-label="Next piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
+                <button class="pb blue" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9h14M5 15h14"/></svg></button>
+              </div>
+              <div class="pset mode-read" role="toolbar" aria-label="Reading">
+                <button class="pb save" type="button" aria-label="Save" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
+                <div class="pstatus"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.2)" stroke-width="2.6"/><circle class="lring" cx="12" cy="12" r="9" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="75"/></svg><span class="left">6 min left</span></div>
+                <button class="pb next" type="button" aria-label="Next section"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
+                <button class="pb blue" type="button" aria-label="More"><svg viewBox="0 0 24 24" fill="#FFFFFF"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+        <div class="notch"></div>
+        <div class="home"></div>
+      </div>
+    </div>
+    <p class="vnote"></p>
+  </section>
+</template>
+
+<script>
+const H = 620, PEEK = H, TOP = 0;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const play = (el, frames, opts) => (reduce || !el ? null : el.animate(frames, opts));
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+// ── The one shared task: the podcast episode ─────────────────────────
+const S = { state: "idle", step: 0, t: 0, dur: 243, dragging: false, confirm: false, confirmFrom: null, confirmAt: 0 };
+const STATES = ["idle", "making", "ready", "playing", "paused", "failed", "done"];
+const STEPS = ["Writing the script", "Recording voices", "Finishing"];
+const CHAPTERS = [[0, "Cold open"], [18, "Why per-seat feels safe"], [64, "The first yes is cheaper"], [128, "Growing without a sales call"], [186, "The catch is forecasting"], [226, "What to try this week"]];
+const chapter = (t) => CHAPTERS.reduce((name, [at, n]) => (t >= at ? n : name), CHAPTERS[0][1]);
+const T1 = { idle: "Make a two-host episode", making: "Making the episode…", ready: "Episode ready · 4 min", failed: "Couldn't make the episode", done: "Listened · 4 min", stopped: "Stopped" };
+const T2 = { idle: "Ready in about a minute", ready: "Two hosts · tap to play", failed: "Something went wrong", done: "Played to the end", stopped: "" };
+const LABEL = { idle: "Make the episode", making: "Making the episode", ready: "Play the episode", playing: "Pause", paused: "Play", failed: "Try again", done: "Listened", stopped: "Stopped" };
+
+const timers = {};
+const strips = [];
+const phones = [];
+
+function setState(next, { live = false, t, at } = {}) {
+  clearTimeout(timers.hide);
+  // Any change of state closes an open stop confirm (finishing while it's open goes straight to ready).
+  const focusIn = S.confirm && !!document.activeElement?.closest(".sconfirm");
+  S.confirm = false; clearTimeout(timers.confirm);
+  const prev = S.state;
+  S.state = next;
+  if (t != null) S.t = t;
+  // Started by a reader, an episode starts from nothing; picked from the buttons, it joins one already under way. Either way it runs to the end.
+  if (next === "making" && prev !== "making") startMaking(at ?? (live ? 0 : 0.4));
+  if (next !== "making") P.run++;
+  if (next === "playing" && S.t >= S.dur - 0.5) S.t = 0;
+  if (next === "playing") startTick();
+  if (next === "done") timers.hide = setTimeout(() => setState("idle", { t: 0 }), 3600);
+  if (next === "stopped") timers.hide = setTimeout(() => setState("idle", { t: 0 }), 1500);
+  render(prev);
+  if (focusIn) refocus(S.confirmFrom);
+  if (prev === "making" && next === "ready" && focusIn) announce("The episode is ready.");
+}
+
+// ── The stop confirm: one shared flag, so every strip shows it at once ──
+const live = document.getElementById("live");
+function announce(text) { live.textContent = ""; requestAnimationFrame(() => (live.textContent = text)); }
+function askStop(st) {
+  if (S.state !== "making") return;
+  S.confirm = true; S.confirmFrom = st; S.confirmAt = performance.now();
+  render("making");
+  st.keep.focus({ preventScroll: true });
+  announce("Stop this episode? Keep, or Stop.");
+  armConfirm();
+}
+/** Doing nothing for five seconds counts as Keep going. */
+function armConfirm() { clearTimeout(timers.confirm); timers.confirm = setTimeout(() => keepGoing(), 5000); }
+function keepGoing() {
+  if (!S.confirm) return;
+  const focusIn = !!document.activeElement?.closest(".sconfirm");
+  S.confirm = false; clearTimeout(timers.confirm);
+  render("making");
+  if (focusIn) refocus(S.confirmFrom);
+}
+function stopEpisode() {
+  if (!S.confirm) return;
+  flowId++;                                 // a reader's choice ends the auto-play
+  announce("Stopped. The episode wasn't made.");
+  setState("stopped");
+}
+/** Put focus back somewhere sensible once the confirm has gone. */
+function refocus(st) {
+  if (!st) return;
+  const p = st.phone, open = p.y <= TOP + 0.5;
+  const target = S.state === "making" ? st.sx
+    : !st.sico.disabled && (st.card || S.state !== "idle") ? st.sico
+    : open ? p.cardStrip.sico : p.listen;
+  target.focus({ preventScroll: true });
+}
+function paintConfirm(st) {
+  const on = S.confirm && S.state === "making";
+  if (st.el.classList.contains("confirming") === on) return;
+  st.el.classList.toggle("confirming", on);
+  st.confirm.inert = !on;
+  for (const c of st.el.children) if (c !== st.confirm) c.inert = on;
+}
+// ── Progress: it follows the real pipeline (a minute, sped up to about 12 seconds) ──
+// Writing the script is one model call: 0 to 25%, creeping on a time estimate.
+// Recording voices: 25 to 95%, one visible step per voiced line (about 30, arriving unevenly).
+// Finishing: 95 to 100%. The ring eases between updates, never goes back, and while it waits it creeps
+// slowly but never past where the next step starts. With Reduce Motion it just jumps from step to step.
+const BOUND = [0, 0.25, 0.95, 1];
+const LINES = 30, SCRIPT_EST = 3600, SCRIPT_MS = 3200, FINISH_MS = 900;
+const P = { run: 0, target: 0, shown: 0, creep: null, step: 0, done: false, raf: 0, last: 0, readyAt: 0, t0: 0, eta: null, etaB: null, etaLast: 0, etaText: "" };
+
+// ── Time left: estimated from the progress, the way the app will ──────
+// Before about 30% there's too little to go on, so it just says "~1 min left". After that,
+// remaining ≈ elapsed × (1 − p) / p, smoothed: it counts down at the clock's pace and eases toward
+// the raw estimate, quickly when that's lower and only a little at a time when it's higher (a stall).
+// The label moves in 5s steps and only goes back up once the estimate is clearly higher, so it never flickers.
+// The demo makes an episode in about 12s, but a real one takes about a minute, so the shown estimate is
+// scaled ×5 (ETA_SCALE) to read like real numbers ("~55s left" counting down). Drop the scale in the app.
+const ETA_SCALE = 5, DEMO_MS = 11500, ETA_FROM = 0.3;
+function etaLabel(sec) {
+  const b = Math.ceil(sec / 5) * 5;
+  if (P.etaB == null || b < P.etaB || sec > P.etaB + 2) P.etaB = b;
+  if (P.etaB <= 5) return "Almost done";
+  if (P.etaB >= 60) return `~${Math.max(1, Math.round(sec / 60))} min left`;
+  return `~${P.etaB}s left`;
+}
+function updateEta(now) {
+  const dt = Math.min(250, now - P.etaLast); P.etaLast = now;
+  const p = P.shown;
+  if (p < ETA_FROM) { P.eta = null; P.etaB = null; P.etaText = "~1 min left"; return; }
+  const raw = ((now - P.t0) / 1000) * ETA_SCALE * (1 - p) / p;
+  if (P.eta == null) P.eta = raw;
+  else {
+    P.eta = Math.max(0, P.eta - (dt / 1000) * ETA_SCALE);   // count down with the clock
+    const d = raw - P.eta;
+    if (d < 0) P.eta += d * (1 - Math.exp(-dt / 900));     // ahead of the count: catch up smoothly
+    else P.eta += Math.min(d * (1 - Math.exp(-dt / 2500)), (dt / 1000) * 2);   // a stall: rise a little, slowly
+  }
+  P.etaText = etaLabel(P.eta);
+}
+const stepOf = (v) => (v >= BOUND[2] ? 2 : v >= BOUND[1] ? 1 : 0);
+const lineAt = (n) => BOUND[1] + (BOUND[2] - BOUND[1]) * (n / LINES);
+const scriptCurve = (ms) => 0.235 * (1 - Math.exp((-2.2 * ms) / SCRIPT_EST));
+
+function startMaking(at = 0) {
+  const my = ++P.run;
+  const later = (ms, f) => setTimeout(() => { if (my === P.run && S.state === "making") f(); }, ms);
+  P.done = false; P.readyAt = 0;
+  P.shown = P.target = at; P.step = stepOf(at);
+  // Joining one already under way: count the time it would have taken to get here.
+  P.t0 = P.etaLast = performance.now() - at * DEMO_MS; P.eta = P.etaB = null;
+  updateEta(performance.now());
+  const voices = (n) => {
+    P.target = Math.max(P.target, lineAt(n));
+    if (n >= LINES) return finishing(0);
+    P.creep = { kind: "line", t0: performance.now(), from: lineAt(n), to: lineAt(n + 1) };
+    // Lines land unevenly: mostly a quarter second apart, now and then a longer one.
+    later(130 + Math.random() * 150 + (Math.random() < 0.12 ? 320 : 0), () => voices(n + 1));
+  };
+  const finishing = (k) => {
+    P.target = Math.max(P.target, BOUND[2] + (1 - BOUND[2]) * k);
+    P.creep = { kind: "finish", t0: performance.now() };
+    later(Math.max(120, FINISH_MS * (1 - k)), () => { P.target = 1; P.creep = null; P.done = true; });
+  };
+  if (at < BOUND[1]) {
+    // Join the script step where the estimate would be at this point.
+    const ms = at > 0 ? (-SCRIPT_EST / 2.2) * Math.log(1 - Math.min(at, 0.23) / 0.235) : 0;
+    P.creep = { kind: "script", t0: performance.now() - ms };
+    later(Math.max(500, SCRIPT_MS - ms), () => voices(0));
+  } else if (at < BOUND[2]) voices(Math.floor(((at - BOUND[1]) / (BOUND[2] - BOUND[1])) * LINES));
+  else finishing((at - BOUND[2]) / (1 - BOUND[2]));
+  if (!P.raf) { P.last = performance.now(); P.raf = requestAnimationFrame(progressLoop); }
+}
+
+/** Where the ring may creep to while it waits for the next real update. */
+function creepAt(now) {
+  const c = P.creep;
+  if (!c) return 0;
+  const ms = now - c.t0;
+  if (c.kind === "script") { const v = scriptCurve(ms); return reduce ? Math.floor(v / 0.05) * 0.05 : v; }
+  if (reduce) return 0;
+  if (c.kind === "line") return Math.min(BOUND[2] - 0.003, c.from + (c.to - c.from) * 0.6 * (1 - Math.exp(-ms / 900)));
+  return BOUND[2] + 0.04 * (1 - Math.exp(-ms / 400));
+}
+
+function progressLoop(now) {
+  P.raf = 0;
+  if (S.state !== "making") return;
+  const dt = Math.min(64, now - P.last); P.last = now;
+  const goal = Math.max(P.target, creepAt(now));
+  if (reduce) P.shown = Math.max(P.shown, goal);
+  else {
+    let v = P.shown + (goal - P.shown) * (1 - Math.exp(-dt / 140));
+    if (goal - v < 0.0015) v = goal;
+    P.shown = Math.max(P.shown, v);
+  }
+  updateEta(now);
+  paintProgress();
+  // At 100% the ring holds closed for a beat, then becomes the play button.
+  if (P.done && P.shown >= 1) {
+    P.readyAt ||= now;
+    if (now - P.readyAt >= (reduce ? 0 : 200)) { setState("ready"); return; }
+  }
+  P.raf = requestAnimationFrame(progressLoop);
+}
+
+function paintRing(st) {
+  const v = P.shown;
+  st.parc.style.strokeDasharray = `${(v * 100).toFixed(2)} 100`;
+  st.parc.style.opacity = v > 0.004 ? "1" : "0";
+  paintEta(st);
+}
+/** A new estimate crossfades over the old one. Hidden under the stop confirm, or with Reduce Motion, it just changes. */
+function paintEta(st) {
+  const text = P.etaText;
+  if (st.eta === text) return;
+  const [a, b] = [st.tls[st.tlCur], st.tls[1 - st.tlCur]];
+  const quiet = reduce || st.eta == null || st.el.classList.contains("confirming");
+  st.eta = text;
+  for (const s of st.tls) for (const an of s.getAnimations()) an.cancel();
+  if (quiet) { a.textContent = text; b.textContent = ""; return; }
+  st.tlCur = 1 - st.tlCur;
+  b.textContent = text;
+  const ease = "cubic-bezier(.2,.8,.2,1)";
+  play(b, [{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: ease });
+  const out = play(a, [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-3px)" }], { duration: 200, easing: ease, fill: "forwards" });
+  if (out) out.onfinish = () => { if (st.tls[st.tlCur] !== a) a.textContent = ""; out.cancel(); };
+}
+function paintProgress() {
+  const step = stepOf(P.shown);
+  if (step !== P.step) {
+    P.step = step;
+    render("making");
+    for (const st of strips) stepPulse(st);
+  }
+  for (const st of strips) if (st.el.dataset.s === "making") paintRing(st);
+}
+/** A step completing: the ring gives one small beat. */
+function stepPulse(st) {
+  if (st.el.dataset.s !== "making" || st.el.classList.contains("confirming")) return;
+  play(st.pring, [{ transform: "scale(1)" }, { transform: "scale(1.14)", offset: 0.35 }, { transform: "scale(1)" }], { duration: 380, easing: "cubic-bezier(.3,.9,.4,1)" });
+}
+
+let raf = 0, lastT = 0;
+function startTick() { if (raf) return; lastT = performance.now(); raf = requestAnimationFrame(tick); }
+function tick(now) {
+  raf = 0;
+  if (S.state !== "playing") return;
+  const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
+  if (!S.dragging) S.t = Math.min(S.dur, S.t + dt);
+  if (S.t >= S.dur) { setState("done"); return; }
+  paintTime();
+  raf = requestAnimationFrame(tick);
+}
+
+// ── Strips ──────────────────────────────────────────────────────────
+const stripTpl = document.getElementById("stripTpl");
+function makeStrip(host, tone, ico, { card = false } = {}) {
+  const el = stripTpl.content.firstElementChild.cloneNode(true);
+  el.classList.add(tone);
+  el.style.setProperty("--ico", ico + "px");
+  host.appendChild(el);
+  const q = (s) => el.querySelector(s);
+  const st = { el, card, phone: null, sx: q(".sx"), confirm: q(".sconfirm"), keep: q(".ckeep"), sico: q(".sico"), smain: q(".smain"), t1: q(".t1"), tm: q(".tm"), t2: q(".t2"), tls: [...el.querySelectorAll(".tlw > span")], tlCur: 0, eta: null, sbar: q(".sbar"), disc: q(".disc"), pring: q(".pring"), parc: q(".parc"), pulse: q(".pulse"), step: -1 };
+  // The ring is the same size in every home: about 21px across with a 2px stroke, whatever the icon box.
+  const u = 32 / ico, r = 10.5 * u, sw = 2 * u;
+  st.ringOuter = (r + sw / 2) / 16;
+  for (const c of [q(".ptrack"), st.parc]) { c.setAttribute("r", r.toFixed(2)); c.setAttribute("stroke-width", sw.toFixed(2)); }
+  for (const at of [BOUND[1], BOUND[2]]) {
+    const a = at * 2 * Math.PI - Math.PI / 2, cos = Math.cos(a), sin = Math.sin(a);
+    const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    tick.setAttribute("class", "ptick");
+    tick.setAttribute("x1", (16 + cos * (r - sw / 2)).toFixed(2)); tick.setAttribute("y1", (16 + sin * (r - sw / 2)).toFixed(2));
+    tick.setAttribute("x2", (16 + cos * (r + sw / 2)).toFixed(2)); tick.setAttribute("y2", (16 + sin * (r + sw / 2)).toFixed(2));
+    tick.setAttribute("stroke-width", (1.2 * u).toFixed(2));
+    q(".pticks").appendChild(tick);
+  }
+  st.glyph = (s) => q({ ready: ".g-play", paused: ".g-play", playing: ".g-pause", done: ".g-check", failed: ".g-bang", idle: ".g-wave" }[s]);
+
+  st.sico.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const act = { idle: () => setState("making", { live: true }), ready: () => setState("playing", { t: 0 }), playing: () => setState("paused"), paused: () => setState("playing"), failed: () => setState("making", { live: true }) }[S.state];
+    act?.();
+  });
+  st.sx.addEventListener("click", (e) => { e.stopPropagation(); askStop(st); });
+  const cid = `cq${strips.length}`;
+  q(".cq").id = cid; st.confirm.setAttribute("aria-labelledby", cid);
+  st.keep.addEventListener("click", (e) => { e.stopPropagation(); keepGoing(); });
+  q(".cstop").addEventListener("click", (e) => { e.stopPropagation(); stopEpisode(); });
+  st.confirm.addEventListener("click", (e) => e.stopPropagation());
+  st.confirm.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); keepGoing(); } else armConfirm(); });
+  st.confirm.addEventListener("pointerdown", () => armConfirm());
+  // Tabbing out of the confirm is the same as tapping elsewhere.
+  st.confirm.addEventListener("focusout", (e) => { if (e.relatedTarget && !e.relatedTarget.closest(".sconfirm")) keepGoing(); });
+  q(".sretry").addEventListener("click", (e) => { e.stopPropagation(); setState("making", { live: true }); });
+
+  // Scrub: press anywhere on the line, then drag.
+  const seek = (e) => { const r = st.sbar.getBoundingClientRect(); S.t = clamp((e.clientX - r.left) / r.width) * S.dur; paintTime(); };
+  st.sbar.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); st.sbar.setPointerCapture(e.pointerId); S.dragging = true; el.classList.add("drag"); seek(e); });
+  st.sbar.addEventListener("pointermove", (e) => { if (st.sbar.hasPointerCapture(e.pointerId)) seek(e); });
+  const up = () => { if (!S.dragging) return; S.dragging = false; el.classList.remove("drag"); lastT = performance.now(); };
+  st.sbar.addEventListener("pointerup", up);
+  st.sbar.addEventListener("pointercancel", up);
+  st.sbar.addEventListener("click", (e) => e.stopPropagation());
+  st.sbar.addEventListener("keydown", (e) => {
+    const d = { ArrowRight: 10, ArrowLeft: -10, ArrowUp: 10, ArrowDown: -10 }[e.key];
+    if (d == null) return;
+    e.preventDefault(); S.t = clamp(S.t + d, 0, S.dur - 1); paintTime();
+  });
+  strips.push(st);
+  return st;
+}
+
+function paintStrip(st, prev) {
+  paintConfirm(st);
+  // After Stop, the Listen card goes straight back to its start button while the pill says Stopped.
+  const s = st.card && S.state === "stopped" ? "idle" : S.state;
+  // The pill row and capsule keep their last look while they fold away.
+  if (s === "idle" && !st.card) return;
+  const was = st.el.dataset.s;
+  st.el.dataset.s = s;
+  st.sico.setAttribute("aria-label", LABEL[s]);
+  st.sico.toggleAttribute("disabled", s === "making" || s === "done" || s === "stopped");
+  if (s === "making") {
+    if (was !== "making") st.eta = null;   // a fresh run shows its first estimate without a fade
+    st.t1.textContent = T1.making;
+    st.t2.textContent = STEPS[P.step];
+    paintRing(st);
+    if (was === "making" && st.step !== P.step) play(st.t2, [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: "cubic-bezier(.2,.8,.2,1)" });
+    st.step = P.step;
+  } else if (s === "playing" || s === "paused") {
+    paintTimeOne(st);
+  } else {
+    st.t1.textContent = T1[s];
+    st.t2.textContent = T2[s];
+  }
+  const entering = prev === "idle" && !st.card;
+  if (was && was !== s && !entering) changed(st, was, s);
+}
+
+/** Small, local motion when the state changes inside a strip that's already showing. */
+function changed(st, from, to) {
+  const ease = "cubic-bezier(.2,.8,.2,1)";
+  const swap = (from === "playing" && to === "paused") || (from === "paused" && to === "playing");
+  if (!swap) play(st.smain, [{ opacity: 0, transform: "translateY(5px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: ease });
+  const g = st.glyph(to);
+  if (from === "making" && to === "ready") {
+    // The closed ring fills in from its own edge and grows into the play button, so it reads as the same circle; the play mark lands and one small ring goes out.
+    const s0 = st.ringOuter;
+    play(st.pring, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: `scale(${(1 / s0).toFixed(3)})` }], { duration: 260, easing: ease });
+    play(st.disc, [{ transform: `scale(${s0.toFixed(3)})`, opacity: 0 }, { transform: `scale(${(s0 + 0.04).toFixed(3)})`, opacity: 1, offset: 0.25 }, { transform: "scale(1.08)", opacity: 1, offset: 0.7 }, { transform: "scale(1)", opacity: 1 }], { duration: 400, easing: ease, fill: "backwards" });
+    play(g, [{ opacity: 0, transform: "scale(0.4) rotate(-25deg)" }, { opacity: 1, transform: "none" }], { duration: 260, delay: 220, easing: "cubic-bezier(.3,1.4,.5,1)", fill: "backwards" });
+    play(st.pulse, [{ transform: "scale(1)", opacity: 0.5 }, { transform: "scale(1.7)", opacity: 0 }], { duration: 620, delay: 260, easing: "cubic-bezier(.2,.7,.3,1)" });
+  } else if (to === "done") {
+    play(g, [{ strokeDashoffset: 100 }, { strokeDashoffset: 0 }], { duration: 340, delay: 60, easing: ease, fill: "backwards" });
+    play(st.disc, [{ transform: "scale(0.85)" }, { transform: "scale(1)" }], { duration: 300, easing: "cubic-bezier(.3,1.5,.5,1)" });
+  } else if (to === "failed") {
+    play(st.sico, [{ transform: "translateX(0)" }, { transform: "translateX(-3px)" }, { transform: "translateX(3px)" }, { transform: "translateX(-1.5px)" }, { transform: "translateX(0)" }], { duration: 320, easing: "ease-out" });
+  } else if (g && from !== "making") {
+    play(g, [{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], { duration: 180, easing: ease });
+  }
+}
+
+function paintTimeOne(st) {
+  const name = chapter(S.t);
+  if (st.t1.textContent !== name) st.t1.textContent = name;
+  st.tm.textContent = `${fmt(S.t)} / ${fmt(S.dur)}`;
+  st.el.style.setProperty("--pct", (S.t / S.dur).toFixed(4));
+  st.sbar.setAttribute("aria-valuenow", String(Math.round(S.t)));
+  st.sbar.setAttribute("aria-valuetext", `${fmt(S.t)} of ${fmt(S.dur)}`);
+}
+function paintTime() { for (const st of strips) if (st.el.dataset.s === "playing" || st.el.dataset.s === "paused") paintTimeOne(st); }
+
+function render(prev) {
+  for (const st of strips) paintStrip(st, prev);
+  for (const p of phones) {
+    const d = p.dscroll, atEnd = d.scrollHeight - d.clientHeight - d.scrollTop < 4;
+    p.screen.classList.toggle("task", S.state !== "idle");
+    p.listen.classList.toggle("on", S.state !== "idle" && S.state !== "stopped");
+    roomAtEnd(p, atEnd);
+  }
+  for (const b of document.querySelectorAll("#stateBtns button")) b.setAttribute("aria-pressed", String(b.dataset.state === S.state));
+  sizePills();
+}
+
+// ── Pill width (as Pill.tsx: measure the content, spring the box) ─────
+/** The status row's comfortable width; the pill never grows past it for a status. */
+const STATUS_W = 264;
+/** The pill hugs its buttons. With a status row it takes the wider of the buttons and the row; the capsule is never wider than the pill. */
+function sizePill(p) {
+  const reading = p.screen.classList.contains("reading");
+  const ctl = Math.ceil((reading ? p.psetRead : p.psetPiece).offsetWidth);
+  const task = S.state !== "idle";
+  const grow = document.getElementById("page").dataset.pill === "grow";
+  const max = Math.floor(p.screen.clientWidth * 0.94);
+  const pw = Math.min(max, grow && task ? Math.max(ctl, STATUS_W) : ctl);
+  p.pill.style.setProperty("--pw", `${pw}px`);
+  p.capsule.style.setProperty("--cw", `${Math.min(pw, STATUS_W)}px`);
+}
+function sizePills() { for (const p of phones) sizePill(p); }
+
+// ── Phones (drawer behaviour from drawer.html) ───────────────────────
+function squash(p, s) {
+  play(p.handle, [{ transform: "scale(1,1)" }, { transform: `scale(${1 + 0.5 * s},${1 - 0.4 * s})`, offset: 0.25 }, { transform: "scale(1,1)" }], { duration: 380, easing: "ease-out" });
+}
+function ripple(p, s) {
+  squash(p, s);
+  p.rings.forEach((r, i) => play(r, [
+    { transform: "scale(0.3)", opacity: 0.55 * (1 - i * 0.35) },
+    { transform: `scale(${5 + 7 * s - i * 1.5})`, opacity: 0 },
+  ], { duration: 780 + i * 120, delay: i * 120, easing: "cubic-bezier(.2,.7,.3,1)" }));
+}
+
+const VARIANTS = [
+  { key: "piece", name: "Piece mode", tag: "on the cover", start: PEEK,
+    note: "While a background task runs, its status sits as a row above the pill's buttons and the cover lifts to make room. Tap the status to open the article at the Listen card. Use the Pill buttons above to compare the taller pill with a separate capsule. Both phones follow the same choice." },
+  { key: "read", name: "Read mode", tag: "drawer open", start: TOP,
+    note: "The reading pill carries the same status row as the cover, so the strip looks and behaves the same in both modes. Tap its text to scroll back to the Listen card under the byline. The play button only plays or pauses. The article ends with extra room, so its last lines stay clear of the taller pill." },
+];
+
+const tpl = document.getElementById("phoneTpl");
+const grid = document.getElementById("grid");
+
+VARIANTS.forEach((v) => {
+  const node = tpl.content.firstElementChild.cloneNode(true);
+  node.querySelector(".vname").textContent = v.name;
+  node.querySelector(".vtag").textContent = v.tag;
+  node.querySelector(".vnote").textContent = v.note;
+  const s = node.querySelector(".screen");
+  const q = (sel) => s.querySelector(sel);
+  const p = {
+    v, node, screen: s, y: PEEK, anim: 0, samples: [], quietUntil: 0, hitThisGesture: false,
+    cover: q(".cover"), dim: q(".dim"), drawer: q(".drawer"), grab: q(".grab"), handle: q(".handle"),
+    close: q(".close"), htitle: q(".htitle"), info: q(".info"), hinfo: q(".hinfo"), hstack: q(".hstack"), atitle: q(".atitle"), prompt: q(".phoneico"), actions: q(".actions"), readBtn: q(".read"), listen: q(".listen"),
+    dscroll: q(".dscroll"), card: q(".lcard"), dockwrap: q(".dockwrap"), stripHosts: [q(".prow-in"), q(".capsule")], rings: [...s.querySelectorAll(".ring")], lring: q(".lring"), left: q(".pstatus .left"),
+    pill: q(".pill"), capsule: q(".capsule"), psetPiece: q(".pset.mode-piece"), psetRead: q(".pset.mode-read"),
+  };
+  grid.appendChild(node);
+  p.cardStrip = makeStrip(p.card, "light", 32, { card: true });
+  p.cardStrip.phone = p;
+  makeStrip(q(".prow-in"), "dark", 28).phone = p;
+  makeStrip(q(".capsule"), "dark", 28).phone = p;
+  phones.push(p);
+  wire(p);
+  setY(p, v.start);
+});
+
+function setY(p, y) {
+  p.y = y;
+  const open = 1 - clamp((y - TOP) / (PEEK - TOP));
+  const near = 1 - clamp((y - TOP) / 70);
+  p.drawer.style.transform = `translateY(${y}px)`;
+  p.drawer.style.boxShadow = y >= PEEK - 0.5 ? "none" : "";
+  p.drawer.style.borderRadius = `${22 * (1 - near)}px ${22 * (1 - near)}px 0 0`;
+  p.grab.style.paddingTop = `${44 * near}px`;
+  p.grab.style.height = `${58 + 24 * near}px`;
+  p.grab.style.gap = `${10 - 2 * near}px`;
+  p.hstack.style.top = `${58 + 24 * near}px`;
+  p.handle.style.top = `${8 + 33 * near}px`;
+  for (const r of p.rings) r.style.top = `${11 + 33 * near}px`;
+  p.prompt.style.opacity = 1 - clamp(open * 5);
+  p.actions.style.opacity = 1 - clamp(open * 2.5);
+  p.close.style.opacity = near;
+  p.cover.style.transform = `scale(${1 - 0.05 * open})`;
+  p.dim.style.opacity = 0.5 * open;
+  if (p.screen.classList.contains("reading") !== y < 30) { p.screen.classList.toggle("reading", y < 30); if (p.pill) sizePill(p); }
+  const isOpen = y <= TOP + 0.5;
+  p.drawer.classList.toggle("open", isOpen);
+  if (!isOpen && p.dscroll.scrollTop) p.dscroll.scrollTop = 0;
+  compact(p);
+  timeLeft(p);
+  if (isOpen !== p.wasOpen) {
+    p.wasOpen = isOpen;
+    for (const h of p.stripHosts) h.setAttribute("aria-label", isOpen ? "Go to the Listen card" : "Open the Listen card");
+  }
+}
+
+function rubber(raw) {
+  if (raw < TOP) return TOP - 16 * (1 - Math.exp(-(TOP - raw) / 50));
+  if (raw > PEEK) return PEEK;
+  return raw;
+}
+
+function compact(p) {
+  const past = p.y <= TOP + 0.5 && p.dscroll.scrollTop > p.atitle.offsetTop + p.atitle.offsetHeight - 4;
+  if (past === p.isCompact) return;
+  p.isCompact = past;
+  p.drawer.classList.toggle("compact", past);
+  if (!past) expand(p, false);
+}
+function expand(p, on) {
+  p.drawer.classList.toggle("expanded", on);
+  p.info.setAttribute("aria-expanded", String(on));
+}
+
+/** When the pill grows while the reader is at the very end, follow the new end so the last lines stay above it. */
+function roomAtEnd(p, atEnd) {
+  const task = S.state !== "idle", grew = task && p.hadTask === false;
+  p.hadTask = task;
+  if (grew && atEnd && p.y <= TOP + 0.5) p.dscroll.scrollTo({ top: p.dscroll.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+}
+
+/** The reading pill's time-left ring follows the scroll. */
+function timeLeft(p) {
+  const d = p.dscroll, max = d.scrollHeight - d.clientHeight;
+  const prog = max > 0 ? clamp(d.scrollTop / max) : 0;
+  const mins = Math.max(1, Math.round(6 * (1 - prog)));
+  p.left.textContent = `${mins} min left`;
+  p.lring.setAttribute("stroke-dashoffset", String(75 - 75 * prog));
+}
+
+function stopAnim(p) { if (p.anim) cancelAnimationFrame(p.anim); p.anim = 0; }
+function impact(p, speed) { if (!reduce) ripple(p, clamp(Math.abs(speed) / 2.4, 0.25, 1)); }
+function landed(p) { const f = p.onLand; p.onLand = null; f?.(); }
+
+function snapTo(p, target, velocity = 0) {
+  stopAnim(p);
+  p.quietUntil = performance.now() + 500;
+  const from = p.y, dist = Math.abs(target - from);
+  if (reduce || dist < 0.5) { setY(p, target); if (target === TOP && dist >= 0.5) impact(p, 1); if (target === TOP) landed(p); return; }
+  if (target === TOP) {
+    const speed = Math.max(1.1, Math.abs(velocity));
+    const ms = clamp((dist / speed) * 1.35, 170, 380);
+    const t0 = performance.now();
+    const step = (now) => {
+      const t = clamp((now - t0) / ms);
+      const k = 0.55 * t + 0.45 * (1 - (1 - t) * (1 - t));
+      setY(p, lerp(from, target, k));
+      if (t < 1) p.anim = requestAnimationFrame(step);
+      else { p.anim = 0; impact(p, (0.55 * dist) / ms); landed(p); }
+    };
+    p.anim = requestAnimationFrame(step);
+    return;
+  }
+  p.onLand = null;
+  const kk = 300, c = 26;
+  let x = from, v = velocity * 1000, last = performance.now();
+  const step = (now) => {
+    let dt = Math.min(32, now - last) / 1000; last = now;
+    while (dt > 0) { const h = Math.min(dt, 1 / 240); v += (-kk * (x - target) - c * v) * h; x += v * h; dt -= h; }
+    setY(p, x);
+    if (Math.abs(x - target) < 0.3 && Math.abs(v) < 4) { setY(p, target); p.anim = 0; }
+    else p.anim = requestAnimationFrame(step);
+  };
+  p.anim = requestAnimationFrame(step);
+}
+
+function sample(p) { p.samples.push({ y: p.y, time: performance.now() }); if (p.samples.length > 12) p.samples.shift(); }
+function speed(p) {
+  const now = performance.now(), r = p.samples.filter((s) => now - s.time < 90);
+  if (r.length < 2) return 0;
+  return (r[r.length - 1].y - r[0].y) / Math.max(1, r[r.length - 1].time - r[0].time);
+}
+function release(p) {
+  const v = speed(p);
+  if (p.y <= TOP + 0.5) { if (p.y < TOP) snapTo(p, TOP); return; }
+  const toTop = v < -0.35 || (v <= 0.35 && p.y < PEEK * 0.67);
+  snapTo(p, toTop ? TOP : PEEK, v);
+}
+function dragTo(p, raw) {
+  const before = p.y;
+  setY(p, rubber(raw));
+  sample(p);
+  if (!p.hitThisGesture && before > TOP + 1 && raw <= TOP) { p.hitThisGesture = true; impact(p, speed(p)); }
+}
+
+/** Tapping the status: on the cover, open the drawer first; then show the reader where the card is. */
+function openAtCard(p) {
+  p.onLand = () => {
+    const r = p.card.getBoundingClientRect(), d = p.dscroll.getBoundingClientRect();
+    const off = r.top - d.top, pillTop = p.dockwrap.getBoundingClientRect().top;
+    if (off < 24 || r.bottom > pillTop - 12) p.dscroll.scrollBy({ top: off - 60, behavior: reduce ? "auto" : "smooth" });
+    play(p.card, [{ boxShadow: "0 0 0 0 rgba(43,75,255,0.45)" }, { boxShadow: "0 0 0 9px rgba(43,75,255,0)" }], { duration: 760, delay: 120, easing: "ease-out" });
+  };
+  if (p.y <= TOP + 0.5) landed(p);
+  else snapTo(p, TOP, -1.6);
+}
+
+function wire(p) {
+  const { drawer, dscroll } = p;
+  let g = null;
+  for (const surface of [drawer, p.cover]) {
+    surface.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest(".close, .info, .hinfo, .lcard button, .sbar")) return;
+      stopAnim(p);
+      g = { y0: e.clientY, start: p.y, top: dscroll.scrollTop, mode: "pending", id: e.pointerId };
+      p.samples = []; sample(p); p.hitThisGesture = false;
+    });
+    surface.addEventListener("pointermove", (e) => {
+      if (!g || e.pointerId !== g.id) return;
+      const dy = e.clientY - g.y0;
+      if (g.mode === "pending") {
+        if (Math.abs(dy) < 5) return;
+        const open = g.start <= TOP + 0.5;
+        if (!open || (g.top <= 0 && dy > 0)) { g.mode = "drag"; surface.setPointerCapture(e.pointerId); }
+        else { g.mode = "native"; return; }
+      }
+      if (g.mode !== "drag") return;
+      dragTo(p, g.start + dy);
+    });
+    const end = (e) => {
+      if (!g || e.pointerId !== g.id) return;
+      const { mode } = g;
+      g = null;
+      if (mode === "drag") { p.justDragged = true; setTimeout(() => (p.justDragged = false), 50); release(p); }
+    };
+    surface.addEventListener("pointerup", end);
+    surface.addEventListener("pointercancel", end);
+  }
+  p.readBtn.addEventListener("click", () => { if (!p.justDragged) snapTo(p, TOP, -1.6); });
+  p.listen.addEventListener("click", () => {
+    if (p.justDragged) return;
+    if (S.state === "idle") { flowId++; setState("making", { live: true }); }
+    else openAtCard(p);
+  });
+  // The strip's text goes to the Listen card (opening the drawer first on the cover); its buttons only do their own thing.
+  for (const host of p.stripHosts) {
+    host.addEventListener("click", (e) => { if (!e.target.closest(".sico, .sx, .sretry, .sbar, .sconfirm")) { expand(p, false); openAtCard(p); } });
+  }
+  const saveBtn = p.screen.querySelector(".pb.save");
+  saveBtn.addEventListener("click", () => { const on = saveBtn.getAttribute("aria-pressed") !== "true"; saveBtn.setAttribute("aria-pressed", String(on)); saveBtn.classList.toggle("saved", on); });
+  p.screen.querySelector(".pb.next").addEventListener("click", () => {
+    if (p.y > TOP + 0.5) return;
+    const h = [...p.dscroll.querySelectorAll("h3")].find((el) => el.getBoundingClientRect().top > p.dscroll.getBoundingClientRect().top + 60);
+    if (h) p.dscroll.scrollBy({ top: h.getBoundingClientRect().top - p.dscroll.getBoundingClientRect().top - 52, behavior: reduce ? "auto" : "smooth" });
+  });
+
+  let t = null;
+  dscroll.addEventListener("touchstart", (e) => { if (e.target.closest(".sbar")) return; if (p.y <= TOP + 0.5 && dscroll.scrollTop <= 0) t = { y0: e.touches[0].clientY, active: false }; }, { passive: true });
+  dscroll.addEventListener("touchmove", (e) => {
+    if (!t) return;
+    const dy = e.touches[0].clientY - t.y0;
+    if (!t.active) { if (dy < 0) { t = null; return; } if (dy < 6) return; t.active = true; p.samples = []; stopAnim(p); }
+    e.preventDefault();
+    dragTo(p, TOP + dy - 6);
+  }, { passive: false });
+  const tend = () => { if (t?.active) release(p); t = null; };
+  dscroll.addEventListener("touchend", tend);
+  dscroll.addEventListener("touchcancel", tend);
+
+  let wt = 0;
+  p.screen.addEventListener("wheel", (e) => {
+    const open = p.y <= TOP + 0.5;
+    if (open && !(dscroll.scrollTop <= 0 && e.deltaY < 0)) return;
+    e.preventDefault();
+    if (p.anim || performance.now() < p.quietUntil) return;
+    if (!p.wheeling) { p.wheeling = true; p.samples = []; p.hitThisGesture = false; }
+    dragTo(p, p.y - e.deltaY);
+    clearTimeout(wt);
+    wt = setTimeout(() => { p.wheeling = false; if (!p.anim) release(p); }, 140);
+  }, { passive: false });
+
+  p.close.addEventListener("click", () => { expand(p, false); snapTo(p, PEEK); });
+  p.info.addEventListener("click", () => expand(p, !p.drawer.classList.contains("expanded")));
+  dscroll.addEventListener("scroll", () => { compact(p); timeLeft(p); dismissOnScroll(); }, { passive: true });
+  p.screen.addEventListener("wheel", dismissOnScroll, { passive: true });
+  dscroll.addEventListener("pointerdown", () => expand(p, false));
+}
+
+// ── Page controls ───────────────────────────────────────────────────
+const stateBtns = document.getElementById("stateBtns");
+for (const s of STATES) {
+  const b = document.createElement("button");
+  b.className = "ctl"; b.type = "button"; b.dataset.state = s;
+  b.textContent = s[0].toUpperCase() + s.slice(1);
+  b.addEventListener("click", () => {
+    flowId++;
+    const t = (s === "playing" || s === "paused") && (S.t < 1 || S.t >= S.dur - 1) ? 72 : undefined;
+    setState(s, { t: s === "idle" ? 0 : t });
+  });
+  stateBtns.appendChild(b);
+}
+
+const page = document.getElementById("page");
+for (const b of document.querySelectorAll("[data-pill]")) {
+  if (b === page) continue;
+  b.addEventListener("click", () => {
+    page.dataset.pill = b.dataset.pill;
+    for (const o of document.querySelectorAll("button[data-pill]")) o.setAttribute("aria-pressed", String(o === b));
+    sizePills();
+  });
+}
+sizePills();
+document.fonts?.ready.then(sizePills);
+
+function resetPhones() {
+  const [a, r] = phones;
+  expand(a, false); expand(r, false);
+  snapTo(a, PEEK);
+  if (r.y > TOP + 0.5) snapTo(r, TOP, -1.6);
+  r.dscroll.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+}
+document.getElementById("resetBtn").addEventListener("click", resetPhones);
+
+// The whole flow, start to finish, on both phones at once.
+let flowId = 0;
+async function flow() {
+  const my = ++flowId;
+  const wait = (ms) => new Promise((res) => setTimeout(res, ms)).then(() => { if (my !== flowId) throw new Error("stopped"); });
+  const [a, r] = phones;
+  const scrollRead = (top) => r.dscroll.scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
+  const pastCard = () => { const c = r.cardStrip.el.getBoundingClientRect(), d = r.dscroll.getBoundingClientRect(); return r.dscroll.scrollTop + (c.bottom - d.top) + 70; };
+  try {
+    setState("idle", { t: 0 });
+    resetPhones();
+    await wait(1100);
+    play(a.listen, [{ transform: "scale(1)" }, { transform: "scale(0.88)" }, { transform: "scale(1)" }], { duration: 260, easing: "ease-out" });
+    setState("making", { live: true });
+    while (S.state === "making") await wait(100);   // the ring fills through the three steps (about 12s), then turns into play
+    await wait(1900);
+    setState("playing", { t: 66 });
+    await wait(1600);
+    scrollRead(pastCard());                 // read on past the card; the status stays in the pill
+    await wait(3200);
+    setState("paused");
+    await wait(1600);
+    setState("playing");
+    await wait(1400);
+    S.dragging = true;                      // skip ahead, as if dragged
+    const from = S.t, t0 = performance.now();
+    await new Promise((res) => { const f = (now) => { const k = clamp((now - t0) / 650); S.t = lerp(from, S.dur - 6, 1 - (1 - k) ** 3); paintTime(); if (k < 1 && my === flowId) requestAnimationFrame(f); else res(); }; requestAnimationFrame(f); });
+    S.dragging = false; lastT = performance.now();
+    await wait(6400);                       // plays to the end: done
+    openAtCard(r);                          // as if the strip's text were tapped: back to the card, which shows Listened
+  } catch (e) { /* replaced by a newer choice */ }
+}
+document.getElementById("flowBtn").addEventListener("click", flow);
+
+document.addEventListener("click", (e) => { if (e.target.closest(".byline a")) e.preventDefault(); });
+// Tapping anywhere outside the confirm, or scrolling, quietly keeps going.
+document.addEventListener("pointerdown", (e) => { if (S.confirm && !e.target.closest(".sconfirm")) keepGoing(); }, true);
+function dismissOnScroll() { if (S.confirm && performance.now() - S.confirmAt > 300) keepGoing(); }
+addEventListener("scroll", dismissOnScroll, { passive: true });
+render("idle");
+</script>

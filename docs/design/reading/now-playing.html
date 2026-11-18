@@ -1,0 +1,1342 @@
+<title>Now Playing</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a header and control rows, then one phone (the app) beside the notes; then the row on every pill; then the lock screen. Stacks below 760px. */
+:root {
+  --ground: #FBFBFA; --ink: #121316; --muted: #5B5F68; --line: #E2E4E8; --card: #FFFFFF; --accent: #2B4BFF; --bezel: #121316;
+  /* The app itself is light only; these stay the same in both page themes. */
+  --app-ground: #FBFBFA; --app-surface: #FFFFFF; --app-ink: #121316; --app-lede: #3A3D44; --app-muted: #5B5F68; --app-rule: #EEF0F4; --app-grab: #D6D8DE; --app-off: #8A8E97;
+  --app-blue: #2B4BFF; --app-blue-mid: #8FA1FF; --app-blue-card: #DCE3FF; --app-tint: #EEF2FF; --app-tint-line: #DCE3FF; --app-orange: #FF5A1F; --app-peach: #FFE3D6; --app-orange-tint: #FFF1EC;
+  --app-pill: #121316; --app-pill-muted: #9EA3AD;
+  --tint-0: #DCE3FF; --tint-1: #FFE3D6; --tint-2: #ECEEF2;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --strip-ms: 220ms;
+  --morph-ms: 300ms;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; color-scheme: dark } }
+:root[data-theme="dark"] { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; color-scheme: dark }
+
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.page { max-width: 1100px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+header, .sechead { display: grid; gap: 12px; max-width: 70ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.sechead h2 { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
+header p, .sechead p { margin: 0; color: var(--muted); }
+section.part { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.controls { display: grid; gap: 12px; }
+.crow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.clabel { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); min-width: 52px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+button.ctl { font: 600 13.5px/1 var(--body); border-radius: 999px; padding: 10px 15px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+button.ctl[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+button.ctl.primary { background: var(--accent); color: #FFFFFF; border-color: var(--accent); }
+:root[data-theme="dark"] button.ctl.primary { color: #121316; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.ctl.primary { color: #121316; } }
+button.ctl .opt { font-weight: 500; opacity: 0.7; }
+button:focus-visible, [role="slider"]:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint-text { color: var(--muted); font-size: 13px; }
+
+.stage { display: grid; grid-template-columns: 316px minmax(0, 1fr); gap: 28px 44px; align-items: start; }
+.phonecol { display: grid; gap: 12px; width: 316px; max-width: 100%; }
+.cap { margin: 0; color: var(--muted); font-size: 13px; text-align: center; min-height: 20px; }
+.notes { display: grid; gap: 22px; max-width: 62ch; min-width: 0; }
+.notes section { display: grid; gap: 6px; }
+.notes h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.notes p, .notes li { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.notes b { color: var(--ink); font-weight: 600; }
+.tag { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+.tag.pick { color: var(--accent); border-color: var(--accent); }
+@media (max-width: 760px) { .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; } .notes { justify-self: stretch; } }
+
+/* ── The phone (from async-status.html) ───────────────────────── */
+.phone { box-sizing: border-box; width: 316px; max-width: 100%; padding: 8px; border-radius: 46px; background: var(--bezel); box-shadow: 0 18px 40px rgba(18,19,22,0.18); }
+.screen { position: relative; width: 300px; height: 620px; max-width: 100%; border-radius: 38px; overflow: hidden; background: var(--app-ground); isolation: isolate; font-family: var(--body); color: var(--app-ink); }
+.sysbar { position: absolute; top: 0; left: 0; right: 0; height: 44px; z-index: 8; display: flex; justify-content: space-between; align-items: center; padding: 6px 28px 0; font: 600 13px/1 var(--body); color: var(--app-ink); pointer-events: none; }
+.sig { display: flex; align-items: flex-end; gap: 2px; }
+.sig i { width: 3px; border-radius: 1px; background: currentColor; }
+.sig i:nth-child(1) { height: 5px } .sig i:nth-child(2) { height: 7px } .sig i:nth-child(3) { height: 9px }
+.sig b { width: 20px; height: 9px; margin-left: 5px; border-radius: 3px; background: currentColor; }
+.notch { position: absolute; left: 50%; top: 9px; width: 86px; height: 24px; margin-left: -43px; border-radius: 14px; background: #000; z-index: 9; }
+.home { position: absolute; left: 50%; bottom: 7px; width: 110px; height: 4px; margin-left: -55px; border-radius: 3px; background: var(--app-ink); z-index: 9; pointer-events: none; }
+.mono { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+.artsvg { display: block; width: 100%; height: 100%; }
+
+/* Each screen is a view; changing screens crossfades (LetterPager's FadeIn 220, and the router's replace). */
+.view { position: absolute; inset: 0; z-index: 1; opacity: 0; visibility: hidden; transition: opacity 220ms ease, visibility 0s linear 220ms; }
+.view.on { opacity: 1; visibility: visible; z-index: 2; transition: opacity 220ms ease, visibility 0s; }
+/* While the pill carries the row, every screen leaves 44px more room under its content (usePillSpace). */
+.scroll { position: absolute; inset: 0; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 50px 16px 104px; transition: padding-bottom var(--strip-ms) cubic-bezier(.2,.8,.2,1); }
+.scroll::-webkit-scrollbar { display: none; }
+.scroll > *, .tabbody > * { flex-shrink: 0; }
+.screen.has-row .scroll { padding-bottom: 148px; }
+
+/* Piece page, layout A (piece-art.html): the art band, then ink on the art's own paper. */
+.piece { display: flex; flex-direction: column; background: rgb(var(--bg)); }
+.piece .band { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.piece .bart { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+.piece .bart::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(rgba(var(--bg), 0), rgb(var(--bg))); }
+.tscrim { position: absolute; left: 0; right: 0; top: 0; height: 136px; background: linear-gradient(rgba(var(--bg), var(--a)) 0 80px, rgba(var(--bg), 0)); }
+.piece .top { position: relative; z-index: 2; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 58px 20px 0; color: var(--app-lede); }
+.bars { display: flex; gap: 4px; }
+.bars i { width: 16px; height: 3px; border-radius: 2px; background: rgba(18,19,22,0.18); }
+.bars i.on { background: var(--app-ink); }
+.piece .gap { flex: 1; min-height: 8px; display: grid; place-items: center; }
+.piece .bhead { position: relative; display: grid; gap: 7px; padding: 6px 20px 10px; }
+.piece .bhead::before { content: ""; position: absolute; z-index: -1; left: 0; right: 0; top: -56px; bottom: 0; background: linear-gradient(rgba(var(--bg), 0), rgba(var(--bg), var(--a)) 56px); }
+.kicker { color: var(--app-lede); }
+.ttl { font-family: var(--display); font-weight: 700; font-size: 25px; line-height: 1.08; letter-spacing: -0.035em; margin: 0; text-wrap: balance; color: var(--app-ink); }
+.piece .body { position: relative; z-index: 2; flex: none; display: grid; gap: 9px; padding: 2px 20px 92px; transition: padding-bottom var(--strip-ms) cubic-bezier(.2,.8,.2,1); }
+.screen.has-row .piece .body { padding-bottom: 136px; }
+.chip { justify-self: start; max-width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; background: #F6F7F9; border: 1px solid var(--app-rule); }
+.chip .av { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 10.5px/1 var(--body); color: var(--app-ink); }
+.cn { display: grid; min-width: 0; }
+.cn b { font: 600 12.5px/15px var(--body); }
+.cn small { font: 400 11px/14px var(--body); color: var(--app-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.why { margin: 0; display: flex; gap: 9px; background: var(--app-orange-tint); border: 1px solid var(--app-peach); border-radius: 14px; padding: 9px 11px; font-size: 12.5px; line-height: 1.42; color: #3A2418; }
+.why::before { content: ""; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--app-orange); margin-top: 3px; }
+.actions { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.read { font: 600 14.5px/1 var(--body); color: #FFFFFF; background: var(--app-ink); border: 0; border-radius: 999px; padding: 14px 18px; display: flex; gap: 8px; align-items: center; white-space: nowrap; cursor: pointer; }
+.dot { position: relative; flex: none; width: 8px; height: 16px; }
+.dot i { position: absolute; left: 1px; bottom: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--app-blue-mid); animation: rise 1.6s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes rise { 0% { transform: translateY(0); opacity: 0 } 15% { opacity: 1 } 65% { transform: translateY(-11px); opacity: 1 } 100% { transform: translateY(-12px); opacity: 0 } }
+.listen { flex: none; width: 43px; height: 43px; box-sizing: border-box; border-radius: 50%; border: 1px solid #D6D8DE; background: #FFFFFF; display: grid; place-items: center; color: var(--app-ink); cursor: pointer; padding: 0; transition: background-color 200ms, border-color 200ms, color 200ms; }
+.listen svg { width: 19px; height: 19px; }
+/* Blue while its episode is in the works or playing (as on the cover in async-status.html). */
+.listen.on { background: var(--app-blue); border-color: var(--app-blue); color: #FFFFFF; }
+.vplay { width: 56px; height: 56px; border-radius: 50%; background: var(--app-ink); color: #FFFFFF; display: grid; place-items: center; box-shadow: 0 8px 22px rgba(18,19,22,0.22); }
+.vplay svg { width: 24px; height: 24px; margin-left: 3px; }
+
+/* Today's cover (No. 15): its art at the top, the letter's pieces below. */
+.today { background: #FBFBFA; }
+.today .cart { position: absolute; left: 0; right: 0; top: 0; height: 250px; overflow: hidden; }
+.today .cart::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(rgba(251,251,250,0), #FBFBFA); }
+.today .scroll { padding-top: 58px; padding-left: 20px; padding-right: 20px; display: flex; flex-direction: column; gap: 10px; }
+.today .ctop { position: relative; display: flex; justify-content: space-between; color: var(--app-lede); }
+.today .chead { position: relative; margin-top: 118px; display: grid; gap: 8px; }
+.today .ctitle { margin: 0; font: 500 28px/1.05 var(--display); letter-spacing: -0.035em; text-wrap: balance; }
+.today .cdate { color: var(--app-blue); }
+.plist { list-style: none; margin: 4px 0 0; padding: 0; display: grid; }
+.plist li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 2px 8px; padding: 8px 0; border-top: 1px solid var(--app-rule); }
+.plist .n { grid-row: span 2; font: 500 11px/18px var(--mono); color: var(--app-muted); }
+.plist .pt { font: 500 14px/18px var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plist .pm { font: 400 12px/15px var(--body); color: var(--app-muted); }
+
+/* Library (library-podcasts.html) */
+.lib .scroll { padding-left: 14px; padding-right: 14px; display: flex; flex-direction: column; gap: 10px; }
+.lk { padding: 0 4px; color: var(--app-muted); }
+.lt { margin: -4px 0 0; padding: 0 4px; font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 46px; letter-spacing: -0.03em; }
+.seg3 { display: flex; border: 1.5px solid var(--app-ink); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg3 button { flex: 1; min-width: 0; min-height: 36px; border: 0; border-radius: 999px; background: transparent; font: 600 14px/1 var(--body); color: var(--app-ink); cursor: pointer; padding: 0 4px; }
+.seg3 button[aria-selected="true"] { background: var(--app-ink); color: #FFFFFF; }
+.tile { min-height: 118px; box-sizing: border-box; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; background: var(--tint); }
+.tile .ttop { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--app-lede); }
+.tile .go { width: 32px; height: 32px; border-radius: 50%; background: #FFFFFF; display: grid; place-items: center; color: var(--app-blue); flex: none; }
+.tile .go svg { width: 16px; height: 16px; }
+.tile .tt { font-family: var(--display); font-weight: 700; font-size: 20px; line-height: 21.5px; letter-spacing: -0.025em; }
+.tile .tm2 { font-size: 13px; color: var(--app-lede); margin-top: 5px; }
+.tile .big { font-family: var(--display); font-weight: 700; font-size: 40px; line-height: 40px; letter-spacing: -0.03em; color: var(--app-ink); }
+.lnote { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--app-muted); }
+.gh { margin: 8px 4px -4px; color: var(--app-muted); }
+/* An episode row (library-podcasts.html, the list layout) */
+.eps { list-style: none; margin: 0; padding: 0; display: grid; }
+.ep { position: relative; border-radius: 16px; }
+.ep-in { --row: var(--app-ground); box-sizing: border-box; border-radius: inherit; background: var(--row); display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; align-items: center; padding: 10px 8px; transition: background-color 200ms; }
+.ep + .ep::before { content: ""; position: absolute; z-index: 1; top: 0; left: 60px; right: 8px; height: 1px; background: var(--app-rule); }
+.ep:is([data-s="playing"], [data-s="paused"]) .ep-in { --row: var(--app-tint); }
+.ep:is([data-s="playing"], [data-s="paused"])::before, .ep:is([data-s="playing"], [data-s="paused"]) + .ep::before { opacity: 0; }
+.eb { width: 40px; height: 40px; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.eb svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.eb svg > * { opacity: 0; transition: opacity 140ms; }
+.eb .ebg { opacity: 1; fill: var(--app-blue); transition: fill 200ms; }
+.eb .gl { fill: #FFFFFF; }
+.eb .gc { fill: none; stroke: var(--app-muted); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.etr { fill: none; stroke: rgba(18,19,22,0.14); stroke-width: 2.4; }
+.etk { stroke: rgba(18,19,22,0.36); stroke-width: 1.4; }
+.earc { fill: none; stroke: var(--app-blue); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 100; }
+.ep:is([data-s="ready"], [data-s="partial"], [data-s="paused"]) .gp, .ep[data-s="playing"] .gpa, .ep[data-s="listened"] .gc, .ep[data-s="making"] :is(.etr, .etk, .earc) { opacity: 1; }
+.ep:is([data-s="making"], [data-s="listened"]) .ebg { fill: var(--tint); }
+.ep[data-s="making"] .eb { cursor: default; }
+.et { min-width: 0; display: grid; gap: 1px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
+.ett { font: 600 14px/18px var(--body); color: var(--app-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.em { font: 400 12px/16px var(--body); color: var(--app-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.es { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 3px; font: 500 11.5px/15px var(--body); color: var(--app-muted); font-variant-numeric: tabular-nums; }
+.elab { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep[data-s="playing"] .elab { color: var(--app-blue); }
+.ebar { display: none; flex: none; position: relative; width: 44px; height: 3px; border-radius: 2px; background: rgba(18,19,22,0.12); overflow: hidden; }
+.ebar i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--pct, 0) * 100%); background: var(--app-blue); border-radius: 2px; }
+.ep:is([data-s="partial"], [data-s="playing"], [data-s="paused"]) .ebar { display: block; }
+.eq { display: none; flex: none; height: 10px; align-items: flex-end; gap: 2px; }
+.eq i { width: 2.5px; height: 100%; border-radius: 1px; background: var(--app-blue); transform-origin: 50% 100%; animation: eq 0.9s ease-in-out infinite alternate; }
+.eq i:nth-child(2) { animation-delay: -0.45s; animation-duration: 0.7s; }
+.eq i:nth-child(3) { animation-delay: -0.2s; animation-duration: 1.05s; }
+@keyframes eq { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }
+.ep[data-s="playing"] .eq { display: inline-flex; }
+.ep[data-s="listened"] .et { opacity: 0.55; }
+.ep[data-s="making"] .ett { background: linear-gradient(90deg, var(--app-ink) 0 38%, #A9ADB6 50%, var(--app-ink) 62% 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+
+/* Activity */
+.act .scroll { padding-left: 18px; padding-right: 18px; display: flex; flex-direction: column; gap: 10px; }
+.arow { display: flex; align-items: center; justify-content: space-between; color: var(--app-muted); }
+.rb { display: flex; gap: 6px; }
+.rb span { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--app-ink); display: grid; place-items: center; }
+.rb span.off { border-color: var(--app-grab); color: var(--app-grab); }
+.rb svg { width: 14px; height: 14px; }
+.disp { margin: 0; font: 700 48px/48px var(--display); letter-spacing: -0.03em; }
+.para { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--app-lede); }
+.seg2 { display: flex; border: 1.5px solid var(--app-ink); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg2 span { flex: 1; min-height: 32px; border-radius: 999px; display: grid; place-items: center; font: 600 13.5px/1 var(--body); }
+.seg2 span.on { background: var(--app-ink); color: #FFFFFF; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 2px; }
+.cal .wd { font: 500 10px/14px var(--mono); color: var(--app-muted); text-align: left; padding-left: 4px; }
+.cal .d { height: 34px; box-sizing: border-box; border-radius: 10px; padding: 4px 5px; font: 600 10.5px/1 var(--body); color: var(--app-ink); background: var(--app-surface); border: 1px solid var(--app-rule); }
+.cal .d.l1 { background: var(--app-blue-card); border-color: transparent; }
+.cal .d.l2 { background: var(--app-blue-mid); border-color: transparent; }
+.cal .d.l3 { background: var(--app-blue); border-color: transparent; color: #FFFFFF; }
+.cal .d.now { border: 1.5px solid var(--app-ink); }
+.cal .d.later { background: transparent; color: var(--app-off); }
+
+/* Preferences */
+.pref .scroll { padding-left: 20px; padding-right: 20px; display: flex; flex-direction: column; gap: 14px; }
+.brief { margin: 0; font: 500 19px/1.35 var(--display); letter-spacing: -0.015em; }
+.prow2 { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--app-rule); }
+.prow2 b { font: 700 18px/1.1 var(--display); letter-spacing: -0.02em; }
+.prow2 span { font-size: 12.5px; color: var(--app-muted); text-align: right; }
+.prow2 .so { color: var(--app-blue); font-weight: 600; font-size: 14px; }
+.ver { margin: 0; text-align: center; font-size: 12px; color: var(--app-off); }
+
+/* The article, opened at its Listen card (the drawer from async-status.html, fully up). */
+.reader { position: absolute; inset: 0; z-index: 4; background: var(--app-surface); display: flex; flex-direction: column; transform: translateY(100%); visibility: hidden; transition: transform 340ms cubic-bezier(.2,.8,.2,1), visibility 0s linear 340ms; }
+.screen.reading .reader { transform: none; visibility: visible; transition: transform 340ms cubic-bezier(.2,.8,.2,1), visibility 0s; }
+.rgrab { flex: none; display: flex; align-items: flex-end; justify-content: flex-end; height: 82px; box-sizing: border-box; padding: 0 16px 10px; position: relative; }
+.rgrab::before { content: ""; position: absolute; top: 41px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: var(--app-grab); }
+.rclose { width: 30px; height: 30px; border-radius: 50%; border: 0; background: #EEF0F4; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.rclose svg { width: 14px; height: 14px; stroke: var(--app-ink); }
+.rscroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.rscroll::-webkit-scrollbar { display: none; }
+.article { padding: 0 20px 120px; display: grid; gap: 13px; transition: padding-bottom var(--strip-ms); }
+.screen.has-row .article { padding-bottom: 164px; }
+.atitle { font-family: var(--display); font-weight: 700; font-size: 23px; line-height: 1.1; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.lede { margin: 0; font-size: 15.5px; line-height: 1.45; color: var(--app-lede); }
+.byline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--app-muted); }
+.byline b { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #f0c8a8, #8a6a5c); flex: none; }
+.byline strong { color: var(--app-ink); font-weight: 600; }
+.article p.t { margin: 0; font-size: 15.5px; line-height: 1.6; }
+.article h3 { margin: 6px 0 0; font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.lcard { background: var(--app-tint); border: 1px solid var(--app-tint-line); border-radius: 16px; padding: 11px 13px 12px; display: grid; gap: 9px; }
+.lcard.flash { animation: flash 900ms cubic-bezier(.2,.8,.2,1); }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 rgba(43,75,255,0.35); } 40% { box-shadow: 0 0 0 7px rgba(43,75,255,0.18); } 100% { box-shadow: 0 0 0 12px rgba(43,75,255,0); } }
+.lhead { display: flex; align-items: center; gap: 7px; font: 600 14px/1.2 var(--body); }
+.lhead svg { width: 16px; height: 16px; flex: none; color: var(--app-blue); }
+.lhead .mono { margin-left: auto; color: var(--app-muted); font-size: 10px; }
+.lcard .strip { height: 40px; gap: 8px; }
+.ghost { display: grid; gap: 9px; }
+.ghost i { height: 9px; border-radius: 5px; background: var(--app-rule); }
+.ghost i:last-child { width: 62%; }
+.rbody { display: contents; }
+.rbody[hidden] { display: none; }
+
+/* The menu sheet (MenuSheet.tsx): over a scrim, under the pill. */
+.mscrim { position: absolute; inset: 0; z-index: 5; background: rgba(18,19,22,0.4); opacity: 0; pointer-events: none; transition: opacity 160ms; }
+.screen.menu .mscrim { opacity: 1; pointer-events: auto; }
+.msheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--app-surface); border-radius: 28px 28px 0 0; box-sizing: border-box; padding: 10px 20px 110px; transform: translateY(100%); visibility: hidden; transition: transform 260ms cubic-bezier(.2,.8,.2,1), visibility 0s linear 260ms, padding-bottom var(--strip-ms) cubic-bezier(.2,.8,.2,1); }
+.screen.menu .msheet { transform: none; visibility: visible; transition: transform 260ms cubic-bezier(.2,.8,.2,1), visibility 0s, padding-bottom var(--strip-ms) cubic-bezier(.2,.8,.2,1); }
+/* The sheet's bottom padding is usePillSpace's: it already counts the row, so the last item clears it. */
+.screen.has-row .msheet { padding-bottom: 154px; }
+.mgrab { width: 40px; height: 5px; border-radius: 3px; background: #E2E4E8; margin: 0 auto 6px; }
+.mi { width: 100%; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 11px 0; border: 0; border-bottom: 1px solid var(--app-rule); background: none; cursor: pointer; text-align: left; color: var(--app-ink); }
+.mi .w { font: 700 34px/36px var(--display); letter-spacing: -0.035em; }
+.mi[aria-current="page"] .w { color: var(--app-blue); }
+.mi .s { max-width: 112px; padding-bottom: 6px; text-align: right; font: 500 10px/13px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-muted); }
+.mdev { display: flex; justify-content: space-between; align-items: center; min-height: 40px; padding-top: 6px; font: 600 14px/1 var(--body); }
+.mdev span { font: 500 10px/1 var(--mono); letter-spacing: 0.08em; color: var(--app-muted); }
+
+/* ── The status strip (from async-status.html) ────────────────── */
+.strip { --ico: 28px; position: relative; height: 100%; flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: var(--s-ink); font: 500 13px/16px var(--body); }
+.strip.dark { --s-ink: #FFFFFF; --s-muted: var(--app-pill-muted); --s-track: rgba(255,255,255,0.18); --s-tick: rgba(255,255,255,0.5); --s-fill: var(--app-blue-mid); --s-shine: rgba(255,255,255,0.4); --s-x: rgba(255,255,255,0.1); --s-ghost: rgba(255,255,255,0.3); }
+.strip.light { --s-ink: var(--app-ink); --s-muted: var(--app-muted); --s-track: rgba(18,19,22,0.12); --s-tick: rgba(18,19,22,0.34); --s-fill: var(--app-blue); --s-shine: #A9ADB6; --s-x: rgba(18,19,22,0.06); --s-ghost: rgba(18,19,22,0.2); }
+.sico { position: relative; flex: none; width: var(--ico); height: var(--ico); padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.strip:is([data-s="making"], [data-s="done"], [data-s="stopped"], [data-s="next"]) .sico { cursor: default; }
+.sico svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.sico svg > * { opacity: 0; transition: opacity 140ms; }
+.pring { transform-box: view-box; transform-origin: 16px 16px; }
+.ptrack { fill: none; stroke: var(--s-track); }
+.ptick { stroke: var(--s-tick); stroke-linecap: butt; }
+.parc { fill: none; stroke: var(--app-blue); stroke-linecap: round; stroke-dasharray: 0 100; }
+.disc { fill: var(--app-blue); transform-box: fill-box; transform-origin: center; }
+.gl { fill: #FFFFFF; transform-box: fill-box; transform-origin: center; }
+.g-check { fill: none; stroke: #FFFFFF; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 100; }
+.strip[data-s="making"] .pring,
+.strip:is([data-s="ready"], [data-s="paused"]) :is(.disc, .g-play),
+.strip[data-s="playing"] :is(.disc, .g-pause),
+.strip[data-s="done"] :is(.disc, .g-check),
+.strip[data-s="next"] :is(.disc, .g-next),
+.strip[data-s="stopped"] :is(.pring, .g-stop) { opacity: 1; }
+.strip[data-s="stopped"] :is(.pticks, .parc) { display: none; }
+.strip .g-stop { fill: var(--s-muted); }
+.pulse { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--app-blue); opacity: 0; pointer-events: none; }
+.strip.dark .pulse { border-color: var(--app-blue-mid); }
+.smain { flex: 1; min-width: 0; display: grid; gap: 2px; border-radius: 6px; }
+.l1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.t1 { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm { flex: none; padding-left: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--s-muted); font-variant-numeric: tabular-nums; }
+.strip:not([data-s="playing"]):not([data-s="paused"]) .tm { display: none; }
+.l2 { position: relative; height: 12px; display: flex; align-items: center; min-width: 0; }
+.t2 { flex: 0 1 auto; font: 500 11px/12px var(--body); color: var(--s-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tl { display: none; flex: none; align-items: baseline; font: 500 11px/12px var(--body); color: var(--s-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tl::before { content: "·"; margin: 0 3px; }
+.strip[data-s="making"] .tl { display: flex; }
+.strip[data-s="making"] :is(.t2, .tl) { letter-spacing: -0.015em; }
+.strip[data-s="making"] .t1 { background: linear-gradient(90deg, var(--s-ink) 0 38%, var(--s-shine) 50%, var(--s-ink) 62% 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.sbar { display: none; position: relative; flex: 1; height: 14px; margin: -1px 0; cursor: pointer; touch-action: none; }
+.strip:is([data-s="playing"], [data-s="paused"]) .sbar { display: block; }
+.strip:is([data-s="playing"], [data-s="paused"]) .t2 { display: none; }
+.sbar::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-track); }
+.sbar .fill { position: absolute; left: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-fill); width: calc(var(--pct, 0) * 100%); }
+.sbar .knob { position: absolute; top: 50%; left: calc(var(--pct, 0) * 100%); width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--s-fill); transition: transform 120ms; }
+.strip.dark .sbar .knob { background: #FFFFFF; }
+.strip.drag .sbar .knob { transform: scale(1.45); }
+.sx { display: none; flex: none; width: 26px; height: 26px; border-radius: 50%; border: 0; padding: 0; background: var(--s-x); color: var(--s-muted); cursor: pointer; place-items: center; }
+.sx svg { width: 12px; height: 12px; }
+.strip[data-s="making"] .sx { display: grid; }
+.strip[data-s="stopped"] .l2 { display: none; }
+.strip[data-s="stopped"] .t1 { color: var(--s-muted); }
+/* Up next (optional): the title gets the first line; the second says it's about to start. */
+.strip[data-s="next"] .t1 { font-weight: 500; }
+.strip[data-s="next"] .t1 b { font-weight: 600; }
+.strip > :not(.sconfirm) { transition: opacity 160ms ease, transform 160ms ease; }
+.strip.confirming > :not(.sconfirm) { opacity: 0; transform: translateY(-4px); pointer-events: none; }
+.sconfirm { position: absolute; inset: 0; display: flex; align-items: center; gap: 5px; opacity: 0; transform: translateY(4px); visibility: hidden; pointer-events: none; transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms; }
+.strip.confirming .sconfirm { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.strip.dark .sconfirm { padding-left: 4px; }
+.cq { flex: 1; min-width: 0; font: 600 12.5px/15px var(--body); color: var(--s-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sconfirm button { flex: none; font: 600 12px/1 var(--body); padding: 7px 9px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.ckeep { background: transparent; color: var(--s-ink); border: 1px solid var(--s-ghost); }
+.cstop { background: var(--app-orange); color: var(--app-ink); border: 1px solid var(--app-orange); }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── The pill (Pill.tsx): the row on top, the screen's own controls under it ── */
+.dockwrap { position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.dockwrap > * { pointer-events: auto; }
+.pill { box-sizing: border-box; width: var(--pw, 240px); max-width: 94%; border-radius: 27px; background: var(--app-pill); box-shadow: 0 12px 30px rgba(18,19,22,0.22); overflow: hidden; transition: width var(--morph-ms) cubic-bezier(.2,.8,.2,1); }
+.prow { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--strip-ms) cubic-bezier(.2,.8,.2,1), opacity 180ms; }
+.prow > div { overflow: hidden; min-height: 0; }
+/* The row keeps its width while the controls change, so it never reflows; it's centred in the pill. */
+.prow-in { box-sizing: border-box; width: var(--rw, 264px); max-width: none; margin-left: calc((100% - var(--rw, 264px)) / 2); height: 44px; padding: 0 9px 0 10px; display: flex; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: width var(--morph-ms) cubic-bezier(.2,.8,.2,1), margin-left var(--morph-ms) cubic-bezier(.2,.8,.2,1); }
+.has-row .prow, .fit .prow { grid-template-rows: 1fr; opacity: 1; }
+.screen:not(.has-row) .prow { pointer-events: none; }
+.pbtns { position: relative; height: 54px; }
+.pset { position: absolute; top: 0; bottom: 0; left: 50%; width: max-content; translate: -50% 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 5px; }
+.pset.gone { pointer-events: none; }
+.pb { width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: #FFFFFF; cursor: pointer; padding: 0; flex: none; }
+.pb svg { width: 20px; height: 20px; }
+.pb.blue { background: var(--app-blue); }
+.pb[aria-disabled="true"] { color: var(--app-muted); cursor: default; }
+.pb.saved svg path { fill: currentColor; }
+.plabel { box-sizing: border-box; min-width: 92px; padding: 0 6px; display: grid; justify-items: center; }
+.plabel .k { font-family: var(--mono); font-size: 10px; line-height: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-pill-muted); white-space: nowrap; }
+.plabel .v { font: 600 15px/18px var(--body); color: #FFFFFF; white-space: nowrap; }
+.pstatus { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 6px; min-width: 120px; box-sizing: border-box; font: 600 14.5px/18px var(--body); color: #FFFFFF; white-space: nowrap; }
+.pstatus svg { width: 22px; height: 22px; flex: none; transform: rotate(-90deg); }
+
+/* ── The row on every pill ────────────────────────────────────── */
+.fits { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; }
+.fit { margin: 0; display: grid; gap: 10px; align-content: start; padding: 16px 12px 14px; border-radius: 20px; background: var(--app-ground); border: 1px solid var(--line); color: var(--app-ink); }
+.fit figcaption { display: grid; gap: 2px; padding: 0 4px; }
+.fit figcaption b { font: 700 16px/1.2 var(--display); letter-spacing: -0.02em; }
+.fit figcaption span { font-size: 13px; line-height: 1.45; color: var(--app-muted); }
+.fit .meas { font: 500 10.5px/1 var(--mono); letter-spacing: 0.04em; color: var(--app-blue); text-transform: uppercase; }
+.fit .pill { margin: 0 auto; }
+/* The controls' own box, so you can see them centred under the row. */
+.fit .pset { outline: 1px dashed rgba(143,161,255,0.6); outline-offset: -2px; border-radius: 27px; }
+
+/* ── The lock screen ──────────────────────────────────────────── */
+.lock { background: #0E1222; color: #FFFFFF; }
+.wall { position: absolute; inset: 0; background:
+  radial-gradient(180px 140px at 75% 30%, rgba(255,90,31,0.55), transparent 70%),
+  radial-gradient(220px 200px at 20% 70%, rgba(43,75,255,0.6), transparent 70%),
+  linear-gradient(170deg, #1B2350 0%, #2A2F6B 40%, #5A3B66 70%, #2A1B2E 100%); }
+.lock .sysbar { color: #FFFFFF; }
+.lock .home { background: rgba(255,255,255,0.85); }
+.lockico { position: absolute; top: 46px; left: 50%; width: 14px; height: 18px; margin-left: -7px; z-index: 2; opacity: 0.9; }
+.ldate { position: absolute; top: 72px; left: 0; right: 0; text-align: center; font: 600 15px/1 var(--body); opacity: 0.9; z-index: 2; }
+.ltime { position: absolute; top: 88px; left: 0; right: 0; text-align: center; font: 700 78px/1 var(--display); letter-spacing: -0.04em; z-index: 2; }
+.np { position: absolute; left: 12px; right: 12px; bottom: 96px; z-index: 2; box-sizing: border-box; padding: 14px 14px 12px; border-radius: 24px; background: rgba(28,30,40,0.5); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); border: 1px solid rgba(255,255,255,0.1); display: grid; gap: 10px; transition: opacity 220ms, transform 220ms; }
+.np.off { opacity: 0; transform: translateY(8px); pointer-events: none; }
+.nphead { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 11px; align-items: center; }
+.npart { width: 48px; height: 48px; border-radius: 9px; overflow: hidden; background: #F4F6FB; }
+.npart svg { width: 100%; height: 100%; display: block; }
+.nptext { min-width: 0; display: grid; gap: 1px; }
+.npt { font: 600 14px/18px var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nps { font: 400 12px/16px var(--body); color: rgba(255,255,255,0.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.npbar { position: relative; height: 16px; cursor: pointer; touch-action: none; }
+.npbar::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: rgba(255,255,255,0.22); }
+.npbar i { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: rgba(255,255,255,0.9); width: calc(var(--pct, 0) * 100%); }
+.nptimes { display: flex; justify-content: space-between; margin-top: -6px; font: 500 10.5px/1 var(--mono); color: rgba(255,255,255,0.6); font-variant-numeric: tabular-nums; }
+.npctl { display: flex; justify-content: center; align-items: center; gap: 30px; }
+.npctl button { border: 0; background: none; color: #FFFFFF; padding: 0; width: 40px; height: 40px; display: grid; place-items: center; cursor: pointer; border-radius: 50%; }
+.npctl button.big { width: 46px; height: 46px; }
+.npctl svg { width: 28px; height: 28px; }
+.npctl .big svg { width: 32px; height: 32px; }
+.lcorner { position: absolute; bottom: 30px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.32); display: grid; place-items: center; }
+.lcorner svg { width: 18px; height: 18px; }
+.lcorner.l { left: 34px; } .lcorner.r { right: 34px; }
+.lquiet { position: absolute; left: 0; right: 0; bottom: 190px; z-index: 2; text-align: center; font: 500 12px/1 var(--body); color: rgba(255,255,255,0.55); opacity: 0; transition: opacity 220ms; }
+.lquiet.on { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --strip-ms: 0ms; --morph-ms: 0ms; }
+  .view, .view.on, .reader, .screen.reading .reader, .msheet, .screen.menu .msheet, .mscrim, .np, .lquiet { transition: opacity 120ms, visibility 0s; }
+  .reader, .msheet { transition: none; }
+  .prow { transition: opacity 120ms; }
+  .dot i { animation: none; opacity: 1; transform: translateY(-5px); }
+  .eq i { animation: none; }
+  .sico svg > *, .eb svg > * { transition: none; }
+  .strip[data-s="making"] .t1, .ep[data-s="making"] .ett { animation: none; background: none; color: var(--s-ink, var(--app-ink)); }
+  .strip > :not(.sconfirm), .sconfirm, .strip.confirming .sconfirm { transition: none; }
+  .strip.confirming > :not(.sconfirm), .sconfirm { transform: none; }
+  .lcard.flash { animation: none; outline: 2px solid var(--app-blue); outline-offset: 3px; }
+}
+</style>
+
+<div class="page" id="page">
+  <header>
+    <div class="eyebrow">Founder Signal · Listen · now playing (design mock)</div>
+    <h1>One episode, carried across the app</h1>
+    <p>An episode keeps playing when you leave its piece. The bottom pill carries it everywhere as the approved status row: play and pause, the chapter, the time and a scrubber. The row sits above whatever the screen puts in the pill (the pager's arrows, the screen's name and menu, the article's reading controls). When you change screens, only those controls morph. The row stays where it is, at least 264px wide, and keeps counting. Tap its text from anywhere to go back to the piece, with the article open at its Listen card. When the episode ends, the row says so and folds away. If another one starts, the row swaps to it in place.</p>
+  </header>
+  <div class="controls">
+    <div class="crow">
+      <span class="clabel">Screen</span>
+      <div class="seg" id="screenBtns" role="group" aria-label="Screen"></div>
+    </div>
+    <div class="crow">
+      <span class="clabel">Episode</span>
+      <div class="seg" id="stateBtns" role="group" aria-label="Episode state"></div>
+    </div>
+    <div class="crow">
+      <span class="clabel">Tour</span>
+      <button class="ctl primary" id="tourBtn" type="button">Auto-play the tour</button>
+      <button class="ctl" id="resetBtn" type="button">Reset</button>
+    </div>
+    <span class="hint-text">In the phone: use the pill's arrows and menu as usual, tap the row's play button or drag its scrubber, and tap the row's text to go back to the piece. In Library, the Podcasts tab plays other episodes.</span>
+  </div>
+
+  <div class="stage">
+    <div class="phonecol">
+      <div class="phone">
+        <div class="screen" id="screen">
+          <div id="views"></div>
+
+          <div class="reader" id="reader" aria-hidden="true">
+            <div class="rgrab"><button class="rclose" id="rclose" type="button" aria-label="Back to the piece"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button></div>
+            <div class="rscroll" id="rscroll">
+              <div class="article">
+                <h2 class="atitle" id="rtitle"></h2>
+                <p class="lede" id="rlede"></p>
+                <div class="byline"><b></b><span id="rby"></span></div>
+                <div class="lcard" id="lcard">
+                  <div class="lhead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 14h3v6H5.5A1.5 1.5 0 0 1 4 18.5zM20 14h-3v6h1.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>Listen to this piece<span class="mono">Two hosts</span></div>
+                </div>
+                <div class="rbody" id="rreal">
+                <p class="t">Most founders pick a per-seat price because it's what the last tool they bought used. It's easy to explain and easy to forecast. It is also, for a lot of early products, the wrong shape.</p>
+                <h3>The first yes is cheaper</h3>
+                <p class="t">A per-seat plan asks a buyer to guess how many people will use the product before anyone has. Usage pricing asks them to try it.</p>
+                <h3>It grows without a sales call</h3>
+                <p class="t">When a customer gets more value, they use more, and the bill follows. Investors read that number before almost anything else on the deck.</p>
+                </div>
+                <div class="rbody" id="rghost" hidden><div class="ghost" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="ghost" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mscrim" id="mscrim"></div>
+          <div class="msheet" id="msheet" role="dialog" aria-label="Menu" aria-hidden="true">
+            <div class="mgrab"></div>
+            <div role="menu" id="mitems"></div>
+            <div class="mdev">Dev tools<span>LOCAL ONLY</span></div>
+          </div>
+
+          <div class="dockwrap">
+            <div class="pill" id="pill">
+              <div class="prow"><div><div class="prow-in" id="prowIn" role="button" tabindex="-1" aria-label="Go to the piece"></div></div></div>
+              <div class="pbtns" id="pbtns"></div>
+            </div>
+          </div>
+          <div class="sysbar"><span>9:41</span><span class="sig"><i></i><i></i><i></i><b></b></span></div>
+          <div class="notch"></div>
+          <div class="home"></div>
+        </div>
+      </div>
+      <p class="cap" id="cap"></p>
+    </div>
+
+    <div class="notes">
+      <section>
+        <h2>The row stays put</h2>
+        <p>The row is claimed apart from the controls (<b>PillStatusSlot</b>), so a new screen only morphs what's under it: the old controls fade and shrink a touch, the new ones fade up in turn. The row doesn't fold, grow or fade, and the time keeps counting. For that to hold across Library, Activity and Preferences, the pill's provider moves up to the app layout, so every screen claims the same pill.</p>
+      </section>
+      <section>
+        <h2>On the narrow pill</h2>
+        <p>Library, Activity and Preferences carry only their name and the menu button, about 148px. With the row the pill is 264px, the row's least width, and the controls sit centred under it with a hairline between. The pager (240px) and the menu-open pills widen to 264px the same way, so moving between them the pill doesn't change width at all. Only the article's reading controls are wider (268px), and the row takes their width.</p>
+      </section>
+      <section>
+        <h2>With the menu open <span class="tag pick">Row stays</span></h2>
+        <p>The row stays above the menu-open pill, and the sheet slides up under both. The pill already sits over the menu sheet, so you can pause while you choose where to go. Hiding the row would mean folding it and growing it again every time the menu opens, which is the motion this design avoids. The sheet's bottom padding already counts the row, so its last item clears it.</p>
+      </section>
+      <section>
+        <h2>Back to the piece</h2>
+        <p>Tap the row's text from any screen. The app opens the episode's letter at that piece, then the article rises with the Listen card in view, and the card flashes once. The play button and the scrubber only act in place; they never move you.</p>
+      </section>
+      <section>
+        <h2>When it ends, or another starts</h2>
+        <ul>
+          <li><b>End:</b> the row reads “Listened · 4 min” with its check, holds for a moment, then folds away, wherever you are.</li>
+          <li><b>Another episode:</b> start one from the Podcasts tab and the row stays open. Its text and progress crossfade to the new episode, with no fold and no regrow.</li>
+          <li><b>Up next</b> <span class="tag">Optional</span> with “Play all new” running, the row shows “Up next” and the title for a moment, then moves on.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>Being made, elsewhere</h2>
+        <p>Pick <b>Making</b> above, then move around. On every screen the row shows the ring, the step and the time left, as approved. The one exception is Library's Podcasts tab: there the episode's own list row shows its progress, so the pill's row folds while you're on it and comes back when you leave.</p>
+      </section>
+      <section>
+        <h2>In the mock</h2>
+        <p>Playback runs in real time. Making an episode is sped up to about 12 seconds. Only pieces 2 and 3 of No. 14 are drawn, so the pager's arrows stop there.</p>
+      </section>
+    </div>
+  </div>
+
+  <section class="part">
+    <div class="sechead"><span class="eyebrow">The row on every pill</span><h2>One row, five sets of controls</h2><p>Each pill below is drawn live from the same episode. The dashed outline is the controls' own width; the row is never narrower than 264px.</p></div>
+    <div class="fits" id="fits"></div>
+  </section>
+
+  <section class="part">
+    <div class="sechead"><span class="eyebrow">Background and lock screen</span><h2>It keeps playing when the phone locks</h2></div>
+    <div class="stage">
+      <div class="phonecol">
+        <div class="phone">
+          <div class="screen lock" id="lock">
+            <div class="wall"></div>
+            <svg class="lockico" viewBox="0 0 14 18" fill="none" stroke="#FFFFFF" stroke-width="1.8" aria-hidden="true"><rect x="1.5" y="8" width="11" height="8.5" rx="2" fill="#FFFFFF" stroke="none"/><path d="M3.8 8V5.6a3.2 3.2 0 0 1 6.4 0V8"/></svg>
+            <div class="ldate">Tuesday, October 20</div>
+            <div class="ltime">9:41</div>
+            <div class="lquiet" id="lquiet">Nothing playing</div>
+            <div class="np" id="np" role="group" aria-label="Now playing">
+              <div class="nphead">
+                <div class="npart" id="npart"></div>
+                <div class="nptext"><span class="npt" id="npt"></span><span class="nps" id="nps"></span></div>
+              </div>
+              <div>
+                <div class="npbar" id="npbar" role="slider" tabindex="0" aria-label="Episode position" aria-valuemin="0"><i></i></div>
+                <div class="nptimes"><span id="npel">0:00</span><span id="nprem">-4:03</span></div>
+              </div>
+              <div class="npctl">
+                <button type="button" id="npback" aria-label="Back 15 seconds"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 9.5A9.5 9.5 0 1 1 6.5 16"/><path d="M9.8 4.8v4.9H4.9"/><text x="16.4" y="19.6" fill="currentColor" stroke="none" font-family="Instrument Sans, sans-serif" font-weight="600" font-size="8.5" text-anchor="middle">15</text></svg></button>
+                <button type="button" class="big" id="npplay" aria-label="Pause"><svg viewBox="0 0 32 32" fill="#FFFFFF"><g class="ppause"><rect x="8.5" y="6.5" width="5" height="19" rx="1.4"/><rect x="18.5" y="6.5" width="5" height="19" rx="1.4"/></g><path class="pplay" d="M9.5 6.2v19.6l16-9.8z"/></svg></button>
+                <button type="button" id="npfwd" aria-label="Forward 15 seconds"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 9.5A9.5 9.5 0 1 0 25.5 16"/><path d="M22.2 4.8v4.9h4.9"/><text x="15.6" y="19.6" fill="currentColor" stroke="none" font-family="Instrument Sans, sans-serif" font-weight="600" font-size="8.5" text-anchor="middle">15</text></svg></button>
+              </div>
+            </div>
+            <span class="lcorner l" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linejoin="round"><path d="M8 3h8l-1 6H9zM9 9h6v11a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="lcorner r" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg></span>
+            <div class="sysbar"><span></span><span class="sig"><i></i><i></i><i></i><b></b></span></div>
+            <div class="notch"></div>
+            <div class="home"></div>
+          </div>
+        </div>
+        <p class="cap">Lock screen · follows the episode above</p>
+      </div>
+      <div class="notes">
+        <section>
+          <h2>Playback doesn't stop</h2>
+          <p>The episode keeps playing when the phone locks, when you switch to another app, and when the app is in the background. Only you, the end of the episode, or another audio app stops it.</p>
+        </section>
+        <section>
+          <h2>The now playing card</h2>
+          <ul>
+            <li><b>Title:</b> the piece's title, cut to one line.</li>
+            <li><b>Under it:</b> “Founder Signal · No. 14 · Piece 2”, so it's clear where it came from.</li>
+            <li><b>Artwork:</b> the piece's own art, the same picture as its page.</li>
+            <li><b>Controls:</b> play and pause, back and forward 15 seconds, and a scrubber. Headphone buttons and Control Center do the same.</li>
+          </ul>
+          <p>It's one player, so the card and the row always agree: pause on the lock screen and the row shows play when you come back. Try it here; both follow the same episode.</p>
+        </section>
+        <section>
+          <h2>When it ends</h2>
+          <p>The card goes when the episode ends, at the same moment the row folds. If another episode starts, the card swaps to its title and art.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+
+<template id="stripTpl">
+  <div class="strip" data-s="playing">
+    <button class="sico" type="button" aria-label="Pause">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <g class="pring"><circle class="ptrack" cx="16" cy="16"/><g class="pticks"></g><circle class="parc" cx="16" cy="16" pathLength="100" transform="rotate(-90 16 16)"/></g>
+        <circle class="disc" cx="16" cy="16" r="16"/>
+        <path class="gl g-play" d="M13 10.6v10.8l8.6-5.4z"/>
+        <g class="gl g-pause"><rect x="11.4" y="10.5" width="3.3" height="11" rx="1"/><rect x="17.3" y="10.5" width="3.3" height="11" rx="1"/></g>
+        <path class="gl g-check" d="M10.4 16.4l3.8 3.8 7.4-7.7" pathLength="100"/>
+        <g class="gl g-next"><path d="M11.4 10.8v10.4l8-5.2z"/><rect x="19.6" y="10.8" width="2.4" height="10.4" rx="1"/></g>
+        <rect class="gl g-stop" x="11.6" y="11.6" width="8.8" height="8.8" rx="2"/>
+      </svg>
+      <span class="pulse"></span>
+    </button>
+    <div class="smain">
+      <div class="l1"><span class="t1"></span></div>
+      <div class="l2"><span class="t2"></span><span class="tl"></span><div class="sbar" role="slider" tabindex="0" aria-label="Episode position" aria-valuemin="0"><i class="fill"></i><i class="knob"></i></div><span class="tm"></span></div>
+    </div>
+    <button class="sx" type="button" aria-label="Stop making the episode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+    <div class="sconfirm" role="alertdialog" aria-modal="false" inert>
+      <span class="cq">Stop this episode?</span>
+      <button class="ckeep" type="button">Keep</button>
+      <button class="cstop" type="button">Stop</button>
+    </div>
+  </div>
+</template>
+
+<script>
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const play = (el, frames, opts) => (reduce || !el ? null : el.animate(frames, opts));
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const $ = (s, r = document) => r.querySelector(s);
+const EASE = "cubic-bezier(.2,.8,.2,1)";
+const STATUS_W = 264;
+
+// ── Art (drawn by the app's own code; copied from piece-art.html) ─────
+const ART = { sky: `<svg xmlns="http://www.w3.org/2000/svg" class="artsvg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMin slice" viewBox="0 0 390 484"><defs><linearGradient id="a6-sky" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="484"><stop offset="0" stop-color="#F4F6FB" stop-opacity="1"/><stop offset="0.6" stop-color="#EEF2FF" stop-opacity="0.75"/><stop offset="1" stop-color="#FBFBFA" stop-opacity="1"/></linearGradient></defs><rect width="390" height="484" fill="#F4F6FB"/><rect x="0" y="0" width="390" height="484" fill="url(#a6-sky)"/><circle cx="241.9" cy="157.2" r="28.6" fill="#FFFFFF" opacity="0.35"/><circle cx="241.9" cy="157.2" r="11.9" fill="#FF5A1F" opacity="0.18"/><path d="M0 250.1H390" fill="none" stroke="#9599A2" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/><path d="M-2.6 177.8h136.6M21.2 132.5h100.3" fill="none" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/></svg>`, routes: `<svg xmlns="http://www.w3.org/2000/svg" class="artsvg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMin slice" viewBox="0 0 390 484"><defs></defs><rect width="390" height="484" fill="#F4F6FB"/><path d="M-20 96.8Q195 56.8 410 96.8M-20 193.6Q195 153.6 410 193.6M-20 290.4Q195 250.4 410 290.4M-20 387.2Q195 347.2 410 387.2" fill="none" stroke="#9599A2" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/><path d="M317.9 106.7Q268.9 141.2 211.2 124.8M317.9 106.7Q299.7 165.2 251 202.5M251 202.5Q218.4 170.2 211.2 124.8M251 202.5Q185.4 201.8 131.8 239.6M131.8 239.6Q193.9 197.7 211.2 124.8M211.2 124.8Q137.4 116.1 79.5 69.6M131.8 239.6Q79.8 162.5 79.5 69.6" fill="none" stroke="#9599A2" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="0.1 5" opacity="0.6"/><path d="M317.9 106.7Q261.3 96.5 211.2 124.8M211.2 124.8Q217.1 170.8 251 202.5" fill="none" stroke="#9599A2" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/><path d="M316.1 106.7a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M249.2 202.5a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M130 239.6a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M209.4 124.8a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M77.7 69.6a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0" fill="#9599A2" opacity="0.9"/><rect x="244" y="184.5" width="14" height="9" rx="1" fill="#FFFFFF" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M244.5 185L251 189.5L257.5 185" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M248.8 202.5a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0" fill="#FF5A1F" opacity="0.5"/></svg>`, letter: `<svg xmlns="http://www.w3.org/2000/svg" class="artsvg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMin slice" viewBox="0 0 390 484"><defs><pattern id="a12-grain" patternUnits="userSpaceOnUse" width="56" height="56"><path d="M7.1 9.7h0.7v0.7h-0.7ZM35.1 49.9h0.9v0.9h-0.9ZM50.1 30.6h1.2v1.2h-1.2ZM26.9 29.1h1.2v1.2h-1.2ZM46.4 53.6h0.6v0.6h-0.6ZM46 25.5h1.1v1.1h-1.1ZM2.6 13.7h0.6v0.6h-0.6ZM47.3 27.4h1.4v1.4h-1.4ZM46.4 15.8h1.1v1.1h-1.1ZM18.4 28.4h1.5v1.5h-1.5ZM49.7 14.7h1v1h-1ZM19.2 41.9h1.1v1.1h-1.1ZM20.5 37.6h1.2v1.2h-1.2ZM54 27.7h0.8v0.8h-0.8ZM21.8 19h1v1h-1ZM25.1 16.7h0.6v0.6h-0.6ZM13.3 1.4h1.3v1.3h-1.3ZM30.5 28.7h0.6v0.6h-0.6ZM21.3 15.7h1.2v1.2h-1.2ZM38 28.9h1.1v1.1h-1.1ZM13.8 2.3h0.6v0.6h-0.6ZM42.7 42.3h0.9v0.9h-0.9ZM20.9 34.8h1v1h-1ZM16.1 52.1h1.3v1.3h-1.3ZM50.2 10.3h1.4v1.4h-1.4ZM18.9 37.6h0.8v0.8h-0.8ZM17.9 51.6h1.1v1.1h-1.1ZM37.5 40.6h0.9v0.9h-0.9ZM10.5 0.4h1v1h-1ZM20 17.9h1.3v1.3h-1.3ZM9.7 3.4h0.9v0.9h-0.9ZM35.8 17.9h1.4v1.4h-1.4ZM10.3 27.6h1.3v1.3h-1.3ZM45.7 47.2h1.2v1.2h-1.2ZM52.7 42.1h1.2v1.2h-1.2ZM38.7 35.5h1.4v1.4h-1.4ZM50.6 21.9h0.9v0.9h-0.9ZM21.1 26.9h1.4v1.4h-1.4ZM18.1 22.1h0.6v0.6h-0.6ZM31.4 22.2h1.1v1.1h-1.1ZM24.7 12.1h1.2v1.2h-1.2ZM51.6 0.2h1.2v1.2h-1.2ZM27.5 3.8h0.7v0.7h-0.7ZM23.6 8.9h1.3v1.3h-1.3ZM8.5 27.1h0.8v0.8h-0.8ZM51.5 16.9h0.7v0.7h-0.7ZM8.2 52.5h1.1v1.1h-1.1ZM5.1 28.2h0.7v0.7h-0.7ZM16.6 2.7h1v1h-1ZM38.9 18.9h1.1v1.1h-1.1ZM36.7 23.6h0.7v0.7h-0.7ZM32.7 14.9h1.4v1.4h-1.4ZM45.1 0.2h1.3v1.3h-1.3ZM22.2 12h1.2v1.2h-1.2ZM34.6 20.9h1.1v1.1h-1.1ZM52.9 41.4h0.6v0.6h-0.6ZM54.6 19.6h1.1v1.1h-1.1ZM18.7 42.9h1.2v1.2h-1.2ZM39.5 41.7h0.9v0.9h-0.9ZM55.1 6h1.4v1.4h-1.4ZM42.6 49.7h0.8v0.8h-0.8ZM30.8 19.7h1.1v1.1h-1.1ZM5.1 3.3h1.4v1.4h-1.4ZM30.9 35h0.9v0.9h-0.9ZM18.1 41.8h1.3v1.3h-1.3ZM41.1 1.1h1.1v1.1h-1.1ZM33.7 39.3h1v1h-1ZM3.5 52.5h1.1v1.1h-1.1ZM39 32.1h0.9v0.9h-0.9ZM40.8 52.7h1v1h-1Z" fill="#121316"/></pattern></defs><rect width="390" height="484" fill="#F6F2EA"/><g opacity="0.22"><circle cx="217.1" cy="199" r="141.6" fill="none" stroke="#9599A2" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="217.1" cy="199" r="107.6" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M336.1 199L344.6 199M335.1 214.6L343.5 215.7M332 229.8L340.2 232M327 244.5L334.9 247.8M320.1 258.5L327.5 262.7M311.5 271.4L318.2 276.6M301.2 283.1L307.3 289.1M289.5 293.4L294.7 300.1M276.6 302L280.9 309.4M262.7 308.9L265.9 316.8M247.9 313.9L250.1 322.1M232.7 316.9L233.8 325.4M217.1 318L217.1 326.5M201.6 316.9L200.5 325.4M186.4 313.9L184.2 322.1M171.6 308.9L168.4 316.8M157.7 302L153.4 309.4M144.7 293.4L139.6 300.1M133.1 283.1L127 289.1M122.8 271.4L116.1 276.6M114.2 258.5L106.8 262.7M107.3 244.5L99.4 247.8M102.3 229.8L94.1 232M99.2 214.6L90.8 215.7M98.2 199L89.7 199M99.2 183.5L90.8 182.4M102.3 168.2L94.1 166M107.3 153.5L99.4 150.3M114.2 139.6L106.8 135.3M122.8 126.6L116.1 121.5M133.1 114.9L127 108.9M144.7 104.7L139.6 97.9M157.7 96L153.4 88.7M171.6 89.2L168.4 81.3M186.4 84.2L184.2 75.9M201.6 81.1L200.5 72.7M217.1 80.1L217.1 71.6M232.7 81.1L233.8 72.7M247.9 84.2L250.1 75.9M262.7 89.2L265.9 81.3M276.6 96L280.9 88.7M289.5 104.7L294.7 97.9M301.2 114.9L307.3 108.9M311.5 126.6L318.2 121.5M320.1 139.6L327.5 135.3M327 153.5L334.9 150.3M332 168.2L340.2 166M335.1 183.5L343.5 182.4" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><text x="217.1" y="227.3" font-family="Bricolage Grotesque" font-weight="700" font-size="84.9" text-anchor="middle" letter-spacing="-2.8" fill="#9599A2">FS</text></g><path d="M20 113.4H185M205 113.4H370" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/><path d="M20 117.4H185M205 117.4H370" fill="none" stroke="#9599A2" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/><path d="M195 110.9L199.5 115.4L195 119.9L190.5 115.4Z" fill="#FF5A1F" opacity="0.45"/><rect x="0" y="0" width="390" height="484" fill="url(#a12-grain)" opacity="0.06"/></svg>` };
+let artN = 0;
+/** A copy of an art SVG with its own ids, so the same picture can appear twice. */
+function art(name, box) {
+  const n = ++artN;
+  let s = ART[name].replace(/id="([^"]+)"/g, `id="$1-${n}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${n})`);
+  if (box) s = s.replace(/viewBox="[^"]+"/, `viewBox="${box}"`).replace(/preserveAspectRatio="[^"]+"/, 'preserveAspectRatio="xMidYMid slice"');
+  return s;
+}
+/** Today's cover art (Dot grid), a simple stand-in. */
+function dotGrid() {
+  let d = "";
+  for (let y = 18; y < 250; y += 16) for (let x = 10; x < 300; x += 16) { const k = Math.hypot(x - 225, y - 135); if (k < 62) d += `M${x} ${y}h.01`; }
+  return `<svg class="artsvg" viewBox="0 0 300 250" preserveAspectRatio="xMidYMin slice" aria-hidden="true"><rect width="300" height="250" fill="#FBFBFA"/><path d="${d}" stroke="#2B4BFF" stroke-width="3.2" stroke-linecap="round" opacity="0.55"/><circle cx="225" cy="135" r="20" fill="#FF5A1F" opacity="0.85"/></svg>`;
+}
+
+/** The lock screen's artwork: a simple stand-in for the piece's art, bolder so it reads at 48px. */
+function coverArt(name) {
+  if (name === "routes") return `<svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" fill="#F4F6FB"/><path d="M8 36Q20 30 26 20T42 10M8 36Q18 18 26 20" fill="none" stroke="#5B5F68" stroke-width="1.4" stroke-dasharray="0.1 3.2" stroke-linecap="round"/><path d="M26 20Q36 22 40 34" fill="none" stroke="#2B4BFF" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="36" r="2.2" fill="#121316"/><circle cx="26" cy="20" r="2.2" fill="#121316"/><circle cx="40" cy="34" r="3" fill="#FF5A1F"/></svg>`;
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9D3FF"/><stop offset="1" stop-color="#F4F6FB"/></linearGradient></defs><rect width="48" height="48" fill="url(#lsky)"/><circle cx="30" cy="19" r="10" fill="#FFFFFF" opacity="0.85"/><circle cx="30" cy="19" r="4.5" fill="#FF5A1F"/><path d="M0 33H48" stroke="#5B5F68" stroke-width="0.8" opacity="0.6"/><path d="M4 26h16M8 22h10" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+}
+
+// ── The episodes ─────────────────────────────────────────────────────
+const CH_PRICING = [[0, "Cold open"], [18, "Why per-seat feels safe"], [64, "The first yes is cheaper"], [128, "Growing without a sales call"], [186, "The catch is forecasting"], [226, "What to try this week"]];
+const generic = (dur) => [[0, "Cold open"], [0.08, "The short version"], [0.3, "Why it works"], [0.58, "Where it breaks"], [0.85, "What to try this week"]].map(([f, n]) => [Math.round(f * dur), n]);
+const EPS = [
+  { id: "e3", title: "Why usage-based pricing keeps winning at the seed stage", author: "Maya Okafor", pub: "The Unit Economist", av: "MO", avBg: "#FFE3D6", no: 14, piece: 2, of: 4, dur: 243, t: 0, ch: CH_PRICING, art: "sky", bg: "244,246,251", a: 0.25, kicker: "Article · 8 min · Pricing", tint: 0,
+    lede: "Charging by usage lowers the first yes, grows with the customer, and gives you a cleaner story for investors. The catch is forecasting.",
+    why: "You said you're rethinking your per-seat plan before the raise. This one has numbers from 40 companies." },
+  { id: "e5", title: "The board meeting you actually want to run", author: "Sam Achebe", pub: "Operator's Desk", av: "SA", avBg: "#DCE3FF", no: 13, piece: 1, of: 5, dur: 260, t: 130, ch: generic(260), art: "routes", bg: "244,246,251", a: 0.3, kicker: "Article · 7 min · Operations", tint: 1,
+    lede: "Send the numbers two days early, spend the meeting on one hard question, and leave with a decision.",
+    why: "Your first board meeting is next month. This is the agenda most of them wish they'd used." },
+  { id: "e4", title: "Cold emails busy buyers actually answer", author: "Priya Raman", pub: "Pipeline Weekly", av: "PR", avBg: "#E4F1EA", no: 14, piece: 4, of: 4, dur: 232, t: 0, ch: generic(232), art: "sky", bg: "244,246,251", a: 0.25, kicker: "Article · 5 min · Sales", tint: 2,
+    lede: "Three lines, one question, and a reason to answer today. The rest is follow-up.", why: "" },
+  { id: "e6", title: "Default alive, explained with one spreadsheet", author: "Ruth Kim", pub: "Runway", no: 12, piece: 3, of: 4, dur: 221, t: 0, listened: true, tint: 0 },
+];
+// Piece 3 of No. 14 is a video, so it has no Listen episode.
+const P3 = { id: "p3", title: "A partner reads a seed deck, live", author: "Priya Natarajan", pub: "Partner, Northlight Ventures", av: "PN", avBg: "#E4F1EA", no: 14, piece: 3, of: 4, art: "letter", bg: "246,242,234", a: 0.25, kicker: "Video · 14 min · Fundraising", video: true,
+  why: "Your raise starts in three weeks. Watch where she stops reading." };
+const byId = (id) => EPS.find((e) => e.id === id) || (id === "p3" ? P3 : null);
+const chapter = (ep, t) => ep.ch.reduce((name, [at, n]) => (t >= at ? n : name), ep.ch[0][1]);
+const mins = (ep) => `${Math.round(ep.dur / 60)} min`;
+
+// ── The one player ───────────────────────────────────────────────────
+// state: idle | making | ready | playing | paused | done | next | stopped
+const S = { state: "playing", ep: 0, t: 72, dragging: false, queue: [], confirm: false };
+const cur = () => EPS[S.ep];
+const ACTIVE = ["making", "ready", "playing", "paused", "done", "next", "stopped"];
+const STEPS = ["Writing the script", "Recording voices", "Finishing"];
+
+// ── The app ──────────────────────────────────────────────────────────
+const A = { view: "piece:e3", reader: null, menu: false, tab: "saved" };
+const screen = $("#screen"), viewsEl = $("#views"), pill = $("#pill"), pbtns = $("#pbtns"), prowIn = $("#prowIn");
+const views = {};
+
+const I = {
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9h14M5 15h14"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
+  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="#FFFFFF"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  phones: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 14h3v6H5.5A1.5 1.5 0 0 1 4 18.5zM20 14h-3v6h1.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  chev: (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="${d === "l" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"}"/></svg>`,
+};
+
+// ── Views ────────────────────────────────────────────────────────────
+function pieceView(p) {
+  const bars = Array.from({ length: p.of }, (_, i) => `<i class="${i < p.piece ? "on" : ""}"></i>`).join("");
+  const el = document.createElement("div");
+  el.className = "view piece";
+  el.style.cssText = `--bg:${p.bg};--a:${p.a}`;
+  el.innerHTML = `<div class="band"><div class="bart">${art(p.art)}<span class="tscrim"></span></div>
+    <div class="top"><span class="mono">No. ${p.no} · Piece ${p.piece} of ${p.of}</span><span class="bars" aria-hidden="true">${bars}</span></div>
+    <div class="gap">${p.video ? '<span class="vplay" role="img" aria-label="Play on YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg></span>' : ""}</div>
+    <div class="bhead"><span class="mono kicker">${p.kicker}</span><h2 class="ttl">${p.title}</h2></div></div>
+    <div class="body"><span class="chip"><span class="av" style="background:${p.avBg}">${p.av}</span><span class="cn"><b>${p.author}</b><small>${p.pub}</small></span>${I.chev("r")}</span>
+    ${p.why ? `<p class="why">${p.why}</p>` : ""}
+    <div class="actions"><button class="read" type="button" data-read="${p.id}"><span class="dot" aria-hidden="true"><i></i></span>${p.video ? "Watch" : "Read article"}</button>
+    ${p.video ? "" : `<button class="listen" type="button" data-listen="${p.id}" aria-label="Listen to this piece">${I.phones}</button>`}</div></div>`;
+  el.querySelector(".chip svg").setAttribute("aria-hidden", "true");
+  el.querySelector(".chip svg").style.cssText = "flex:none;width:14px;height:14px;color:var(--app-muted)";
+  return el;
+}
+function todayView() {
+  const el = document.createElement("div");
+  el.className = "view today";
+  const items = [["Investor updates", "What a good weekly investor update looks like", "Article · 6 min"], ["Hiring", "A first hire who'll still fit at twenty", "Article · 5 min"], ["Hiring", "Hiring your first engineer without a recruiter", "Article · 6 min"], ["Pricing", "When to raise prices on early customers", "Article · 4 min"]];
+  el.innerHTML = `<div class="cart">${dotGrid()}</div><div class="scroll">
+    <div class="ctop"><span class="mono">Founder Signal · No. 15</span></div>
+    <div class="chead"><span class="mono cdate">Tuesday, Oct 20 · 4 pieces</span><h2 class="ctitle">Investor updates, first hires and a pricing rethink</h2></div>
+    <ol class="plist">${items.map(([k, t, m], i) => `<li><span class="n">0${i + 1}</span><span class="pt">${t}</span><span class="pm">${k} · ${m}</span></li>`).join("")}</ol></div>`;
+  return el;
+}
+function libView() {
+  const el = document.createElement("div");
+  el.className = "view lib";
+  el.innerHTML = `<div class="scroll"><span class="lk mono">Library</span><h2 class="lt"></h2>
+    <div class="seg3" role="tablist" aria-label="Show"><button type="button" role="tab" data-tab="saved">Saved</button><button type="button" role="tab" data-tab="letters">Letters</button><button type="button" role="tab" data-tab="podcasts">Podcasts</button></div>
+    <div class="tabbody" style="display:contents"></div></div>`;
+  return el;
+}
+function actView() {
+  const el = document.createElement("div");
+  el.className = "view act";
+  const lv = [0, 2, 1, 0, 3, 1, 0, 0, 2, 2, 1, 3, 0, 0, 1, 2, 0, 3, 2, 1];
+  let cells = ["M", "T", "W", "T", "F", "S", "S"].map((d) => `<span class="wd">${d}</span>`).join("");
+  cells += "<span></span>".repeat(3);
+  for (let d = 1; d <= 31; d++) cells += `<span class="d ${d <= 20 ? "l" + lv[d - 1] : "later"}${d === 20 ? " now" : ""}">${d}</span>`;
+  el.innerHTML = `<div class="scroll"><div class="arow"><span class="mono">Activity · 2026</span><span class="rb"><span>${I.chev("l")}</span><span class="off">${I.chev("r")}</span></span></div>
+    <h2 class="disp">October</h2><p class="para">You read or reviewed something on 14 days in October. No streaks to keep up. This is just what happened.</p>
+    <div class="seg2" aria-hidden="true"><span class="on">Month grid</span><span>List</span></div><div class="cal" aria-label="October">${cells}</div></div>`;
+  return el;
+}
+function prefView() {
+  const el = document.createElement("div");
+  el.className = "view pref";
+  el.innerHTML = `<div class="scroll"><span class="mono" style="color:var(--app-muted)">Preferences</span><h2 class="disp" style="font-size:42px;line-height:44px">Your brief</h2>
+    <p class="brief">Seed-stage B2B. Pricing, our first hires, and getting ready to raise.</p>
+    <div><span class="mono" style="color:var(--app-muted)">Reading</span>
+      <div class="prow2"><b>Sources</b><span>12 sources</span></div><div class="prow2"><b>Goals and topics</b><span>4 topics</span></div><div class="prow2"><b>Schedule</b><span>Weekdays, 7am</span></div></div>
+    <div><span class="mono" style="color:var(--app-muted)">Account</span><div class="prow2"><b style="font-size:16px">you@yourcompany.com</b><span class="so">Sign out</span></div></div>
+    <p class="ver">Founder Signal 1.4.0</p></div>`;
+  return el;
+}
+for (const p of [EPS[0], P3, EPS[1], EPS[2]]) views["piece:" + p.id] = pieceView(p);
+views.today = todayView(); views.lib = libView(); views.act = actView(); views.pref = prefView();
+for (const v of Object.values(views)) viewsEl.appendChild(v);
+
+// ── Library tabs ─────────────────────────────────────────────────────
+const lib = views.lib, tabbody = $(".tabbody", lib);
+const rowEls = new Map();
+function renderTab() {
+  rowEls.clear();
+  const name = { saved: "Saved", letters: "Letters", podcasts: "Podcasts" }[A.tab];
+  $(".lt", lib).textContent = name;
+  for (const b of lib.querySelectorAll(".seg3 button")) b.setAttribute("aria-selected", String(b.dataset.tab === A.tab));
+  if (A.tab === "saved") {
+    tabbody.innerHTML = [["Pricing", "Why usage-based pricing keeps winning at the seed stage", "8 min · saved Oct 18", 0], ["Hiring", "Hiring your first engineer without a recruiter", "6 min · saved Oct 4", 1]]
+      .map(([k, t, m, i]) => `<div class="tile" style="--tint: var(--tint-${i})"><div class="ttop"><span class="mono">${k}</span><span class="go">${I.arrow}</span></div><div><div class="tt">${t}</div><div class="tm2">${m}</div></div></div>`).join("") + `<p class="lnote">Saved pieces are kept for reading offline.</p>`;
+    return;
+  }
+  if (A.tab === "letters") {
+    tabbody.innerHTML = [[15, "Investor updates, first hires and a pricing rethink", "Oct 20 · 4 pieces", 0], [14, "Usage pricing, cold email and the long middle", "Oct 13 · 4 pieces", 1]]
+      .map(([n, t, m, i]) => `<div class="tile" style="--tint: var(--tint-${i})"><div class="ttop"><span class="big">No. ${n}</span><span class="go">${I.arrow}</span></div><div><div class="tt">${t}</div><div class="tm2">${m}</div></div></div>`).join("");
+    return;
+  }
+  tabbody.innerHTML = "";
+  for (const [label, ids] of [["In progress", ["e5"]], ["New", ["e3", "e4"]], ["Listened", ["e6"]]]) {
+    const h = document.createElement("h3"); h.className = "gh mono"; h.textContent = label; tabbody.appendChild(h);
+    const ul = document.createElement("ul"); ul.className = "eps"; ul.setAttribute("aria-label", label);
+    for (const id of ids) ul.appendChild(makeRow(byId(id)));
+    tabbody.appendChild(ul);
+  }
+  paintRows();
+}
+function makeRow(ep) {
+  const li = document.createElement("li");
+  li.className = "ep"; li.dataset.id = ep.id; li.style.setProperty("--tint", `var(--tint-${ep.tint})`);
+  li.innerHTML = `<div class="ep-in"><button class="eb" type="button"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="ebg" cx="20" cy="20" r="20"/><circle class="etr" cx="20" cy="20" r="13"/><g class="etk"></g><circle class="earc" cx="20" cy="20" r="13" pathLength="100" transform="rotate(-90 20 20)"/><path class="gl gp" d="M16.2 13.2v13.6l10.6-6.8z"/><g class="gl gpa"><rect x="14.2" y="13" width="4" height="14" rx="1.2"/><rect x="21.8" y="13" width="4" height="14" rx="1.2"/></g><path class="gc" d="M13.5 20.5l4.5 4.5 8.5-9"/></svg></button>
+    <button class="et" type="button"><span class="ett">${ep.title}</span><span class="em">${ep.author} · No. ${ep.no} · Piece ${ep.piece}</span><span class="es"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="elab"></span><span class="ebar" aria-hidden="true"><i></i></span></span></button></div>`;
+  const tk = li.querySelector(".etk");
+  for (const at of [0.25, 0.95]) {
+    const a = at * 2 * Math.PI - Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("x1", (20 + c * 11.8).toFixed(2)); l.setAttribute("y1", (20 + s * 11.8).toFixed(2));
+    l.setAttribute("x2", (20 + c * 14.2).toFixed(2)); l.setAttribute("y2", (20 + s * 14.2).toFixed(2));
+    tk.appendChild(l);
+  }
+  li.querySelector(".eb").addEventListener("click", () => rowPlay(ep));
+  li.querySelector(".et").addEventListener("click", () => { if (ep.ch) goToPiece(ep.id); });
+  rowEls.set(ep.id, li);
+  return li;
+}
+function rowState(ep) {
+  if (ep === cur()) {
+    if (S.state === "playing" || S.state === "paused" || S.state === "making" || S.state === "ready") return S.state;
+    if (S.state === "next") return "paused";
+  }
+  if (ep.listened) return "listened";
+  return ep.t > 0 ? "partial" : "ready";
+}
+function paintRows() {
+  for (const [id, li] of rowEls) {
+    const ep = byId(id), s = rowState(ep);
+    li.dataset.s = s;
+    const t = ep === cur() ? S.t : ep.t;
+    const lab = li.querySelector(".elab");
+    lab.textContent = s === "making" ? `${STEPS[P.step]} · ${P.eta}` : s === "listened" ? "Listened" : s === "ready" ? mins(ep) : `${fmt(ep.dur - t)} left`;
+    li.style.setProperty("--pct", (t / ep.dur).toFixed(4));
+    li.querySelector(".earc").style.strokeDasharray = `${(P.shown * 100).toFixed(2)} 100`;
+    li.querySelector(".eb").setAttribute("aria-label", `${s === "playing" ? "Pause" : s === "making" ? "Being made" : "Play"}: ${ep.title}`);
+  }
+}
+function rowPlay(ep) {
+  flowId++;
+  if (ep === cur()) {
+    if (S.state === "playing") setState("paused");
+    else if (S.state === "paused" || S.state === "ready") setState("playing");
+    return;
+  }
+  switchTo(EPS.indexOf(ep), { t: ep.listened ? 0 : ep.t });
+}
+lib.addEventListener("click", (e) => {
+  const b = e.target.closest(".seg3 button");
+  if (!b || b.dataset.tab === A.tab) return;
+  A.tab = b.dataset.tab; $(".scroll", lib).scrollTop = 0; renderTab(); render();
+});
+
+// ── Making (sped up: about 12 seconds for a real minute) ──────────────
+const MAKE_MS = 12000;
+const P = { shown: 0, t0: 0, raf: 0, step: 0, eta: "~1 min left" };
+function startMaking(at) {
+  P.t0 = performance.now() - at * MAKE_MS;
+  if (!P.raf) P.raf = requestAnimationFrame(makeLoop);
+}
+function makeLoop(now) {
+  P.raf = 0;
+  if (S.state !== "making") return;
+  const f = clamp((now - P.t0) / MAKE_MS);
+  // Script to 25%, voices to 95% a line at a time, then finishing; with Reduce Motion it moves in steps.
+  let v = f < 0.27 ? (f / 0.27) * 0.25 : f < 0.92 ? 0.25 + Math.floor(((f - 0.27) / 0.65) * 30) / 30 * 0.7 : 0.95 + ((f - 0.92) / 0.08) * 0.05;
+  if (reduce) v = Math.floor(v / 0.05) * 0.05;
+  P.shown = Math.max(P.shown, clamp(v));
+  const step = P.shown >= 0.95 ? 2 : P.shown >= 0.25 ? 1 : 0;
+  if (step !== P.step) { P.step = step; for (const st of strips) if (!st.static) play(st.pring, [{ transform: "scale(1)" }, { transform: "scale(1.14)", offset: 0.35 }, { transform: "scale(1)" }], { duration: 380 }); }
+  const left = (1 - f) * 60;
+  P.eta = P.shown < 0.3 ? "~1 min left" : left <= 5 ? "Almost done" : `~${Math.ceil(left / 5) * 5}s left`;
+  for (const st of strips) paintStrip(st);
+  paintRows();
+  if (f >= 1) { setTimeout(() => S.state === "making" && setState("ready"), reduce ? 0 : 200); return; }
+  P.raf = requestAnimationFrame(makeLoop);
+}
+
+// ── Strips (one look, many homes) ─────────────────────────────────────
+const strips = [];
+const stripTpl = $("#stripTpl");
+function makeStrip(host, tone, ico, { card = false } = {}) {
+  const el = stripTpl.content.firstElementChild.cloneNode(true);
+  el.classList.add(tone);
+  el.style.setProperty("--ico", ico + "px");
+  host.appendChild(el);
+  const q = (s) => el.querySelector(s);
+  const st = { el, card, sico: q(".sico"), smain: q(".smain"), t1: q(".t1"), t2: q(".t2"), tl: q(".tl"), tm: q(".tm"), sbar: q(".sbar"), sx: q(".sx"), confirm: q(".sconfirm"), keep: q(".ckeep"), disc: q(".disc"), pring: q(".pring"), parc: q(".parc"), pulse: q(".pulse") };
+  const u = 32 / ico, r = 10.5 * u, sw = 2 * u;
+  st.ringOuter = (r + sw / 2) / 16;
+  for (const c of [q(".ptrack"), st.parc]) { c.setAttribute("r", r.toFixed(2)); c.setAttribute("stroke-width", sw.toFixed(2)); }
+  for (const at of [0.25, 0.95]) {
+    const a = at * 2 * Math.PI - Math.PI / 2, cos = Math.cos(a), sin = Math.sin(a);
+    const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    tick.setAttribute("class", "ptick");
+    tick.setAttribute("x1", (16 + cos * (r - sw / 2)).toFixed(2)); tick.setAttribute("y1", (16 + sin * (r - sw / 2)).toFixed(2));
+    tick.setAttribute("x2", (16 + cos * (r + sw / 2)).toFixed(2)); tick.setAttribute("y2", (16 + sin * (r + sw / 2)).toFixed(2));
+    tick.setAttribute("stroke-width", (1.2 * u).toFixed(2));
+    q(".pticks").appendChild(tick);
+  }
+  st.sico.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (st.card && A.reader && byId(A.reader) !== cur()) { flowId++; switchTo(EPS.indexOf(byId(A.reader)), { t: 0 }); return; }
+    if (S.state === "playing") { flowId++; setState("paused"); }
+    else if (S.state === "paused") { flowId++; setState("playing"); }
+    else if (S.state === "ready") { flowId++; setState("playing", { t: 0 }); }
+  });
+  st.sx.addEventListener("click", (e) => { e.stopPropagation(); askStop(st); });
+  st.keep.addEventListener("click", (e) => { e.stopPropagation(); keepGoing(); });
+  q(".cstop").addEventListener("click", (e) => { e.stopPropagation(); if (S.confirm) { flowId++; setState("stopped"); } });
+  st.confirm.addEventListener("click", (e) => e.stopPropagation());
+  st.confirm.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); keepGoing(); } });
+  // Scrub: press anywhere on the line, then drag.
+  const seek = (e) => { const b = st.sbar.getBoundingClientRect(); S.t = clamp((e.clientX - b.left) / b.width) * cur().dur; paintTime(); };
+  st.sbar.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); st.sbar.setPointerCapture(e.pointerId); S.dragging = true; el.classList.add("drag"); seek(e); });
+  st.sbar.addEventListener("pointermove", (e) => { if (st.sbar.hasPointerCapture(e.pointerId)) seek(e); });
+  const up = () => { if (!S.dragging) return; S.dragging = false; el.classList.remove("drag"); lastT = performance.now(); };
+  st.sbar.addEventListener("pointerup", up);
+  st.sbar.addEventListener("pointercancel", up);
+  st.sbar.addEventListener("click", (e) => e.stopPropagation());
+  st.sbar.addEventListener("keydown", (e) => {
+    const d = { ArrowRight: 10, ArrowLeft: -10, ArrowUp: 10, ArrowDown: -10 }[e.key];
+    if (d == null) return;
+    e.preventDefault(); S.t = clamp(S.t + d, 0, cur().dur - 1); paintTime();
+  });
+  strips.push(st);
+  return st;
+}
+const GLYPH = { ready: ".g-play", paused: ".g-play", playing: ".g-pause", done: ".g-check", next: ".g-next" };
+const LABEL = { making: "Making the episode", ready: "Play the episode", playing: "Pause", paused: "Play", done: "Listened", next: "Up next", stopped: "Stopped" };
+function paintStrip(st) {
+  st.el.classList.toggle("confirming", S.confirm && S.state === "making");
+  st.confirm.inert = !(S.confirm && S.state === "making");
+  // The pill's rows keep their last look while they fold away.
+  if (S.state === "idle") return;
+  // The Listen card in an article for a different episode offers that one.
+  const other = st.card && A.reader && byId(A.reader) !== cur();
+  const s = other ? "ready" : S.state;
+  const ep = other ? byId(A.reader) : cur();
+  const was = st.el.dataset.s;
+  st.el.dataset.s = s;
+  st.sico.setAttribute("aria-label", LABEL[s]);
+  if (s === "making") {
+    st.t1.textContent = "Making the episode…";
+    st.t2.textContent = STEPS[P.step];
+    st.tl.textContent = P.eta;
+    st.parc.style.strokeDasharray = `${(P.shown * 100).toFixed(2)} 100`;
+    st.parc.style.opacity = P.shown > 0.004 ? "1" : "0";
+  } else if (s === "playing" || s === "paused") {
+    paintTimeOne(st);
+  } else if (s === "next") {
+    const nx = EPS[S.queue[0]];
+    st.t1.innerHTML = ""; const b = document.createElement("b"); b.textContent = nx ? nx.title : ""; st.t1.append("Up next: ", b);
+    st.t2.textContent = "Starting in a moment";
+  } else {
+    st.t1.textContent = { ready: `Episode ready · ${mins(ep)}`, done: `Listened · ${mins(ep)}`, stopped: "Stopped" }[s];
+    st.t2.textContent = { ready: "Two hosts · tap to play", done: "Played to the end", stopped: "" }[s];
+  }
+  if (was && was !== s) changed(st, was, s);
+}
+function changed(st, from, to) {
+  const swap = (from === "playing" && to === "paused") || (from === "paused" && to === "playing");
+  if (!swap) play(st.smain, [{ opacity: 0, transform: "translateY(5px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: EASE });
+  const g = st.el.querySelector(GLYPH[to] || ".g-play");
+  if (from === "making" && to === "ready") {
+    const s0 = st.ringOuter;
+    play(st.pring, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: `scale(${(1 / s0).toFixed(3)})` }], { duration: 260, easing: EASE });
+    play(st.disc, [{ transform: `scale(${s0.toFixed(3)})`, opacity: 0 }, { transform: "scale(1.08)", opacity: 1, offset: 0.7 }, { transform: "scale(1)", opacity: 1 }], { duration: 400, easing: EASE, fill: "backwards" });
+    play(g, [{ opacity: 0, transform: "scale(0.4) rotate(-25deg)" }, { opacity: 1, transform: "none" }], { duration: 260, delay: 220, easing: "cubic-bezier(.3,1.4,.5,1)", fill: "backwards" });
+    play(st.pulse, [{ transform: "scale(1)", opacity: 0.5 }, { transform: "scale(1.7)", opacity: 0 }], { duration: 620, delay: 260 });
+  } else if (to === "done") {
+    play(g, [{ strokeDashoffset: 100 }, { strokeDashoffset: 0 }], { duration: 340, delay: 60, easing: EASE, fill: "backwards" });
+    play(st.disc, [{ transform: "scale(0.85)" }, { transform: "scale(1)" }], { duration: 300, easing: "cubic-bezier(.3,1.5,.5,1)" });
+  } else if (g && from !== "making") {
+    play(g, [{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], { duration: 180, easing: EASE });
+  }
+}
+function paintTimeOne(st) {
+  if (st.el.dataset.s !== "playing" && st.el.dataset.s !== "paused") return;
+  if (st.card && A.reader && byId(A.reader) !== cur()) return;
+  const ep = cur(), name = chapter(ep, S.t);
+  if (st.t1.textContent !== name) st.t1.textContent = name;
+  st.tm.textContent = `${fmt(S.t)} / ${fmt(ep.dur)}`;
+  st.el.style.setProperty("--pct", (S.t / ep.dur).toFixed(4));
+  st.sbar.setAttribute("aria-valuemax", String(ep.dur));
+  st.sbar.setAttribute("aria-valuenow", String(Math.round(S.t)));
+  st.sbar.setAttribute("aria-valuetext", `${fmt(S.t)} of ${fmt(ep.dur)}`);
+}
+function paintTime() { for (const st of strips) paintTimeOne(st); paintLock(); if (A.view === "lib" && A.tab === "podcasts") paintRows(); }
+
+// The stop confirm, as approved: Keep after five seconds, or a tap elsewhere.
+let confirmTimer = 0;
+function askStop(st) {
+  if (S.state !== "making") return;
+  S.confirm = true; for (const s of strips) paintStrip(s);
+  st.keep.focus({ preventScroll: true });
+  announce("Stop this episode? Keep, or Stop.");
+  clearTimeout(confirmTimer); confirmTimer = setTimeout(keepGoing, 5000);
+}
+function keepGoing() { if (!S.confirm) return; S.confirm = false; clearTimeout(confirmTimer); for (const s of strips) paintStrip(s); }
+document.addEventListener("pointerdown", (e) => { if (S.confirm && !e.target.closest(".sconfirm")) keepGoing(); }, true);
+
+// ── Playback clock ───────────────────────────────────────────────────
+let raf = 0, lastT = 0;
+function startTick() { if (raf) return; lastT = performance.now(); raf = requestAnimationFrame(tick); }
+function tick(now) {
+  raf = 0;
+  if (S.state !== "playing") return;
+  const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
+  if (!S.dragging) S.t = Math.min(cur().dur, S.t + dt);
+  if (S.t >= cur().dur) { ended(); return; }
+  paintTime();
+  raf = requestAnimationFrame(tick);
+}
+
+let hideTimer = 0;
+function setState(next, { t } = {}) {
+  clearTimeout(hideTimer);
+  S.confirm = false; clearTimeout(confirmTimer);
+  const prev = S.state;
+  S.state = next;
+  if (t != null) S.t = t;
+  if (next === "making" && prev !== "making") { P.shown = 0; P.step = 0; startMaking(0.35); }
+  if (next === "playing") startTick();
+  if (next === "done") hideTimer = setTimeout(() => setState("idle"), 2600);
+  if (next === "stopped") hideTimer = setTimeout(() => setState("idle"), 1500);
+  if (next === "idle" && prev === "done") { cur().listened = true; cur().t = 0; }
+  if (next === "playing" && prev !== "playing") announce(`Playing: ${cur().title}`);
+  if (next === "paused") announce("Paused");
+  if (next === "done") announce(`Listened: ${cur().title}`);
+  render();
+}
+/** The end: with a queue running, show what's next, then move on; otherwise Listened, then fold. */
+function ended() {
+  S.t = cur().dur;
+  if (S.queue.length) {
+    setState("next");
+    hideTimer = setTimeout(() => { const i = S.queue.shift(); cur().listened = true; cur().t = 0; switchTo(i, { t: 0, quiet: true }); }, reduce ? 1400 : 1900);
+    announce(`Up next: ${EPS[S.queue[0]].title}`);
+  } else setState("done");
+}
+/** Another episode: the row stays open, and its text and progress crossfade in place. */
+function switchTo(i, { t = 0, quiet = false } = {}) {
+  const rowWasOpen = rowOn();
+  if (!quiet) S.queue = [];
+  const old = cur();
+  if (old !== EPS[i] && !["making", "done", "next", "idle"].includes(S.state)) old.t = S.t;
+  const apply = () => { S.ep = i; S.state = "playing"; S.t = t; S.confirm = false; clearTimeout(hideTimer); startTick(); render(); announce(`Playing: ${cur().title}`); };
+  const homes = strips.filter((st) => !st.card).map((st) => st.smain);
+  if (!rowWasOpen || reduce) { apply(); return; }
+  for (const h of homes) play(h, [{ opacity: 1 }, { opacity: 0 }], { duration: 130, easing: "ease-in", fill: "forwards" });
+  setTimeout(() => {
+    apply();
+    for (const h of homes) { h.getAnimations().forEach((a) => a.cancel()); play(h, [{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { duration: 200, easing: EASE }); }
+  }, 130);
+}
+
+// ── The pill's controls: they morph when the screen changes; the row above them doesn't ──
+let ctl = null;
+function controlsSpec() {
+  const tog = (open) => ({ b: open ? "close" : "menu", act: "menu", blue: true, label: open ? "Close menu" : "Open menu", expanded: open });
+  if (A.reader) {
+    const p = byId(A.reader);
+    if (A.menu) return { key: "menuread", items: [{ k: `No. ${p.no}`, v: "Reading" }, tog(true)] };
+    return { key: "read", items: [{ b: "save", act: "save", label: "Save" }, { status: "6 min left" }, { b: "down", act: "next", label: "Next section" }, { b: "more", act: "more", blue: true, label: "More" }] };
+  }
+  if (A.view.startsWith("piece:")) {
+    const p = byId(A.view.slice(6)), page = p.piece + 1, count = p.of + 2;
+    return { key: `pager:${p.no}`, items: [{ b: "up", act: "up", label: "Previous page" }, { k: `No. ${p.no}`, v: `${page} / ${count}` }, { b: "down", act: "down", label: "Next page" }, tog(A.menu)] };
+  }
+  if (A.view === "today") return { key: "pager:today", items: [{ b: "up", act: "up", label: "Previous page", dim: true }, { k: "Today", v: "1 / 6" }, { b: "down", act: "down", label: "Next page" }, tog(A.menu)] };
+  const lab = { lib: ["Library", { saved: "Saved", letters: "Letters", podcasts: "Podcasts" }[A.tab]], act: ["Activity", "October"], pref: ["Settings", "Preferences"] }[A.view];
+  return { key: `screen:${A.view}`, items: [{ k: lab[0], v: lab[1] }, tog(A.menu)] };
+}
+function itemsHTML(items) {
+  return items.map((it) => {
+    if (it.k) return `<div class="plabel" role="text" aria-label="${it.k}, ${it.v}"><span class="k">${it.k}</span><span class="v">${it.v}</span></div>`;
+    if (it.status) return `<div class="pstatus"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.2)" stroke-width="2.6"/><circle cx="12" cy="12" r="9" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="75"/></svg><span>${it.status}</span></div>`;
+    return `<button class="pb${it.blue ? " blue" : ""}" type="button" data-act="${it.act}" aria-label="${it.label}"${it.dim ? ' aria-disabled="true"' : ""}${it.expanded != null ? ` aria-expanded="${it.expanded}"` : ""}>${I[it.b]}</button>`;
+  }).join("");
+}
+function setControls() {
+  const spec = controlsSpec();
+  const html = itemsHTML(spec.items);
+  if (ctl && ctl.key === spec.key) {
+    // Same mode: the contents just update (time left ticking, the menu button turning into ×).
+    if (ctl.html !== html) {
+      const focusAct = document.activeElement?.closest?.(".pset")?.querySelector(":focus")?.dataset.act;
+      ctl.el.innerHTML = html; ctl.html = html;
+      if (focusAct) ctl.el.querySelector(`[data-act="${focusAct}"]`)?.focus({ preventScroll: true });
+    }
+    return;
+  }
+  const el = document.createElement("div");
+  el.className = "pset"; el.setAttribute("role", "toolbar"); el.setAttribute("aria-label", spec.key.startsWith("read") ? "Reading" : "Navigation");
+  el.innerHTML = html;
+  if (ctl) {
+    // The old contents fade and shrink a touch; the new ones fade up in turn.
+    const old = ctl.el;
+    old.classList.add("gone"); old.inert = true; old.removeAttribute("role");
+    const out = play(old, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }], { duration: 120, easing: "cubic-bezier(.33,1,.68,1)", fill: "forwards" });
+    if (out) out.onfinish = () => old.remove(); else old.remove();
+    [...el.children].forEach((c, i) => play(c, [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 180, delay: 60 + i * 25, easing: "cubic-bezier(.33,1,.68,1)", fill: "backwards" }));
+  }
+  pbtns.appendChild(el);
+  ctl = { key: spec.key, el, html };
+}
+pbtns.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]");
+  if (!b || b.getAttribute("aria-disabled") === "true" || b.closest(".gone")) return;
+  flowId++;
+  act(b.dataset.act, b);
+});
+function act(name, b) {
+  if (name === "menu") { A.menu = !A.menu; render(); return; }
+  if (name === "more") { A.menu = true; render(); return; }
+  if (name === "save") { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(on)); b.classList.toggle("saved", on); ctl.html = ctl.el.innerHTML; return; }
+  if (name === "next") { const sc = $("#rscroll"); const h = [...sc.querySelectorAll("h3")].find((x) => x.offsetTop > sc.scrollTop + 40); if (h) sc.scrollTo({ top: h.offsetTop - 20, behavior: reduce ? "auto" : "smooth" }); return; }
+  if (name === "up" || name === "down") {
+    A.menu = false;
+    const order = ["e3", "p3", "e4"];
+    const id = A.view.startsWith("piece:") ? A.view.slice(6) : null;
+    const i = order.indexOf(id);
+    if (i < 0) return;
+    const j = i + (name === "down" ? 1 : -1);
+    if (j >= 0 && j < order.length) go("piece:" + order[j]);
+  }
+}
+
+// ── Sizing (as Pill.tsx: the pill takes the wider of its controls and the row) ──
+function rowOn() {
+  if (!ACTIVE.includes(S.state)) return false;
+  // On the Podcasts tab, an episode being made shows in its own list row instead.
+  if (S.state === "making" && A.view === "lib" && A.tab === "podcasts" && !A.reader) return false;
+  return true;
+}
+function sizePill(p, pset, on) {
+  const w = Math.ceil(pset.offsetWidth);
+  const max = Math.floor(300 * 0.94);
+  const rw = Math.min(max, Math.max(w, STATUS_W));
+  p.style.setProperty("--pw", `${on ? rw : Math.min(max, w)}px`);
+  if (on) p.querySelector(".prow-in").style.setProperty("--rw", `${rw}px`);
+  return { w, rw };
+}
+
+// ── Navigation ───────────────────────────────────────────────────────
+function go(view) {
+  if (A.reader) closeReader(false);
+  A.menu = false;
+  if (view === "lib" && A.view !== "lib") { A.tab = A.tab || "saved"; renderTab(); }
+  A.view = view;
+  render();
+}
+/** Tap the row's text: back to that piece's letter at that piece, the article up, the Listen card flashing once. */
+function goToPiece(id = cur().id) {
+  const p = byId(id);
+  const target = "piece:" + p.id;
+  const moved = A.view !== target;
+  A.menu = false;
+  if (A.reader === p.id) { flashCard(); render(); return; }
+  if (A.reader) closeReader(false);
+  A.view = target;
+  render();
+  setTimeout(() => openReader(p.id, true), moved && !reduce ? 200 : 0);
+}
+function openReader(id, flash) {
+  const p = byId(id);
+  A.reader = id;
+  $("#rtitle").textContent = p.title;
+  $("#rlede").textContent = p.lede;
+  $("#rby").innerHTML = ""; const s = document.createElement("strong"); s.textContent = p.author; $("#rby").append(s, ` · ${p.pub} · ${p.kicker.split(" · ")[1]}`);
+  $("#rreal").hidden = p.id !== "e3"; $("#rghost").hidden = p.id === "e3";
+  $("#rscroll").scrollTop = 0;
+  $("#reader").setAttribute("aria-hidden", "false");
+  screen.classList.add("reading");
+  render();
+  if (flash) setTimeout(flashCard, reduce ? 0 : 340);
+}
+function flashCard() {
+  const c = $("#lcard");
+  c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash");
+  setTimeout(() => cardStrip.sico.focus({ preventScroll: true }), reduce ? 0 : 200);
+}
+function closeReader(doRender = true) {
+  A.reader = null; A.menu = false;
+  screen.classList.remove("reading");
+  $("#reader").setAttribute("aria-hidden", "true");
+  if (doRender) render();
+}
+$("#rclose").addEventListener("click", () => { flowId++; closeReader(); });
+viewsEl.addEventListener("click", (e) => {
+  const r = e.target.closest("[data-read]"), l = e.target.closest("[data-listen]");
+  if (r && !byId(r.dataset.read).video) { flowId++; openReader(r.dataset.read, false); }
+  if (l) { flowId++; const ep = byId(l.dataset.listen); if (ep === cur() && ACTIVE.includes(S.state)) goToPiece(ep.id); else openReader(ep.id, true); }
+});
+prowIn.addEventListener("click", (e) => { if (!e.target.closest(".sico, .sbar, .sx, .sconfirm")) { flowId++; goToPiece(); } });
+$("#mscrim").addEventListener("click", () => { flowId++; A.menu = false; render(); });
+
+// The menu sheet's items (MenuSheet.tsx); the current destination is blue.
+const MENU = [["today", "Today", "No. 15 · 4 pieces"], ["lib", "Library", "2 saved · 15 letters"], ["act", "Activity", "14 days in Oct"], ["pref", "Preferences", "Brief, sources, schedule"]];
+$("#mitems").innerHTML = MENU.map(([k, w, s]) => `<button class="mi" type="button" role="menuitem" data-go="${k}"><span class="w">${w}</span><span class="s">${s}</span></button>`).join("");
+$("#mitems").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) { flowId++; go(b.dataset.go); } });
+
+// ── Render ───────────────────────────────────────────────────────────
+const NAMES = { "piece:e3": "No. 14 · Piece 2", "piece:p3": "No. 14 · Piece 3", "piece:e4": "No. 14 · Piece 4", "piece:e5": "No. 13 · Piece 1", today: "Today · No. 15 cover", lib: "Library", act: "Activity", pref: "Preferences" };
+function render() {
+  for (const [k, v] of Object.entries(views)) { v.classList.toggle("on", k === A.view); v.inert = k !== A.view || !!A.reader; }
+  screen.classList.toggle("menu", A.menu);
+  $("#msheet").setAttribute("aria-hidden", String(!A.menu));
+  $("#msheet").inert = !A.menu;
+  for (const b of document.querySelectorAll(".mi")) { if (b.dataset.go === A.view && !A.view.startsWith("piece")) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+  const on = rowOn();
+  screen.classList.toggle("has-row", on);
+  for (const st of strips) paintStrip(st);
+  setControls();
+  sizePill(pill, ctl.el, on);
+  for (const f of fits) { const m = sizePill(f.pill, f.pset, true); f.meas.textContent = `Row ${m.rw}px · controls ${m.w}px`; }
+  for (const b of viewsEl.querySelectorAll("[data-listen]")) b.classList.toggle("on", b.dataset.listen === cur().id && ["making", "ready", "playing", "paused"].includes(S.state));
+  if (A.view === "lib" && A.tab === "podcasts") paintRows();
+  paintLock();
+  $("#cap").textContent = (A.reader ? `${NAMES["piece:" + A.reader] ?? ""} · article, at its Listen card` : NAMES[A.view] + (A.view === "lib" ? ` · ${A.tab[0].toUpperCase() + A.tab.slice(1)}` : "")) + (A.menu ? " · menu open" : "");
+  for (const b of document.querySelectorAll("#screenBtns button")) b.setAttribute("aria-pressed", String(SCREENS.find((s) => s[0] === b.dataset.screen).test()));
+  for (const b of document.querySelectorAll("#stateBtns button")) b.setAttribute("aria-pressed", String(b.dataset.state === S.state));
+}
+
+// ── The lock screen ──────────────────────────────────────────────────
+const lock = { np: $("#np"), art: null };
+function paintLock() {
+  const show = ["playing", "paused", "done", "next"].includes(S.state);
+  lock.np.classList.toggle("off", !show);
+  lock.np.inert = !show;
+  $("#lquiet").classList.toggle("on", !show);
+  const ep = cur();
+  if (lock.art !== ep.id) { lock.art = ep.id; $("#npart").innerHTML = coverArt(ep.art); $("#npt").textContent = ep.title; $("#nps").textContent = `Founder Signal · No. ${ep.no} · Piece ${ep.piece}`; }
+  const playing = S.state === "playing";
+  $("#npplay").setAttribute("aria-label", playing ? "Pause" : "Play");
+  $("#npplay .ppause").style.display = playing ? "" : "none";
+  $("#npplay .pplay").style.display = playing ? "none" : "";
+  $("#npbar").style.setProperty("--pct", (S.t / ep.dur).toFixed(4));
+  $("#npbar").setAttribute("aria-valuemax", String(ep.dur)); $("#npbar").setAttribute("aria-valuenow", String(Math.round(S.t)));
+  $("#npel").textContent = fmt(S.t); $("#nprem").textContent = `-${fmt(Math.max(0, ep.dur - S.t))}`;
+}
+$("#npplay").addEventListener("click", () => { flowId++; if (S.state === "playing") setState("paused"); else if (S.state === "paused") setState("playing"); });
+const nudge = (d) => { if (S.state !== "playing" && S.state !== "paused") return; flowId++; S.t = clamp(S.t + d, 0, cur().dur - 1); paintTime(); };
+$("#npback").addEventListener("click", () => nudge(-15));
+$("#npfwd").addEventListener("click", () => nudge(15));
+{
+  const bar = $("#npbar");
+  const seek = (e) => { const b = bar.getBoundingClientRect(); S.t = clamp((e.clientX - b.left) / b.width) * (cur().dur - 1); paintTime(); };
+  bar.addEventListener("pointerdown", (e) => { if (S.state !== "playing" && S.state !== "paused") return; e.preventDefault(); bar.setPointerCapture(e.pointerId); S.dragging = true; seek(e); });
+  bar.addEventListener("pointermove", (e) => { if (bar.hasPointerCapture(e.pointerId)) seek(e); });
+  const up = () => { S.dragging = false; lastT = performance.now(); };
+  bar.addEventListener("pointerup", up); bar.addEventListener("pointercancel", up);
+  bar.addEventListener("keydown", (e) => { const d = { ArrowRight: 15, ArrowLeft: -15 }[e.key]; if (d) { e.preventDefault(); nudge(d); } });
+}
+
+// ── The row on every pill ────────────────────────────────────────────
+const FITS = [
+  { name: "Piece page", note: "The pager: up, the page, down, menu. 240px, so the pill widens to the row.", items: [{ b: "up", act: "", label: "Previous page" }, { k: "No. 14", v: "3 / 6" }, { b: "down", act: "", label: "Next page" }, { b: "menu", act: "", blue: true, label: "Open menu" }] },
+  { name: "Library, Activity, Preferences", note: "Only the screen's name and the menu button. The narrowest pill: the controls sit centred under the 264px row.", items: [{ k: "Library", v: "Saved" }, { b: "menu", act: "", blue: true, label: "Open menu" }] },
+  { name: "Menu open on a piece", note: "The menu button turns into ×. Nothing else moves, so the row doesn't either.", items: [{ b: "up", act: "", label: "Previous page" }, { k: "No. 14", v: "3 / 6" }, { b: "down", act: "", label: "Next page" }, { b: "close", act: "", blue: true, label: "Close menu" }] },
+  { name: "Menu open in the article", note: "The letter's name, Reading, and ×. Narrow again, centred under the row.", items: [{ k: "No. 14", v: "Reading" }, { b: "close", act: "", blue: true, label: "Close menu" }] },
+  { name: "Reading the article", note: "Save, time left, next section, more. The only set wider than the row, so the row takes its width.", items: [{ b: "save", act: "", label: "Save" }, { status: "6 min left" }, { b: "down", act: "", label: "Next section" }, { b: "more", act: "", blue: true, label: "More" }] },
+];
+const fits = [];
+for (const f of FITS) {
+  const fig = document.createElement("figure");
+  fig.className = "fit";
+  fig.innerHTML = `<div class="pill"><div class="prow"><div><div class="prow-in"></div></div></div><div class="pbtns"><div class="pset" aria-hidden="true">${itemsHTML(f.items)}</div></div></div><figcaption><span class="meas"></span><b>${f.name}</b><span>${f.note}</span></figcaption>`;
+  $("#fits").appendChild(fig);
+  for (const b of fig.querySelectorAll(".pset button")) b.tabIndex = -1;
+  const st = makeStrip(fig.querySelector(".prow-in"), "dark", 28);
+  st.static = true;
+  st.sbar.tabIndex = -1; st.sico.tabIndex = -1; st.sx.tabIndex = -1;
+  fits.push({ pill: fig.querySelector(".pill"), pset: fig.querySelector(".pset"), meas: fig.querySelector(".meas") });
+}
+
+const rowStrip = makeStrip(prowIn, "dark", 28);
+const cardStrip = makeStrip($("#lcard"), "light", 32, { card: true });
+
+// ── Page controls ────────────────────────────────────────────────────
+const SCREENS = [
+  ["piece:e3", "Piece 2", () => go("piece:e3"), () => A.view === "piece:e3" && !A.reader && !A.menu],
+  ["piece:p3", "Piece 3", () => go("piece:p3"), () => A.view === "piece:p3" && !A.reader && !A.menu],
+  ["menu", "Menu open", () => { if (A.reader) closeReader(false); A.menu = true; render(); }, () => A.menu],
+  ["lib", "Library", () => { A.tab = "saved"; go("lib"); }, () => A.view === "lib" && A.tab !== "podcasts" && !A.menu],
+  ["pods", "Podcasts tab", () => { A.tab = "podcasts"; go("lib"); renderTab(); render(); }, () => A.view === "lib" && A.tab === "podcasts" && !A.menu],
+  ["act", "Activity", () => go("act"), () => A.view === "act" && !A.menu],
+  ["pref", "Preferences", () => go("pref"), () => A.view === "pref" && !A.menu],
+  ["today", "Today", () => go("today"), () => A.view === "today" && !A.menu],
+  ["reader", "Back at the piece", () => goToPiece(), () => !!A.reader && !A.menu],
+];
+SCREENS.forEach((s) => { s.test = s[3]; });
+for (const [key, label, fn] of SCREENS) {
+  const b = document.createElement("button");
+  b.className = "ctl"; b.type = "button"; b.dataset.screen = key; b.textContent = label;
+  b.addEventListener("click", () => { flowId++; fn(); });
+  $("#screenBtns").appendChild(b);
+}
+const STATE_BTNS = [
+  ["playing", "Playing", () => { if (S.state === "paused") setState("playing"); else if (S.state !== "playing") restart(); }],
+  ["paused", "Paused", () => { if (S.state !== "playing" && S.state !== "paused") restart(); setState("paused"); }],
+  ["making", "Making", () => { S.queue = []; S.ep = 0; setState("making"); }],
+  ["done", "Ends", () => { S.queue = []; ensureRow(); S.t = cur().dur - 4; setState("playing"); }],
+  ["swap", "Another starts", () => anotherStarts()],
+  ["next", "Up next", () => { ensureRow(); S.ep = 0; S.queue = [2]; S.t = cur().dur - 4; setState("playing"); }, true],
+];
+function restart() { S.queue = []; S.ep = 0; EPS[0].listened = false; setState("playing", { t: 72 }); }
+function ensureRow() { if (!["playing", "paused"].includes(S.state)) restart(); }
+async function anotherStarts() {
+  const my = flowId;
+  ensureRow();
+  if (S.ep !== 0) switchTo(0, { t: 72 });
+  A.tab = "podcasts"; go("lib"); renderTab(); render();
+  await new Promise((r) => setTimeout(r, 900));
+  if (my !== flowId) return;
+  const b = rowEls.get("e5")?.querySelector(".eb");
+  play(b, [{ transform: "scale(1)" }, { transform: "scale(0.86)" }, { transform: "scale(1)" }], { duration: 240 });
+  switchTo(1, { t: EPS[1].t || 130 });
+}
+for (const [key, label, fn, opt] of STATE_BTNS) {
+  const b = document.createElement("button");
+  b.className = "ctl"; b.type = "button"; b.dataset.state = key;
+  b.innerHTML = opt ? `${label} <span class="opt">(optional)</span>` : label;
+  b.addEventListener("click", () => { flowId++; fn(); });
+  $("#stateBtns").appendChild(b);
+}
+
+const live = $("#live");
+function announce(text) { live.textContent = ""; requestAnimationFrame(() => (live.textContent = text)); }
+
+// ── The tour: one episode, followed across the app ────────────────────
+let flowId = 0;
+async function tour() {
+  const my = ++flowId;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms)).then(() => { if (my !== flowId) throw new Error("stopped"); });
+  const press = (el) => play(el, [{ transform: "scale(1)" }, { transform: "scale(0.88)" }, { transform: "scale(1)" }], { duration: 240, easing: "ease-out" });
+  const pillBtn = (a) => ctl.el.querySelector(`[data-act="${a}"]`);
+  try {
+    reset();
+    await wait(1800);
+    press(pillBtn("down")); act("down"); await wait(2400);          // the next piece
+    press(pillBtn("menu")); act("menu"); await wait(2000);          // the menu: the row stays above it
+    press($('.mi[data-go="lib"]')); go("lib"); await wait(2400);    // Library, Saved
+    act("menu"); await wait(900); go("act"); await wait(2400);      // Activity
+    act("menu"); await wait(900); go("pref"); await wait(2400);     // Preferences
+    act("menu"); await wait(900); go("today"); await wait(2400);    // Today's cover
+    press(rowStrip.smain); goToPiece(); await wait(2000);           // tap the row's text: back to the piece
+  } catch { /* replaced by a newer choice */ }
+}
+function reset() {
+  clearTimeout(hideTimer);
+  EPS.forEach((e) => { if (e.id === "e5") e.t = 130; else if (e.id !== "e6") { e.t = 0; e.listened = false; } });
+  S.queue = []; S.ep = 0; S.confirm = false;
+  if (A.reader) closeReader(false);
+  A.menu = false; A.tab = "saved"; A.view = "piece:e3";
+  renderTab();
+  setState("playing", { t: 72 });
+}
+$("#tourBtn").addEventListener("click", tour);
+$("#resetBtn").addEventListener("click", () => { flowId++; reset(); });
+
+renderTab();
+setState("playing", { t: 72 });
+document.fonts?.ready.then(render);
+</script>

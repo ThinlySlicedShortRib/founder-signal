@@ -1,4 +1,4 @@
-import { type Href, router, useFocusEffect } from "expo-router";
+import { type Href, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,7 +21,9 @@ const HEADINGS: Record<Tab, string> = { saved: "Saved", letters: "Letters", podc
 export default function Library() {
   const insets = useSafeAreaInsets();
   const { space } = usePillSpace();
-  const [tab, setTab] = useState<Tab>("saved");
+  // Opened from the pill's panel ("All episodes in Podcasts"): on the Podcasts tab.
+  const params = useLocalSearchParams<{ tab?: string; at?: string }>();
+  const [tab, setTab] = useState<Tab>(params.tab === "podcasts" ? "podcasts" : "saved");
   const saved = useSaved();
   const letters = useLetters();
   const today = useTodayLetter();
@@ -33,6 +35,13 @@ export default function Library() {
     if (t === "podcasts" && tab !== "podcasts") setGroups(snapshotGroups(podcastLibrary.entries()));
     setTab(t);
   };
+  // Asked again while the screen is open: the tab switches (the focus effect below takes its groups).
+  const asked = params.tab === "podcasts" ? (params.at ?? null) : null;
+  const [seenAsk, setSeenAsk] = useState(asked);
+  if (asked !== seenAsk) {
+    setSeenAsk(asked);
+    if (asked) setTab("podcasts");
+  }
   // Coming back to the screen on the Podcasts tab opens it afresh; and while it shows, the pill's row is for playback only.
   useFocusEffect(
     useCallback(() => {

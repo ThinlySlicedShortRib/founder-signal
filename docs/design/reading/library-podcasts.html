@@ -1,0 +1,1079 @@
+<title>Library Podcasts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a header and control rows, then one phone (the Library) beside the notes; they stack below 760px. */
+:root {
+  --ground: #FBFBFA; --ink: #121316; --muted: #5B5F68; --line: #E2E4E8; --card: #FFFFFF; --accent: #2B4BFF; --bezel: #121316;
+  /* The app itself is light only; these stay the same in both page themes. */
+  --app-ground: #FBFBFA; --app-surface: #FFFFFF; --app-ink: #121316; --app-lede: #3A3D44; --app-muted: #5B5F68; --app-rule: #EEF0F4; --app-grab: #D6D8DE;
+  --app-blue: #2B4BFF; --app-blue-mid: #8FA1FF; --app-tint: #EEF2FF; --app-tint-line: #DCE3FF; --app-orange: #FF5A1F; --app-pill: #121316; --app-pill-muted: #9EA3AD;
+  --tint-0: #DCE3FF; --tint-1: #FFE3D6; --tint-2: #ECEEF2;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --strip-ms: 220ms;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; color-scheme: dark } }
+:root[data-theme="dark"] { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; color-scheme: dark }
+
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.page { max-width: 1100px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+header { display: grid; gap: 12px; max-width: 70ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+.controls { display: grid; gap: 12px; }
+.crow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.clabel { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); min-width: 52px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+button.ctl { font: 600 13.5px/1 var(--body); border-radius: 999px; padding: 10px 15px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+button.ctl[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+button:focus-visible, [role="slider"]:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint-text { color: var(--muted); font-size: 13px; }
+
+.stage { display: grid; grid-template-columns: 316px minmax(0, 1fr); gap: 28px 44px; align-items: start; }
+.phonecol { display: grid; gap: 12px; width: 316px; max-width: 100%; }
+.cap { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+.notes { display: grid; gap: 22px; max-width: 62ch; min-width: 0; }
+.notes section { display: grid; gap: 6px; }
+.notes h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.notes p, .notes li { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.notes b { color: var(--ink); font-weight: 600; }
+.tag { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+@media (max-width: 760px) { .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; } .notes { justify-self: stretch; } }
+
+/* ── The phone (from async-status.html) ───────────────────────── */
+.phone { box-sizing: border-box; width: 316px; max-width: 100%; padding: 8px; border-radius: 46px; background: var(--bezel); box-shadow: 0 18px 40px rgba(18,19,22,0.18); }
+.screen { position: relative; width: 300px; height: 620px; max-width: 100%; border-radius: 38px; overflow: hidden; background: var(--app-ground); isolation: isolate; font-family: var(--body); color: var(--app-ink); }
+.sysbar { position: absolute; top: 0; left: 0; right: 0; height: 44px; z-index: 8; display: flex; justify-content: space-between; align-items: center; padding: 6px 28px 0; font: 600 13px/1 var(--body); color: var(--app-ink); pointer-events: none; }
+.notch { position: absolute; left: 50%; top: 9px; width: 86px; height: 24px; margin-left: -43px; border-radius: 14px; background: #000; z-index: 9; }
+.home { position: absolute; left: 50%; bottom: 7px; width: 110px; height: 4px; margin-left: -55px; border-radius: 3px; background: var(--app-ink); z-index: 9; pointer-events: none; }
+.mono { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* ── The Library page ─────────────────────────────────────────── */
+.lib { position: absolute; inset: 0; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 50px 14px 96px; display: flex; flex-direction: column; gap: 10px; transition: padding-bottom var(--strip-ms) cubic-bezier(.2,.8,.2,1); }
+.lib::-webkit-scrollbar { display: none; }
+.screen.has-row .lib { padding-bottom: 141px; }
+.lk { padding: 0 4px; color: var(--app-muted); }
+.lt { margin: -4px 0 0; padding: 0 4px; font-family: var(--display); font-weight: 700; font-size: 46px; line-height: 48px; letter-spacing: -0.03em; }
+/* .seg2 from PagerScreen, now with three tabs: same 1.5px ink rim, 3px inset, ink on the selected one. */
+.seg3 { display: flex; border: 1.5px solid var(--app-ink); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg3 button { flex: 1; min-width: 0; min-height: 36px; border: 0; border-radius: 999px; background: transparent; font: 600 14px/1 var(--body); color: var(--app-ink); cursor: pointer; padding: 0 4px; }
+.seg3 button[aria-selected="true"] { background: var(--app-ink); color: #FFFFFF; }
+
+/* Saved and Letters (as they are today): big tinted tiles. */
+.tile { min-height: 124px; box-sizing: border-box; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; background: var(--tint); }
+.tile .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--app-lede); }
+.tile .go { width: 32px; height: 32px; border-radius: 50%; background: #FFFFFF; display: grid; place-items: center; color: var(--app-blue); flex: none; }
+.tile .go svg { width: 16px; height: 16px; }
+.tile .tt { font-family: var(--display); font-weight: 700; font-size: 21px; line-height: 22.5px; letter-spacing: -0.025em; }
+.tile .tm2 { font-size: 13px; color: var(--app-lede); margin-top: 5px; }
+.tile .big { font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 42px; letter-spacing: -0.03em; color: var(--app-ink); }
+.lnote { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--app-muted); }
+
+/* Podcasts: the toolbar (optional "Play all new") */
+.tbar { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.pan { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px 0 6px; border-radius: 999px; border: 1.5px solid var(--app-ink); background: var(--app-surface); font: 600 13px/1 var(--body); color: var(--app-ink); cursor: pointer; white-space: nowrap; }
+.pan .d { width: 22px; height: 22px; border-radius: 50%; background: var(--app-blue); display: grid; place-items: center; }
+.pan .d svg { width: 10px; height: 10px; fill: #FFFFFF; }
+.pan[aria-pressed="true"] { background: var(--app-ink); color: #FFFFFF; }
+.pan:disabled { opacity: 0.45; cursor: default; }
+.tcount { margin-left: auto; color: var(--app-muted); white-space: nowrap; }
+.gh { margin: 10px 4px -2px; color: var(--app-muted); display: flex; gap: 6px; }
+.gh:first-of-type { margin-top: 4px; }
+
+/* ── An episode: one DOM, two layouts (list rows, the pick; tinted cards) ── */
+.eps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.lib[data-view="cards"] .eps { gap: 10px; }
+.ep { position: relative; border-radius: 16px; --s-ink: var(--app-ink); --s-ghost: rgba(18,19,22,0.2); --s-fill: var(--app-blue); transition: height 220ms cubic-bezier(.2,.8,.2,1), opacity 180ms; }
+.lib[data-view="cards"] .ep { border-radius: 22px; }
+.ep.gone { opacity: 0; overflow: hidden; }
+/* Behind the row: Remove, shown as the row slides left. */
+.ep-bg { position: absolute; top: 0; bottom: 0; right: 0; left: 40%; border-radius: inherit; background: var(--app-orange); display: flex; justify-content: flex-end; opacity: 0; }
+.ep.swiping .ep-bg { opacity: 1; }
+.ep.swiping { overflow: hidden; }
+.rm { width: 84px; border: 0; background: transparent; font: 600 13.5px/1 var(--body); color: var(--app-ink); cursor: pointer; }
+.ep-in { --row: var(--app-ground); position: relative; box-sizing: border-box; border-radius: inherit; background: var(--row); transform: translateX(var(--dx, 0px)); transition: transform 220ms cubic-bezier(.2,.8,.2,1), background-color 200ms; touch-action: pan-y; user-select: none; -webkit-user-select: none;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "b t x"; column-gap: 12px; align-items: center; padding: 11px 8px; }
+.lib[data-view="list"] .ep + .ep::before { content: ""; position: absolute; z-index: 1; top: 0; left: 60px; right: 8px; height: 1px; background: var(--app-rule); }
+.lib[data-view="list"] .ep:is([data-s="playing"], [data-s="paused"]) .ep-in { --row: var(--app-tint); }
+.lib[data-view="list"] .ep:is([data-s="playing"], [data-s="paused"])::before, .lib[data-view="list"] .ep:is([data-s="playing"], [data-s="paused"]) + .ep::before { opacity: 0; }
+.ek { grid-area: k; display: none; color: var(--app-lede); }
+
+.eb { grid-area: b; width: 40px; height: 40px; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; align-self: center; }
+.eb svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.eb svg > * { opacity: 0; transition: opacity 140ms; }
+.eb .ebg { opacity: 1; fill: var(--app-blue); transition: fill 200ms; }
+.eb .gl { fill: #FFFFFF; }
+.eb .gc { fill: none; stroke: var(--app-muted); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.etr { fill: none; stroke: rgba(18,19,22,0.14); stroke-width: 2.4; }
+.etk { stroke: rgba(18,19,22,0.36); stroke-width: 1.4; }
+.earc { fill: none; stroke: var(--app-blue); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 100; }
+.ep:is([data-s="ready"], [data-s="partial"], [data-s="paused"]) :is(.gp),
+.ep[data-s="playing"] .gpa,
+.ep[data-s="listened"] .gc,
+.ep[data-s="failed"] .gb,
+.ep[data-s="making"] :is(.etr, .etk, .earc) { opacity: 1; }
+.ep:is([data-s="making"], [data-s="listened"]) .ebg { fill: var(--tint); }
+.ep[data-s="failed"] .ebg { fill: var(--app-orange); }
+.ep[data-s="making"] .eb { cursor: default; }
+
+.et { grid-area: t; min-width: 0; display: grid; gap: 1px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
+.ett { font: 600 14.5px/18.5px var(--body); color: var(--app-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-wrap: pretty; }
+.em { font: 400 12px/16px var(--body); color: var(--app-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.es { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 3px; font: 500 11.5px/15px var(--body); color: var(--app-muted); font-variant-numeric: tabular-nums; }
+.elab { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep[data-s="playing"] .elab { color: var(--app-blue); }
+.ep[data-s="failed"] .elab { color: #B83A0E; }
+.ebar { display: none; flex: none; position: relative; width: 44px; height: 3px; border-radius: 2px; background: rgba(18,19,22,0.12); overflow: hidden; }
+.ebar i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--pct, 0) * 100%); background: var(--app-blue); border-radius: 2px; }
+.ep:is([data-s="partial"], [data-s="playing"], [data-s="paused"]) .ebar { display: block; }
+.edl { display: none; flex: none; width: 13px; height: 13px; color: var(--app-muted); }
+.lib[data-extras="on"] .ep.dl:not([data-s="making"]):not([data-s="failed"]) .edl { display: block; }
+/* Playing: three small bars that move, beside the time left. */
+.eq { display: none; flex: none; height: 10px; align-items: flex-end; gap: 2px; }
+.eq i { width: 2.5px; height: 100%; border-radius: 1px; background: var(--app-blue); transform-origin: 50% 100%; animation: eq 0.9s ease-in-out infinite alternate; }
+.eq i:nth-child(2) { animation-delay: -0.45s; animation-duration: 0.7s; }
+.eq i:nth-child(3) { animation-delay: -0.2s; animation-duration: 1.05s; }
+@keyframes eq { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }
+.ep[data-s="playing"] .eq { display: inline-flex; }
+/* Listened: dimmed, with a check. */
+.ep[data-s="listened"] .et { opacity: 0.55; }
+/* Making: a soft light passes over the title (as in the approved strip). */
+.ep[data-s="making"] .ett { background: linear-gradient(90deg, var(--app-ink) 0 38%, #A9ADB6 50%, var(--app-ink) 62% 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+
+.ex { grid-area: x; display: none; width: 26px; height: 26px; border-radius: 50%; border: 0; padding: 0; background: rgba(18,19,22,0.06); color: var(--app-muted); cursor: pointer; place-items: center; }
+.ex svg { width: 12px; height: 12px; }
+.ep[data-s="making"] .ex { display: grid; }
+.eretry { grid-area: x; display: none; font: 600 12.5px/1 var(--body); padding: 8px 11px; border-radius: 999px; border: 0; background: var(--app-blue); color: #FFFFFF; cursor: pointer; }
+.ep[data-s="failed"] .eretry { display: block; }
+
+/* The stop confirm, as in the approved strip: it takes over the row in place. */
+.sconfirm { position: absolute; top: 0; bottom: 0; left: 8px; right: 8px; padding-left: 4px; display: flex; align-items: center; gap: 6px; background: var(--row); opacity: 0; transform: translateY(4px); visibility: hidden; pointer-events: none; transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms; }
+.ep.confirming .sconfirm { opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.cq { flex: 1; min-width: 0; font: 600 12.5px/15px var(--body); color: var(--s-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sconfirm button { flex: none; font: 600 12px/1 var(--body); padding: 7px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.ckeep { background: transparent; color: var(--s-ink); border: 1px solid var(--s-ghost); }
+.cstop { background: var(--app-orange); color: var(--app-ink); border: 1px solid var(--app-orange); }
+
+/* Cards: the Saved tile, with the state button where its arrow is. */
+.lib[data-view="cards"] .ep-in { --row: var(--tint); grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "k x b" "t t t"; column-gap: 8px; row-gap: 16px; padding: 14px 14px 16px 16px; min-height: 140px; align-content: space-between; }
+.lib[data-view="cards"] .ek { display: block; }
+.lib[data-view="cards"] .ett { font: 700 20px/21.5px var(--display); letter-spacing: -0.025em; -webkit-line-clamp: 3; }
+.lib[data-view="cards"] .em { font-size: 12.5px; color: var(--app-lede); margin-top: 6px; }
+.lib[data-view="cards"] .es { color: var(--app-lede); }
+.lib[data-view="cards"] .ebar { background: rgba(18,19,22,0.14); }
+.lib[data-view="cards"] .ep:is([data-s="ready"], [data-s="partial"], [data-s="paused"], [data-s="making"], [data-s="listened"]) .ebg { fill: #FFFFFF; }
+.lib[data-view="cards"] .ep:is([data-s="ready"], [data-s="partial"], [data-s="paused"]) .gp { fill: var(--app-blue); }
+.lib[data-view="cards"] .ep[data-s="listened"] .ep-in { opacity: 0.7; }
+.lib[data-view="cards"] .ep[data-s="listened"] .et { opacity: 1; }
+.lib[data-view="cards"] .ep[data-s="playing"] .ep-in { box-shadow: inset 0 0 0 2px var(--app-blue); }
+.lib[data-view="cards"] .sconfirm { top: 12px; bottom: auto; height: 42px; left: 14px; right: 14px; padding-left: 0; }
+
+/* Empty */
+.empty { display: grid; justify-items: center; text-align: center; gap: 10px; padding: 30px 8px 0; }
+.empty svg.art { width: 150px; height: 112px; }
+.empty h3 { margin: 6px 0 0; font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
+.empty p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--app-lede); text-wrap: pretty; }
+.empty .look { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 8px 14px 8px 8px; border-radius: 999px; background: var(--app-rule); font-size: 12.5px; color: var(--app-lede); text-align: left; }
+.empty .look b { flex: none; width: 32px; height: 32px; border-radius: 50%; background: #25272B; display: grid; place-items: center; color: #FFFFFF; }
+.empty .look svg { width: 16px; height: 16px; }
+
+/* ── The reader (opened at its Listen card) ───────────────────── */
+.reader { position: absolute; inset: 0; z-index: 4; background: var(--app-surface); overflow-y: auto; scrollbar-width: none; transform: translateX(100%); visibility: hidden; transition: transform 300ms cubic-bezier(.2,.8,.2,1), visibility 0s linear 300ms; }
+.reader::-webkit-scrollbar { display: none; }
+.screen.reading .reader { transform: none; visibility: visible; transition: transform 300ms cubic-bezier(.2,.8,.2,1), visibility 0s; }
+.rtop { display: flex; align-items: center; gap: 10px; padding: 50px 16px 6px; }
+.rback { display: inline-flex; align-items: center; gap: 2px; height: 32px; padding: 0 12px 0 6px; border-radius: 999px; border: 0; background: var(--app-rule); font: 600 13px/1 var(--body); color: var(--app-ink); cursor: pointer; }
+.rback svg { width: 18px; height: 18px; }
+.rtop .mono { margin-left: auto; color: var(--app-muted); }
+.rart { padding: 6px 20px 170px; display: grid; gap: 14px; }
+.atitle { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.1; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.lede { margin: 0; font-size: 16px; line-height: 1.45; color: var(--app-lede); }
+.byline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--app-muted); }
+.byline b { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #f0c8a8, #8a6a5c); flex: none; }
+.byline strong { color: var(--app-ink); font-weight: 600; }
+.lcard { background: var(--app-tint); border: 1px solid var(--app-tint-line); border-radius: 16px; padding: 11px 13px 12px; display: grid; gap: 9px; }
+.lcard.flash { animation: flash 900ms cubic-bezier(.2,.8,.2,1); }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 rgba(43,75,255,0.35); } 40% { box-shadow: 0 0 0 7px rgba(43,75,255,0.18); } 100% { box-shadow: 0 0 0 12px rgba(43,75,255,0); } }
+.lhead { display: flex; align-items: center; gap: 7px; font: 600 14px/1.2 var(--body); }
+.lhead svg { width: 16px; height: 16px; flex: none; color: var(--app-blue); }
+.lhead .mono { margin-left: auto; color: var(--app-muted); font-size: 10px; }
+.lcard .strip { height: 40px; gap: 8px; }
+.ghost { display: grid; gap: 9px; }
+.ghost i { height: 9px; border-radius: 5px; background: var(--app-rule); }
+.ghost i:last-child { width: 62%; }
+
+/* ── The status strip (from async-status.html) ────────────────── */
+.strip { --ico: 28px; position: relative; height: 100%; flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: var(--s-ink); font: 500 13px/16px var(--body); }
+.strip.dark { --s-ink: #FFFFFF; --s-muted: var(--app-pill-muted); --s-track: rgba(255,255,255,0.18); --s-tick: rgba(255,255,255,0.5); --s-fill: var(--app-blue-mid); }
+.strip.light { --s-ink: var(--app-ink); --s-muted: var(--app-muted); --s-track: rgba(18,19,22,0.12); --s-tick: rgba(18,19,22,0.34); --s-fill: var(--app-blue); }
+.sico { position: relative; flex: none; width: var(--ico); height: var(--ico); padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.strip:is([data-s="making"], [data-s="done"]) .sico { cursor: default; }
+.sico svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.sico svg > * { opacity: 0; transition: opacity 140ms; }
+.ptrack { fill: none; stroke: var(--s-track); }
+.ptick { stroke: var(--s-tick); }
+.parc { fill: none; stroke: var(--app-blue); stroke-linecap: round; stroke-dasharray: 0 100; }
+.disc { fill: var(--app-blue); }
+.gl2 { fill: #FFFFFF; }
+.g-check { fill: none; stroke: #FFFFFF; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.strip[data-s="making"] .pring,
+.strip:is([data-s="ready"], [data-s="paused"]) :is(.disc, .g-play),
+.strip[data-s="playing"] :is(.disc, .g-pause),
+.strip[data-s="failed"] :is(.disc, .g-bang),
+.strip[data-s="done"] :is(.disc, .g-check) { opacity: 1; }
+.strip[data-s="failed"] .disc { fill: var(--app-orange); }
+.smain { flex: 1; min-width: 0; display: grid; gap: 2px; border-radius: 6px; }
+.prow .smain { cursor: pointer; }
+.l1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.t1 { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm { flex: none; padding-left: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--s-muted); font-variant-numeric: tabular-nums; }
+.strip:not([data-s="playing"]):not([data-s="paused"]) .tm { display: none; }
+.l2 { position: relative; height: 12px; display: flex; align-items: center; min-width: 0; }
+.t2 { flex: 0 1 auto; font: 500 11px/12px var(--body); color: var(--s-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.strip[data-s="making"] .t2 { letter-spacing: -0.015em; }
+.sbar { display: none; position: relative; flex: 1; height: 14px; margin: -1px 0; cursor: pointer; touch-action: none; }
+.strip:is([data-s="playing"], [data-s="paused"]) .sbar { display: block; }
+.strip:is([data-s="playing"], [data-s="paused"]) .t2 { display: none; }
+.sbar::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-track); }
+.sbar .fill { position: absolute; left: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-fill); width: calc(var(--pct, 0) * 100%); }
+.sbar .knob { position: absolute; top: 50%; left: calc(var(--pct, 0) * 100%); width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--s-fill); transition: transform 120ms; }
+.strip.dark .sbar .knob { background: #FFFFFF; }
+.strip.drag .sbar .knob { transform: scale(1.45); }
+.sretry { display: none; flex: none; font: 600 12.5px/1 var(--body); padding: 7px 10px; border-radius: 999px; border: 0; background: var(--app-blue); color: #FFFFFF; cursor: pointer; }
+.strip[data-s="failed"] .sretry { display: block; }
+.strip[data-s="failed"] .l2 { display: none; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── The pill (from Pill.tsx), growing the status row while an episode plays ── */
+.dockwrap { position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.dockwrap > * { pointer-events: auto; }
+.pill { box-sizing: border-box; width: var(--pw, 200px); max-width: 94%; border-radius: 27px; background: var(--app-pill); box-shadow: 0 12px 30px rgba(18,19,22,0.22); overflow: hidden; transition: width var(--strip-ms) cubic-bezier(.2,.8,.2,1); }
+.prow { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--strip-ms) cubic-bezier(.2,.8,.2,1), opacity 180ms; }
+.prow > div { overflow: hidden; min-height: 0; }
+.prow-in { box-sizing: border-box; width: var(--pw, 264px); max-width: none; margin-left: calc((100% - var(--pw, 264px)) / 2); height: 44px; padding: 0 12px 0 10px; display: flex; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.screen.has-row .prow { grid-template-rows: 1fr; opacity: 1; }
+.screen:not(.has-row) .prow { pointer-events: none; }
+.pbtns { position: relative; height: 54px; }
+.pset { position: absolute; top: 0; bottom: 0; left: 50%; width: max-content; translate: -50% 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 5px; transition: opacity 180ms cubic-bezier(.2,.8,.2,1), transform 180ms cubic-bezier(.2,.8,.2,1); }
+.screen.reading .pset.mode-lib, .screen:not(.reading) .pset.mode-read { opacity: 0; transform: scale(0.96); pointer-events: none; transition-duration: 120ms; }
+.pb { width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: #FFFFFF; cursor: pointer; padding: 0; flex: none; }
+.pb svg { width: 20px; height: 20px; }
+.pb.blue { background: var(--app-blue); }
+.plabel { box-sizing: border-box; min-width: 92px; padding: 0 6px; display: grid; justify-items: center; }
+.plabel .k { font-family: var(--mono); font-size: 10px; line-height: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-pill-muted); }
+.plabel .v { font: 600 15px/18px var(--body); color: #FFFFFF; }
+.pstatus { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 6px; min-width: 120px; box-sizing: border-box; font: 600 14.5px/18px var(--body); color: #FFFFFF; white-space: nowrap; }
+.pstatus svg { width: 22px; height: 22px; flex: none; transform: rotate(-90deg); }
+
+/* Undo, just above the pill. */
+.toast { position: absolute; left: 50%; z-index: 7; bottom: var(--toast-b, 88px); display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; border-radius: 999px; background: var(--app-pill); color: #FFFFFF; font: 600 13px/1 var(--body); white-space: nowrap; box-shadow: 0 8px 20px rgba(18,19,22,0.2); opacity: 0; transform: translate(-50%, 6px); pointer-events: none; transition: opacity 180ms, transform 180ms, bottom var(--strip-ms); }
+.toast.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast button { border: 0; background: transparent; color: var(--app-blue-mid); font: 600 13px/1 var(--body); padding: 7px 9px; border-radius: 999px; cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --strip-ms: 0ms; }
+  .eq i { animation: none; }
+  .eq i:nth-child(1) { transform: scaleY(0.6); } .eq i:nth-child(3) { transform: scaleY(0.8); }
+  .ep[data-s="making"] .ett { animation: none; background: none; color: var(--app-ink); }
+  .ep, .ep-in, .eb svg > *, .sico svg > *, .sconfirm, .pset, .reader, .screen.reading .reader, .toast, .lib, .sbar .knob { transition: none; }
+  .sconfirm { transform: none; }
+  .prow { transition: opacity 120ms; }
+  .lcard.flash { animation: none; outline: 2px solid var(--app-blue); outline-offset: 3px; }
+}
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Founder Signal · Library · podcasts tab (design mock)</div>
+    <h1>A Podcasts tab in the Library</h1>
+    <p>Every episode you've made or played, in one place. It's the Library's third tab, beside Saved and Letters, and it uses the same page: the big title, the black switch, the same tints. Episodes sit in a compact list grouped by where you are with them, and each row shows its state at a glance: ready to play, playing, part-way, listened, being made, or failed. Tap play and the episode starts right there. The bottom pill grows the same status row as the approved background-task design, so it keeps playing while you browse. Tap the row's text to open the piece at its Listen card.</p>
+  </header>
+  <div class="controls">
+    <div class="crow">
+      <span class="clabel">State</span>
+      <div class="seg" role="group" aria-label="Library state">
+        <button class="ctl" type="button" data-preset="empty" aria-pressed="false">Empty</button>
+        <button class="ctl" type="button" data-preset="mixed" aria-pressed="true">Mixed list</button>
+        <button class="ctl" type="button" data-preset="playing" aria-pressed="false">Playing</button>
+      </div>
+      <button class="ctl" id="resetBtn" type="button">Reset</button>
+    </div>
+    <div class="crow">
+      <span class="clabel">Layout</span>
+      <div class="seg" role="group" aria-label="Layout">
+        <button class="ctl" type="button" data-view="list" aria-pressed="true">List (the pick)</button>
+        <button class="ctl" type="button" data-view="cards" aria-pressed="false">Tinted cards</button>
+      </div>
+    </div>
+    <div class="crow">
+      <span class="clabel">Extras</span>
+      <div class="seg" role="group" aria-label="Optional extras">
+        <button class="ctl" type="button" data-extras="on" aria-pressed="true">Show optional extras</button>
+        <button class="ctl" type="button" data-extras="off" aria-pressed="false">Hide them</button>
+      </div>
+    </div>
+    <span class="hint-text">In the phone: tap a play button, drag the scrubber in the pill, tap an episode's title to open its piece, tap ✕ on the one being made. Swipe a row left (or press and hold) to remove it.</span>
+  </div>
+
+  <div class="stage">
+    <div class="phonecol">
+      <div class="phone">
+        <div class="screen" id="screen">
+          <div class="sysbar"><span>9:41</span><span>●●● ▮</span></div>
+          <div class="notch"></div>
+
+          <div class="lib" id="lib" data-view="list" data-extras="on">
+            <span class="lk mono">Library</span>
+            <h2 class="lt" id="lt">Podcasts</h2>
+            <div class="seg3" role="tablist" aria-label="Show">
+              <button type="button" role="tab" data-tab="saved" aria-selected="false">Saved</button>
+              <button type="button" role="tab" data-tab="letters" aria-selected="false">Letters</button>
+              <button type="button" role="tab" data-tab="podcasts" aria-selected="true">Podcasts</button>
+            </div>
+            <div id="tabbody" style="display: contents"></div>
+          </div>
+
+          <div class="reader" id="reader" aria-hidden="true">
+            <div class="rtop">
+              <button class="rback" type="button" id="rback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Podcasts</button>
+              <span class="mono" id="rno"></span>
+            </div>
+            <div class="rart">
+              <h2 class="atitle" id="rtitle"></h2>
+              <p class="lede" id="rlede"></p>
+              <div class="byline"><b></b><span id="rby"></span></div>
+              <div class="lcard" id="lcard">
+                <div class="lhead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 14h3v6H5.5A1.5 1.5 0 0 1 4 18.5zM20 14h-3v6h1.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>Listen to this piece<span class="mono">Two hosts</span></div>
+              </div>
+              <div class="ghost" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="ghost" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+              <div class="ghost" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+
+          <div class="toast" id="toast" role="status"><span id="toastText">Removed from Podcasts</span><button type="button" id="undo">Undo</button></div>
+
+          <div class="dockwrap">
+            <div class="pill" id="pill">
+              <div class="prow"><div><div class="prow-in" id="prowIn"></div></div></div>
+              <div class="pbtns">
+                <div class="pset mode-lib" id="psetLib" role="toolbar" aria-label="Navigation">
+                  <div class="plabel"><span class="k">Library</span><span class="v" id="pv">Podcasts</span></div>
+                  <button class="pb blue" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9h14M5 15h14"/></svg></button>
+                </div>
+                <div class="pset mode-read" id="psetRead" role="toolbar" aria-label="Reading">
+                  <button class="pb" type="button" aria-label="Save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
+                  <div class="pstatus"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.2)" stroke-width="2.6"/><circle cx="12" cy="12" r="9" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><span>8 min left</span></div>
+                  <button class="pb blue" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9h14M5 15h14"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="home"></div>
+        </div>
+      </div>
+      <p class="cap" id="cap">Library · Podcasts</p>
+    </div>
+
+    <div class="notes">
+      <section>
+        <h2>A list, not cards</h2>
+        <p>Audio is picked by state, not by cover. A row is about 70px, so six or seven episodes fit on a screen, where the Saved tiles fit three. The play button sits in the same spot on every row, under the thumb. The piece's tint moves into the button (for listened and being made) and into the tinted highlight on the playing row, so it still looks like the Library. Switch to <b>Tinted cards</b> above to compare: they read well but you scroll a lot further to reach older episodes.</p>
+      </section>
+      <section>
+        <h2>Grouped by where you are with it</h2>
+        <p><b>In progress</b> comes first, because carrying on is the most likely tap and it's rarely more than a row or two. <b>New</b> is next, with episodes being made and any that failed, since those are fresh requests. <b>Listened</b> is last and dimmed. Each group is newest first.</p>
+        <p>Not by letter: episodes are made one piece at a time, so most letters would hold a single row. Each row names its letter instead (“No. 14 · Piece 2”). Rows don't jump between groups while you're on the tab. They regroup the next time you open it.</p>
+      </section>
+      <section>
+        <h2>A row's states</h2>
+        <ul>
+          <li><b>Ready:</b> a blue play button, with the length.</li>
+          <li><b>Playing:</b> pause, moving bars, time left and a small progress line, on a light blue row.</li>
+          <li><b>Part-way:</b> play, “2:10 left” and the progress line.</li>
+          <li><b>Listened:</b> a check, dimmed. Tap to play it again.</li>
+          <li><b>Being made:</b> the approved progress ring with its step and time left (“~40s left”), and ✕ to stop. Stop asks first, in the row, and counts as Keep after five seconds. When the ring closes it becomes the play button.</li>
+          <li><b>Failed:</b> an orange mark and Retry.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>Playing from the tab</h2>
+        <p>Play starts the episode in place. The pill grows the approved status row: pause, the chapter, the time, and the scrubber. It stays while you switch tabs or open a piece, and it folds when the episode ends. Tap the row's text, or an episode's title in the list, to open that piece at its Listen card.</p>
+        <p>On this tab, an episode being made already shows in its own row, so the pill's row is kept for playback. Everywhere else, the approved rule stands.</p>
+      </section>
+      <section>
+        <h2>Empty</h2>
+        <p>Before there are any episodes, a short note says how to make one, with a small headphones drawing and the cover's own headphones button to look for.</p>
+      </section>
+      <section>
+        <h2>Small extras <span class="tag">Optional</span></h2>
+        <ul>
+          <li><b>Play all new:</b> plays the New episodes one after another. While it runs it reads “Playing new · 1 of 2”. Tap it again to stop after the current one.</li>
+          <li><b>Remove:</b> swipe a row left or press and hold, then Remove, with Undo for a few seconds. It only leaves your list: episodes are shared per piece, so nothing is deleted.</li>
+          <li><b>Downloaded:</b> a small arrow beside the length on episodes kept for offline listening, plus a note at the end of the list, like Saved's.</li>
+        </ul>
+        <p>Use <b>Hide them</b> above to see the tab without these.</p>
+      </section>
+      <section>
+        <h2>In the mock</h2>
+        <p>Making is sped up to a few seconds. Drag the scrubber to the end to watch an episode finish, or the queue move on.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+
+<template id="rowTpl">
+  <li class="ep">
+    <div class="ep-bg"><button class="rm" type="button" tabindex="-1">Remove</button></div>
+    <div class="ep-in">
+      <span class="ek mono"></span>
+      <button class="eb" type="button">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <circle class="ebg" cx="20" cy="20" r="20"/>
+          <circle class="etr" cx="20" cy="20" r="13"/>
+          <g class="etk"><line x1="33.2" y1="20" x2="33.2" y2="20"/></g>
+          <circle class="earc" cx="20" cy="20" r="13" pathLength="100" transform="rotate(-90 20 20)"/>
+          <path class="gl gp" d="M16.2 13.2v13.6l10.6-6.8z"/>
+          <g class="gl gpa"><rect x="14.2" y="13" width="4" height="14" rx="1.2"/><rect x="21.8" y="13" width="4" height="14" rx="1.2"/></g>
+          <path class="gc" d="M13.5 20.5l4.5 4.5 8.5-9"/>
+          <g class="gl gb"><rect x="18.3" y="10.5" width="3.4" height="12.5" rx="1.7"/><circle cx="20" cy="28" r="2.1"/></g>
+        </svg>
+      </button>
+      <button class="et" type="button">
+        <span class="ett"></span>
+        <span class="em"></span>
+        <span class="es"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="elab"></span><span class="ebar" aria-hidden="true"><i></i></span><svg class="edl" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Downloaded"><circle cx="8" cy="8" r="6.6"/><path d="M8 4.8v5.4M5.6 8l2.4 2.4L10.4 8"/></svg></span>
+      </button>
+      <button class="ex" type="button" aria-label="Stop making this episode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+      <button class="eretry" type="button">Retry</button>
+      <div class="sconfirm" role="alertdialog" aria-modal="false" inert>
+        <span class="cq">Stop this episode?</span>
+        <button class="ckeep" type="button">Keep</button>
+        <button class="cstop" type="button">Stop</button>
+      </div>
+    </div>
+  </li>
+</template>
+
+<template id="stripTpl">
+  <div class="strip" data-s="ready">
+    <button class="sico" type="button" aria-label="Play">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <g class="pring"><circle class="ptrack" cx="16" cy="16"/><g class="pticks"></g><circle class="parc" cx="16" cy="16" pathLength="100" transform="rotate(-90 16 16)"/></g>
+        <circle class="disc" cx="16" cy="16" r="16"/>
+        <path class="gl2 g-play" d="M13 10.6v10.8l8.6-5.4z"/>
+        <g class="gl2 g-pause"><rect x="11.4" y="10.5" width="3.3" height="11" rx="1"/><rect x="17.3" y="10.5" width="3.3" height="11" rx="1"/></g>
+        <path class="g-check" d="M10.4 16.4l3.8 3.8 7.4-7.7"/>
+        <g class="gl2 g-bang"><rect x="14.6" y="8.8" width="2.8" height="9.6" rx="1.4"/><circle cx="16" cy="22.4" r="1.75"/></g>
+      </svg>
+    </button>
+    <div class="smain">
+      <div class="l1"><span class="t1"></span><span class="tm"></span></div>
+      <div class="l2"><span class="t2"></span><div class="sbar" role="slider" tabindex="0" aria-label="Episode position" aria-valuemin="0"><i class="fill"></i><i class="knob"></i></div></div>
+    </div>
+    <button class="sretry" type="button">Retry</button>
+  </div>
+</template>
+
+<script>
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const mins = (s) => `${Math.max(1, Math.round(s / 60))} min`;
+const $ = (s, r = document) => r.querySelector(s);
+
+// ── Data: the episodes this reader has made or played, newest first ──
+const EPS0 = [
+  { id: "e1", title: "What a good weekly investor update looks like", author: "Dana Whitfield", pub: "Founder Notes", no: 15, piece: 1, of: 4, topic: "Fundraising", state: "making", p: 0.36, nextDur: 236, dl: false,
+    lede: "Five short sections, sent on the same day every week. The founders who did it raised faster, and asked for less help when they did." },
+  { id: "e2", title: "Hiring your first engineer without a recruiter", author: "Theo Lindqvist", pub: "Early Team", no: 15, piece: 3, of: 4, topic: "Hiring", state: "failed", nextDur: 241, dl: false,
+    lede: "Your first engineering hire is mostly a writing problem: a clear brief, a short paid trial, and a reason to say yes." },
+  { id: "e3", title: "Why usage-based pricing keeps winning at the seed stage", author: "Maya Okafor", pub: "The Unit Economist", no: 14, piece: 2, of: 4, topic: "Pricing", state: "ready", dur: 243, t: 0, dl: true,
+    lede: "Charging by usage lowers the first yes, grows with the customer, and gives you a cleaner story for investors. The catch is forecasting." },
+  { id: "e4", title: "Cold emails busy buyers actually answer", author: "Priya Raman", pub: "Pipeline Weekly", no: 14, piece: 4, of: 4, topic: "Sales", state: "ready", dur: 232, t: 0, dl: false,
+    lede: "Three sentences, one ask, and a reason it's for them and not their whole industry. The rest is follow-up." },
+  { id: "e5", title: "The board meeting you actually want to run", author: "Sam Achebe", pub: "Operator's Desk", no: 13, piece: 1, of: 5, topic: "Operations", state: "ready", dur: 260, t: 130, dl: true,
+    lede: "Send the numbers two days early and spend the meeting on one hard question. Your board will thank you for it." },
+  { id: "e6", title: "Default alive, explained with one spreadsheet", author: "Ruth Kim", pub: "Runway", no: 12, piece: 3, of: 4, topic: "Finance", state: "listened", dur: 221, t: 0, dl: false,
+    lede: "Whether you reach profit before the money runs out comes down to three numbers you already have." },
+  { id: "e7", title: "Picking a wedge market that can grow", author: "Ola Mensah", pub: "Market Maps", no: 11, piece: 2, of: 4, topic: "Strategy", state: "listened", dur: 252, t: 0, dl: true,
+    lede: "Start where the pain is sharpest and the buyers talk to each other. Then make sure the next market is next door." },
+];
+EPS0.forEach((e, i) => (e.tint = `var(--tint-${i % 3})`));
+const CH_PRICING = [[0, "Cold open"], [18, "Why per-seat feels safe"], [64, "The first yes is cheaper"], [128, "Growing without a sales call"], [186, "The catch is forecasting"], [226, "What to try this week"]];
+const CH_GENERIC = [[0, "Cold open"], [0.08, "The short version"], [0.3, "Why it works"], [0.58, "Where it breaks"], [0.85, "What to try this week"]];
+function chapter(ep, t) {
+  const list = ep.id === "e3" ? CH_PRICING : CH_GENERIC.map(([f, n]) => [f * ep.dur, n]);
+  return list.reduce((name, [at, n]) => (t >= at ? n : name), list[0][1]);
+}
+
+let EPS = [];
+let tab = "podcasts", view = "list", extras = true, preset = "mixed", readerId = null;
+const PL = { id: null, playing: false, done: false, dragging: false, queue: [], qTotal: 0, qIndex: 0 };
+const timers = {};
+const byId = (id) => EPS.find((e) => e.id === id);
+
+const screen = $("#screen"), lib = $("#lib"), tabbody = $("#tabbody"), pill = $("#pill"), live = $("#live");
+function announce(text) { live.textContent = ""; requestAnimationFrame(() => (live.textContent = text)); }
+
+/** What a row shows: the player's state for the one playing, otherwise the episode's own. */
+function ds(ep) {
+  if (PL.id === ep.id) return PL.done ? "listened" : PL.playing ? "playing" : "paused";
+  if (ep.state === "ready" && ep.t > 0) return "partial";
+  return ep.state;
+}
+/** Groups are set when the tab opens; rows don't jump while you're on it. */
+function regroup() {
+  for (const e of EPS) e.group = e.state === "listened" ? "done" : e.state === "ready" && e.t > 0 ? "progress" : "new";
+}
+
+// ── Making (sped up: a minute becomes a few seconds) ──────────────
+const STEP = (p) => (p >= 0.95 ? "Finishing" : p >= 0.25 ? "Recording voices" : "Writing the script");
+function etaText(ep) {
+  if (ep.p < 0.3) return "~1 min left";
+  const b = Math.ceil(((1 - ep.p) * 62) / 5) * 5;
+  ep.etaB = ep.etaB == null ? b : Math.min(ep.etaB, b);
+  return ep.etaB <= 5 ? "Almost done" : `~${ep.etaB}s left`;
+}
+let mkRaf = 0, mkLast = 0, mkAcc = 0;
+function startMaking() { if (!mkRaf) { mkLast = performance.now(); mkRaf = requestAnimationFrame(makeLoop); } }
+function makeLoop(now) {
+  mkRaf = 0;
+  const making = EPS.filter((e) => e.state === "making");
+  if (!making.length) return;
+  const dt = Math.min(64, now - mkLast); mkLast = now; mkAcc += dt;
+  const stepNow = mkAcc >= 330;
+  if (stepNow) mkAcc = 0;
+  for (const ep of making) {
+    ep.target ??= ep.p;
+    if (stepNow && ep.target < 1) {
+      const inc = ep.target < 0.25 ? 0.012 + Math.random() * 0.012 : ep.target < 0.95 ? (Math.random() < 0.12 ? 0 : 0.022 + Math.random() * 0.03) : 0.025;
+      ep.target = Math.min(1, ep.target + inc);
+    }
+    ep.p = reduce ? ep.target : Math.max(ep.p, ep.p + (ep.target - ep.p) * (1 - Math.exp(-dt / 140)));
+    if (ep.target - ep.p < 0.002) ep.p = ep.target;
+    if (ep.p >= 1) {
+      ep.readyAt ||= now;
+      if (now - ep.readyAt >= (reduce ? 0 : 220)) {
+        ep.state = "ready"; ep.dur = ep.nextDur; ep.t = 0; ep.confirm = false;
+        announce(`Episode ready: ${ep.title}.`);
+        refreshAll();
+        continue;
+      }
+    }
+    paintRow(ep);
+  }
+  if (readerId && byId(readerId)?.state === "making") paintStrips();
+  mkRaf = requestAnimationFrame(makeLoop);
+}
+function retry(ep) {
+  ep.state = "making"; ep.p = 0; ep.target = 0; ep.etaB = null; ep.readyAt = 0;
+  refreshAll(); startMaking();
+  announce("Trying again. Making the episode.");
+}
+
+// ── Playback ───────────────────────────────────────────────────────
+let pRaf = 0, pLast = 0;
+function play(id, { fromQueue = false } = {}) {
+  clearTimeout(timers.fold);
+  const ep = byId(id);
+  if (!ep || (ep.state !== "ready" && ep.state !== "listened")) return;
+  if (!fromQueue) { PL.queue = []; PL.qTotal = 0; }
+  if (ep.state === "listened") { ep.state = "ready"; ep.t = 0; }
+  if (ep.t >= ep.dur - 0.5) ep.t = 0;
+  PL.id = id; PL.playing = true; PL.done = false;
+  if (!pRaf) { pLast = performance.now(); pRaf = requestAnimationFrame(tick); }
+  refreshAll();
+}
+function pause() { PL.playing = false; refreshAll(); }
+function tick(now) {
+  pRaf = 0;
+  if (!PL.playing) return;
+  const ep = byId(PL.id);
+  if (!ep) return;
+  const dt = Math.min(0.25, (now - pLast) / 1000); pLast = now;
+  if (!PL.dragging) ep.t = Math.min(ep.dur, ep.t + dt);
+  if (ep.t >= ep.dur) { finish(ep); return; }
+  paintRow(ep); paintStrips();
+  pRaf = requestAnimationFrame(tick);
+}
+function finish(ep) {
+  ep.state = "listened"; ep.t = 0;
+  if (PL.queue.length) {
+    const next = PL.queue.shift(); PL.qIndex++;
+    announce(`Up next: ${byId(next)?.title ?? ""}.`);
+    play(next, { fromQueue: true });
+    return;
+  }
+  PL.queue = []; PL.qTotal = 0;
+  PL.playing = false; PL.done = true;
+  refreshAll();
+  timers.fold = setTimeout(() => { PL.id = null; PL.done = false; refreshAll(); }, 3600);
+}
+function stopPlayer() { clearTimeout(timers.fold); PL.id = null; PL.playing = false; PL.done = false; PL.queue = []; PL.qTotal = 0; }
+function newReady() { return EPS.filter((e) => e.group === "new" && e.state === "ready" && e.t === 0); }
+function playAllNew() {
+  if (PL.qTotal && PL.queue.length) { PL.queue = []; PL.qTotal = 0; announce("The queue will stop after this episode."); refreshAll(); return; }
+  const ids = newReady().map((e) => e.id);
+  if (!ids.length) return;
+  play(ids[0]);
+  PL.queue = ids.slice(1); PL.qTotal = ids.length; PL.qIndex = 1;
+  announce(`Playing ${ids.length} new episodes, one after another.`);
+  refreshAll();
+}
+
+// ── The list ───────────────────────────────────────────────────────
+const rows = new Map();
+const rowTpl = $("#rowTpl");
+const I_PLAY = `<svg viewBox="0 0 10 10"><path d="M2.4 1.2v7.6L8.6 5z"/></svg>`;
+const I_ARROW = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+const I_PHONES = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v-4a8 8 0 0 1 16 0v4"/><path d="M4 15h3v5H5a1 1 0 0 1-1-1zM20 15h-3v5h2a1 1 0 0 0 1-1z"/></svg>`;
+
+function renderTab() {
+  rows.clear(); openLi = null;
+  tabbody.textContent = "";
+  const name = { saved: "Saved", letters: "Letters", podcasts: "Podcasts" }[tab];
+  $("#lt").textContent = name; $("#pv").textContent = name;
+  for (const b of document.querySelectorAll(".seg3 button")) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+  if (tab === "saved") {
+    tabbody.innerHTML = [
+      ["Pricing", "Why usage-based pricing keeps winning at the seed stage", "8 min · saved Oct 18", 0],
+      ["Hiring", "Hiring your first engineer without a recruiter", "6 min · saved Oct 4", 1],
+    ].map(([k, t, m, i]) => `<div class="tile" style="--tint: var(--tint-${i})"><div class="top"><span class="mono">${k}</span><span class="go">${I_ARROW}</span></div><div><div class="tt">${t}</div><div class="tm2">${m}</div></div></div>`).join("") + `<p class="lnote">Saved pieces are kept for reading offline.</p>`;
+    return;
+  }
+  if (tab === "letters") {
+    tabbody.innerHTML = [
+      [15, "Investor updates, first hires and a pricing rethink", "Oct 20 · 4 pieces", 0],
+      [14, "Usage pricing, cold email and the long middle", "Oct 13 · 4 pieces", 1],
+    ].map(([n, t, m, i]) => `<div class="tile" style="--tint: var(--tint-${i})"><div class="top"><span class="big">No. ${n}</span><span class="go">${I_ARROW}</span></div><div><div class="tt">${t}</div><div class="tm2">${m}</div></div></div>`).join("");
+    return;
+  }
+  if (!EPS.length) {
+    tabbody.innerHTML = `<div class="empty">
+      <svg class="art" viewBox="0 0 150 112" aria-hidden="true">
+        <circle cx="66" cy="60" r="46" fill="#DCE3FF"/>
+        <path d="M40 70V60a26 26 0 0 1 52 0v10" fill="none" stroke="#2B4BFF" stroke-width="6" stroke-linecap="round"/>
+        <rect x="34" y="64" width="15" height="24" rx="5" fill="#2B4BFF"/><rect x="83" y="64" width="15" height="24" rx="5" fill="#2B4BFF"/>
+        <rect x="102" y="16" width="40" height="24" rx="12" fill="#FFE3D6"/><circle cx="113" cy="28" r="2.4" fill="#8A3B12"/><circle cx="122" cy="28" r="2.4" fill="#8A3B12"/><circle cx="131" cy="28" r="2.4" fill="#8A3B12"/>
+        <rect x="108" y="46" width="32" height="20" rx="10" fill="#ECEEF2"/><circle cx="118" cy="56" r="2.2" fill="#5B5F68"/><circle cx="130" cy="56" r="2.2" fill="#5B5F68"/>
+        <circle cx="18" cy="26" r="6" fill="#FF5A1F"/>
+      </svg>
+      <h3>No episodes yet</h3>
+      <p>Tap the headphones on any piece to make a short two-host episode. It takes about a minute, and it'll be kept here.</p>
+      <div class="look"><b>${I_PHONES}</b><span>Look for this beside <strong>Read article</strong></span></div>
+    </div>`;
+    return;
+  }
+  if (extras) {
+    const bar = document.createElement("div");
+    bar.className = "tbar";
+    bar.innerHTML = `<button class="pan" type="button" id="pan"><span class="d">${I_PLAY}</span><span class="pl"></span></button><span class="tcount mono"></span>`;
+    bar.querySelector(".pan").addEventListener("click", playAllNew);
+    tabbody.appendChild(bar);
+  }
+  for (const [g, label] of [["progress", "In progress"], ["new", "New"], ["done", "Listened"]]) {
+    const list = EPS.filter((e) => e.group === g);
+    if (!list.length) continue;
+    const h = document.createElement("h3");
+    h.className = "gh mono"; h.textContent = label;
+    tabbody.appendChild(h);
+    const ul = document.createElement("ul");
+    ul.className = "eps"; ul.setAttribute("aria-label", label);
+    for (const ep of list) ul.appendChild(makeRow(ep));
+    tabbody.appendChild(ul);
+  }
+  if (extras && EPS.some((e) => e.dl)) {
+    const p = document.createElement("p");
+    p.className = "lnote"; p.textContent = "Downloaded episodes play offline.";
+    tabbody.appendChild(p);
+  }
+}
+
+function makeRow(ep) {
+  const li = rowTpl.content.firstElementChild.cloneNode(true);
+  const q = (s) => li.querySelector(s);
+  const r = { li, in: q(".ep-in"), eb: q(".eb"), et: q(".et"), ett: q(".ett"), em: q(".em"), elab: q(".elab"), ebar: q(".ebar"), earc: q(".earc"), ex: q(".ex"), retry: q(".eretry"), confirm: q(".sconfirm"), keep: q(".ckeep"), stop: q(".cstop"), rm: q(".rm"), ek: q(".ek") };
+  li.dataset.id = ep.id;
+  li.style.setProperty("--tint", ep.tint);
+  li.classList.toggle("dl", !!ep.dl);
+  r.ek.textContent = ep.topic;
+  r.ett.textContent = ep.title;
+  r.em.textContent = `${ep.author} · No. ${ep.no} · Piece ${ep.piece}`;
+  // Ticks where each making step ends (25%, 95%), as on the approved ring.
+  const tk = q(".etk"); tk.textContent = "";
+  for (const at of [0.25, 0.95]) {
+    const a = at * 2 * Math.PI - Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("x1", (20 + c * 11.8).toFixed(2)); l.setAttribute("y1", (20 + s * 11.8).toFixed(2));
+    l.setAttribute("x2", (20 + c * 14.2).toFixed(2)); l.setAttribute("y2", (20 + s * 14.2).toFixed(2));
+    tk.appendChild(l);
+  }
+  r.eb.addEventListener("click", () => {
+    const s = ds(ep);
+    if (s === "playing") pause();
+    else if (s === "failed") retry(ep);
+    else if (s !== "making") play(ep.id);
+  });
+  r.et.addEventListener("click", () => openReader(ep.id));
+  r.et.addEventListener("keydown", (e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); openSwipe(li); r.rm.focus(); } });
+  r.retry.addEventListener("click", () => retry(ep));
+  r.ex.addEventListener("click", () => askStop(ep));
+  r.keep.addEventListener("click", () => keepGoing(ep));
+  r.stop.addEventListener("click", () => stopMaking(ep));
+  r.confirm.addEventListener("pointerdown", () => armConfirm(ep));
+  r.rm.addEventListener("click", () => removeEp(ep.id));
+  wireSwipe(li, r.in);
+  rows.set(ep.id, r);
+  paintRow(ep);
+  return li;
+}
+
+function paintRow(ep) {
+  const r = rows.get(ep.id);
+  if (!r) return;
+  const s = ds(ep);
+  if (r.li.dataset.s !== s) r.li.dataset.s = s;
+  let lab = "";
+  if (s === "making") lab = `${STEP(ep.p)} · ${etaText(ep)}`;
+  else if (s === "failed") lab = "Couldn't make it";
+  else if (s === "ready") lab = `${mins(ep.dur)} · Two hosts`;
+  else if (s === "partial") lab = `${fmt(ep.dur - ep.t)} left`;
+  else if (s === "playing") lab = `Playing · ${fmt(ep.dur - ep.t)} left`;
+  else if (s === "paused") lab = `Paused · ${fmt(ep.dur - ep.t)} left`;
+  else if (s === "listened") lab = `Listened · ${mins(ep.dur)}`;
+  if (r.elab.textContent !== lab) r.elab.textContent = lab;
+  r.ebar.style.setProperty("--pct", ep.dur ? (ep.t / ep.dur).toFixed(4) : 0);
+  if (s === "making") { r.earc.style.strokeDasharray = `${(ep.p * 100).toFixed(2)} 100`; r.earc.style.opacity = ep.p > 0.004 ? "" : "0"; }
+  const label = { ready: "Play", partial: "Resume", paused: "Resume", playing: "Pause", listened: "Play again", failed: "Try again", making: "Being made" }[s];
+  r.eb.setAttribute("aria-label", `${label}: ${ep.title}`);
+  r.eb.setAttribute("aria-disabled", String(s === "making"));
+  r.et.setAttribute("aria-label", `${ep.title}. ${r.em.textContent}. ${lab}. Opens the piece.`);
+  const confirming = !!ep.confirm && s === "making";
+  if (r.li.classList.contains("confirming") !== confirming) {
+    r.li.classList.toggle("confirming", confirming);
+    r.confirm.inert = !confirming;
+    for (const el of [r.eb, r.et, r.ex]) el.inert = confirming;
+  }
+}
+
+// ── Stop, as in the approved confirm ─────────────────────────────
+function askStop(ep) {
+  ep.confirm = true; paintRow(ep);
+  rows.get(ep.id)?.keep.focus({ preventScroll: true });
+  announce("Stop this episode? Keep, or Stop.");
+  armConfirm(ep);
+}
+function armConfirm(ep) { clearTimeout(timers["c" + ep.id]); timers["c" + ep.id] = setTimeout(() => keepGoing(ep), 5000); }
+function keepGoing(ep) {
+  if (!ep.confirm) return;
+  const r = rows.get(ep.id), focusIn = !!document.activeElement?.closest(".sconfirm");
+  ep.confirm = false; clearTimeout(timers["c" + ep.id]); paintRow(ep);
+  if (focusIn && r) r.ex.focus({ preventScroll: true });
+}
+function stopMaking(ep) {
+  clearTimeout(timers["c" + ep.id]);
+  announce("Stopped. The episode wasn't made.");
+  collapse(ep.id, () => { EPS = EPS.filter((e) => e !== ep); refreshAll(true); });
+}
+
+// ── Remove (optional): swipe left or press and hold ───────────────
+const REM = 84;
+let openLi = null, undoState = null;
+function setDx(li, dx, anim = true) {
+  const inn = li.querySelector(".ep-in");
+  inn.style.transition = anim ? "" : "none";
+  inn.style.setProperty("--dx", dx + "px");
+  li.classList.toggle("swiping", dx < 0);
+}
+function openSwipe(li) { if (openLi && openLi !== li) closeSwipe(openLi); openLi = li; setDx(li, -REM); li.querySelector(".rm").tabIndex = 0; }
+function closeSwipe(li) { setDx(li, 0); li.querySelector(".rm").tabIndex = -1; if (openLi === li) openLi = null; if (!reduce) setTimeout(() => { if (openLi !== li) li.classList.remove("swiping"); }, 230); }
+function wireSwipe(li, inn) {
+  let g = null, lp = 0, suppress = false;
+  inn.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest(".sconfirm")) return;
+    if (openLi && openLi !== li) closeSwipe(openLi);
+    g = { x: e.clientX, y: e.clientY, base: openLi === li ? -REM : 0, drag: false, id: e.pointerId };
+    suppress = false;
+    clearTimeout(lp);
+    lp = setTimeout(() => { if (g && !g.drag) { suppress = true; openSwipe(li); } }, 480);
+  });
+  inn.addEventListener("pointermove", (e) => {
+    if (!g) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (!g.drag) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { g.drag = true; clearTimeout(lp); suppress = true; try { inn.setPointerCapture(g.id); } catch {} }
+      else if (Math.abs(dy) > 8) { clearTimeout(lp); g = null; return; }
+    }
+    if (g.drag) setDx(li, clamp(g.base + dx, -REM - 24, 0), false);
+  });
+  const up = () => {
+    clearTimeout(lp);
+    if (g?.drag) {
+      const cur = parseFloat(inn.style.getPropertyValue("--dx")) || 0;
+      if (cur < -REM / 2) openSwipe(li); else closeSwipe(li);
+    }
+    g = null;
+  };
+  inn.addEventListener("pointerup", up);
+  inn.addEventListener("pointercancel", up);
+  inn.addEventListener("contextmenu", (e) => e.preventDefault());
+  inn.addEventListener("click", (e) => {
+    if (suppress || (openLi === li && !e.target.closest(".sconfirm"))) {
+      e.stopPropagation(); e.preventDefault();
+      if (!suppress) closeSwipe(li);
+      suppress = false;
+    }
+  }, true);
+}
+screen.addEventListener("pointerdown", (e) => { if (openLi && !openLi.contains(e.target)) closeSwipe(openLi); });
+
+function collapse(id, done) {
+  const r = rows.get(id);
+  if (!r || reduce) { done(); return; }
+  const li = r.li;
+  li.style.height = li.offsetHeight + "px";
+  li.classList.add("gone");
+  li.offsetHeight;
+  li.style.height = "0px";
+  setTimeout(done, 230);
+}
+function removeEp(id) {
+  const ep = byId(id);
+  if (!ep) return;
+  const index = EPS.indexOf(ep);
+  if (PL.id === id) stopPlayer();
+  ep.confirm = false;
+  if (ep.state === "making") clearTimeout(timers["c" + id]);
+  undoState = { ep, index };
+  collapse(id, () => { EPS = EPS.filter((e) => e !== ep); refreshAll(true); });
+  showToast();
+  announce("Removed from Podcasts. Undo is available.");
+}
+function showToast() {
+  const t = $("#toast");
+  t.style.setProperty("--toast-b", (22 + (PL.id ? 99 : 54) + 10) + "px");
+  t.classList.add("on");
+  clearTimeout(timers.toast);
+  timers.toast = setTimeout(() => { t.classList.remove("on"); undoState = null; }, 4500);
+}
+$("#undo").addEventListener("click", () => {
+  if (!undoState) return;
+  const { ep, index } = undoState; undoState = null;
+  EPS.splice(Math.min(index, EPS.length), 0, ep);
+  $("#toast").classList.remove("on");
+  refreshAll(true);
+  if (ep.state === "making") startMaking();
+  announce("Put back.");
+});
+
+// ── Strips: the pill's row (dark) and the Listen card (light) ─────
+const stripTpl = $("#stripTpl");
+function makeStrip(host, tone, ico, getEp) {
+  const el = stripTpl.content.firstElementChild.cloneNode(true);
+  el.classList.add(tone);
+  el.style.setProperty("--ico", ico + "px");
+  host.appendChild(el);
+  const q = (s) => el.querySelector(s);
+  const st = { el, getEp, sico: q(".sico"), smain: q(".smain"), t1: q(".t1"), t2: q(".t2"), tm: q(".tm"), sbar: q(".sbar"), parc: q(".parc"), retry: q(".sretry") };
+  // The ring is about 21px across with a 2px stroke in every home, as approved.
+  const u = 32 / ico, r = 10.5 * u, sw = 2 * u;
+  for (const c of [q(".ptrack"), st.parc]) { c.setAttribute("r", r.toFixed(2)); c.setAttribute("stroke-width", sw.toFixed(2)); }
+  for (const at of [0.25, 0.95]) {
+    const a = at * 2 * Math.PI - Math.PI / 2, cos = Math.cos(a), sin = Math.sin(a);
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("class", "ptick");
+    l.setAttribute("x1", (16 + cos * (r - sw / 2)).toFixed(2)); l.setAttribute("y1", (16 + sin * (r - sw / 2)).toFixed(2));
+    l.setAttribute("x2", (16 + cos * (r + sw / 2)).toFixed(2)); l.setAttribute("y2", (16 + sin * (r + sw / 2)).toFixed(2));
+    l.setAttribute("stroke-width", (1.2 * u).toFixed(2));
+    q(".pticks").appendChild(l);
+  }
+  st.sico.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const ep = getEp(); if (!ep) return;
+    const s = el.dataset.s;
+    if (s === "playing") pause();
+    else if (s === "ready" || s === "paused") play(ep.id);
+    else if (s === "failed") retry(ep);
+  });
+  st.retry.addEventListener("click", (e) => { e.stopPropagation(); const ep = getEp(); if (ep) retry(ep); });
+  const seek = (e) => {
+    const ep = getEp(); if (!ep) return;
+    const r2 = st.sbar.getBoundingClientRect();
+    ep.t = clamp((e.clientX - r2.left) / r2.width) * ep.dur;
+    if (ep.t >= ep.dur - 0.05 && PL.id !== ep.id) ep.t = ep.dur - 0.05;
+    paintStrips(); paintRow(ep);
+  };
+  st.sbar.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); st.sbar.setPointerCapture(e.pointerId); PL.dragging = true; el.classList.add("drag"); seek(e); });
+  st.sbar.addEventListener("pointermove", (e) => { if (st.sbar.hasPointerCapture(e.pointerId)) seek(e); });
+  const up = () => { if (!PL.dragging) return; PL.dragging = false; el.classList.remove("drag"); const ep = getEp(); if (ep && PL.id === ep.id && PL.playing && ep.t >= ep.dur - 0.05) finish(ep); };
+  st.sbar.addEventListener("pointerup", up);
+  st.sbar.addEventListener("pointercancel", up);
+  st.sbar.addEventListener("click", (e) => e.stopPropagation());
+  st.sbar.addEventListener("keydown", (e) => {
+    const ep = getEp(); if (!ep) return;
+    const d = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5 }[e.key];
+    if (d == null) return;
+    e.preventDefault(); ep.t = clamp(ep.t + d, 0, ep.dur - 0.5); paintStrips(); paintRow(ep);
+  });
+  return st;
+}
+function stripState(ep) {
+  if (!ep) return null;
+  if (PL.id === ep.id) return PL.done ? "done" : PL.playing ? "playing" : "paused";
+  if (ep.state === "ready") return ep.t > 0 ? "paused" : "ready";
+  if (ep.state === "listened") return "ready";
+  return ep.state;
+}
+function paintStrip(st) {
+  const ep = st.getEp(), s = stripState(ep);
+  if (!s) return;
+  if (st.el.dataset.s !== s) st.el.dataset.s = s;
+  let t1 = "", t2 = "";
+  if (s === "playing" || s === "paused") {
+    t1 = chapter(ep, ep.t);
+    const tm = `${fmt(ep.t)} / ${fmt(ep.dur)}`;
+    if (st.tm.textContent !== tm) st.tm.textContent = tm;
+    st.sbar.style.setProperty("--pct", (ep.t / ep.dur).toFixed(4));
+    st.sbar.setAttribute("aria-valuemax", String(Math.round(ep.dur)));
+    st.sbar.setAttribute("aria-valuenow", String(Math.round(ep.t)));
+    st.sbar.setAttribute("aria-valuetext", `${fmt(ep.t)} of ${fmt(ep.dur)}`);
+  } else if (s === "ready") { t1 = ep.state === "listened" ? `Listened · ${mins(ep.dur)}` : `Episode ready · ${mins(ep.dur)}`; t2 = ep.state === "listened" ? "Tap to play it again" : "Two hosts · tap to play"; }
+  else if (s === "making") { t1 = "Making the episode…"; t2 = `${STEP(ep.p)} · ${etaText(ep)}`; st.parc.style.strokeDasharray = `${(ep.p * 100).toFixed(2)} 100`; }
+  else if (s === "done") { t1 = `Listened · ${mins(ep.dur)}`; t2 = "Played to the end"; }
+  else if (s === "failed") { t1 = "Couldn't make the episode"; }
+  if (st.t1.textContent !== t1) st.t1.textContent = t1;
+  if (st.t2.textContent !== t2) st.t2.textContent = t2;
+  st.sico.setAttribute("aria-label", { playing: "Pause", paused: "Play", ready: "Play the episode", making: "Making the episode", done: "Listened", failed: "Try again" }[s]);
+}
+const pillStrip = makeStrip($("#prowIn"), "dark", 28, () => (PL.id ? byId(PL.id) : null));
+const cardStrip = makeStrip($("#lcard"), "light", 32, () => (readerId ? byId(readerId) : null));
+pillStrip.smain.setAttribute("role", "button");
+pillStrip.smain.tabIndex = 0;
+pillStrip.smain.setAttribute("aria-label", "Open this piece at its Listen card");
+const openFromPill = () => { if (PL.id) openReader(PL.id); };
+pillStrip.smain.addEventListener("click", openFromPill);
+pillStrip.smain.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openFromPill(); } });
+function paintStrips() { if (PL.id) paintStrip(pillStrip); if (readerId) paintStrip(cardStrip); }
+
+// ── The reader, opened at its Listen card ─────────────────────────
+const reader = $("#reader");
+function openReader(id) {
+  const ep = byId(id);
+  if (!ep) return;
+  readerId = id;
+  $("#rno").textContent = `No. ${ep.no} · Piece ${ep.piece} of ${ep.of}`;
+  $("#rtitle").textContent = ep.title;
+  $("#rlede").textContent = ep.lede;
+  $("#rby").innerHTML = "";
+  const strong = document.createElement("strong"); strong.textContent = ep.author;
+  $("#rby").append(strong, ` · ${ep.pub}`);
+  reader.scrollTop = 0;
+  reader.setAttribute("aria-hidden", "false");
+  lib.inert = true;
+  screen.classList.add("reading");
+  paintStrip(cardStrip);
+  sizePill();
+  const card = $("#lcard");
+  card.classList.remove("flash"); card.offsetWidth; card.classList.add("flash");
+  setTimeout(() => cardStrip.sico.focus({ preventScroll: true }), reduce ? 0 : 320);
+}
+function closeReader({ focus = true } = {}) {
+  if (!readerId) return;
+  const id = readerId;
+  readerId = null;
+  reader.setAttribute("aria-hidden", "true");
+  lib.inert = false;
+  screen.classList.remove("reading");
+  sizePill();
+  if (focus) rows.get(id)?.et.focus({ preventScroll: true });
+}
+$("#rback").addEventListener("click", () => closeReader());
+
+// ── The pill ──────────────────────────────────────────────────────
+function sizePill() {
+  const set = screen.classList.contains("reading") ? $("#psetRead") : $("#psetLib");
+  let w = Math.ceil(set.offsetWidth);
+  if (PL.id) w = Math.max(w, 264);
+  pill.style.setProperty("--pw", w + "px");
+}
+
+function paintToolbar() {
+  const pan = $("#pan");
+  if (!pan) return;
+  const n = newReady().length;
+  const queued = PL.qTotal > 0 && PL.id;
+  pan.setAttribute("aria-pressed", String(!!queued));
+  pan.querySelector(".pl").textContent = queued ? `Playing new · ${PL.qIndex} of ${PL.qTotal}` : `Play all new · ${n}`;
+  pan.disabled = !queued && n === 0;
+  const c = tabbody.querySelector(".tcount");
+  if (c) c.textContent = `${EPS.length} episode${EPS.length === 1 ? "" : "s"}`;
+}
+
+/** Repaint everything; `structure` rebuilds the list (after a remove, undo or a new preset). */
+function refreshAll(structure = false) {
+  if (structure && tab === "podcasts") {
+    const focusId = document.activeElement?.closest(".ep")?.dataset.id;
+    renderTab();
+    if (focusId) rows.get(focusId)?.et.focus({ preventScroll: true });
+  }
+  for (const ep of EPS) paintRow(ep);
+  screen.classList.toggle("has-row", !!PL.id);
+  if (readerId && !byId(readerId)) closeReader({ focus: false });
+  paintStrips();
+  paintToolbar();
+  sizePill();
+  $("#cap").textContent = readerId ? "Reader · at its Listen card" : `Library · ${tab[0].toUpperCase() + tab.slice(1)}`;
+}
+
+// ── Page controls ────────────────────────────────────────────────
+function applyPreset(name) {
+  preset = name;
+  for (const k of Object.keys(timers)) clearTimeout(timers[k]);
+  $("#toast").classList.remove("on"); undoState = null;
+  stopPlayer();
+  closeReader({ focus: false });
+  EPS = name === "empty" ? [] : EPS0.map((e) => ({ ...e }));
+  tab = "podcasts";
+  regroup();
+  lib.scrollTop = 0;
+  renderTab();
+  if (name === "playing") play("e5");
+  refreshAll();
+  if (EPS.some((e) => e.state === "making")) startMaking();
+  for (const b of document.querySelectorAll("[data-preset]")) b.setAttribute("aria-pressed", String(b.dataset.preset === name));
+}
+for (const b of document.querySelectorAll("[data-preset]")) b.addEventListener("click", () => applyPreset(b.dataset.preset));
+$("#resetBtn").addEventListener("click", () => applyPreset(preset));
+for (const b of document.querySelectorAll("[data-view]")) b.addEventListener("click", () => {
+  view = b.dataset.view; lib.dataset.view = view;
+  for (const x of document.querySelectorAll("[data-view]")) x.setAttribute("aria-pressed", String(x === b));
+  if (openLi) closeSwipe(openLi);
+});
+for (const b of document.querySelectorAll("[data-extras]")) b.addEventListener("click", () => {
+  extras = b.dataset.extras === "on"; lib.dataset.extras = extras ? "on" : "off";
+  if (!extras && PL.qTotal) { PL.queue = []; PL.qTotal = 0; }
+  for (const x of document.querySelectorAll("[data-extras]")) x.setAttribute("aria-pressed", String(x === b));
+  refreshAll(true);
+});
+for (const b of document.querySelectorAll(".seg3 button")) b.addEventListener("click", () => {
+  if (tab === b.dataset.tab) return;
+  tab = b.dataset.tab;
+  if (tab === "podcasts") regroup();
+  lib.scrollTop = 0;
+  renderTab();
+  refreshAll();
+});
+
+applyPreset("mixed");
+document.fonts?.ready.then(sizePill);
+</script>

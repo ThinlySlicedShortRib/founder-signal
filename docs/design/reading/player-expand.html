@@ -1,0 +1,1001 @@
+<title>Expandable Player</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a header with the hint choice, a sticky scenario bar, the scenario band (piece page, Library, both Listen cards and the note), the hint up close, then a clickable phone with more episodes. */
+:root {
+  --ground: #FBFBFA; --ink: #121316; --muted: #5B5F68; --line: #E2E4E8; --card: #FFFFFF; --accent: #2B4BFF; --bezel: #121316; --bar: rgba(251,251,250,0.94);
+  /* The app itself is light only; these stay the same in both page themes. */
+  --app-ground: #FBFBFA; --app-surface: #FFFFFF; --app-ink: #121316; --app-lede: #3A3D44; --app-muted: #5B5F68; --app-rule: #EEF0F4; --app-grab: #D6D8DE; --app-off: #8A8E97;
+  --app-blue: #2B4BFF; --app-blue-mid: #8FA1FF; --app-blue-card: #DCE3FF; --app-tint: #EEF2FF; --app-tint-line: #DCE3FF; --app-orange: #FF5A1F; --app-peach: #FFE3D6; --app-orange-tint: #FFF1EC;
+  --app-pill: #121316; --app-pill-muted: #9EA3AD;
+  --tint-0: #DCE3FF; --tint-1: #FFE3D6; --tint-2: #ECEEF2;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; --bar: rgba(19,20,24,0.94); color-scheme: dark } }
+:root[data-theme="dark"] { --ground: #131418; --ink: #ECEDEF; --muted: #9EA3AD; --line: #2A2C33; --card: #1B1D22; --accent: #8FA1FF; --bezel: #000000; --bar: rgba(19,20,24,0.94); color-scheme: dark }
+
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.page { max-width: 1100px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+header { display: grid; gap: 12px; max-width: 70ch; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+.rec { display: grid; gap: 6px; max-width: 70ch; padding: 14px 16px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; background: var(--card); }
+.rec b.k { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.rec p { margin: 0; font-size: 14.5px; line-height: 1.55; }
+button.ctl { font: 600 13px/1 var(--body); border-radius: 999px; padding: 9px 13px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; }
+button.ctl[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+button.ctl.primary { background: var(--accent); color: #FFFFFF; border-color: var(--accent); }
+:root[data-theme="dark"] button.ctl.primary { color: #121316; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.ctl.primary { color: #121316; } }
+button.ctl .n { font-family: var(--mono); font-weight: 500; font-size: 11px; opacity: 0.65; margin-right: 4px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lbl { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+
+/* The scenario bar stays in view while you scroll. */
+.scen { position: sticky; top: 0; z-index: 30; margin-inline: -8px; padding: 10px 8px; background: var(--bar); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.srow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.scap { margin: 0; font-size: 13.5px; line-height: 1.4; color: var(--ink); min-height: 38px; }
+.scap .k { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-right: 6px; }
+.legend { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.legend b { color: var(--ink); font-weight: 600; }
+
+/* Bands */
+.design { display: grid; gap: 16px; padding-top: 22px; border-top: 1px solid var(--line); scroll-margin-top: 170px; }
+.dhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.dhead h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.1; letter-spacing: -0.025em; }
+.dsub { margin: 0; max-width: 70ch; color: var(--muted); font-size: 14.5px; }
+.tag { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+.tag.pick { color: var(--accent); border-color: var(--accent); }
+.dgrid { display: grid; grid-template-columns: 316px 316px minmax(0, 1fr); gap: 20px 24px; align-items: start; }
+.phonecol { display: grid; gap: 10px; width: 316px; max-width: 100%; justify-items: center; }
+.cap { margin: 0; color: var(--muted); font-size: 12.5px; text-align: center; font-family: var(--mono); letter-spacing: 0.03em; }
+.seg { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+.seg button.ctl { border-color: transparent; padding: 7px 12px; font-size: 12.5px; }
+.side { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.note { display: grid; gap: 8px; }
+.note p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+.note p b { color: var(--ink); font-weight: 600; }
+@media (max-width: 1060px) { .dgrid { grid-template-columns: 316px 316px; justify-content: start; } .side { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); } }
+@media (max-width: 700px) { .dgrid { grid-template-columns: minmax(0, 1fr); justify-items: center; } .side { justify-self: stretch; grid-template-columns: minmax(0, 1fr); } }
+.dgrid.two { grid-template-columns: 316px minmax(0, 1fr); }
+@media (max-width: 700px) { .dgrid.two { grid-template-columns: minmax(0, 1fr); } }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The Listen cards, as they sit in each article (the app's own colours). */
+.cards { display: grid; gap: 10px; padding: 12px; border-radius: 20px; background: var(--app-ground); border: 1px solid var(--line); color: var(--app-ink); }
+.cardbox { display: grid; gap: 6px; }
+.cardbox .mono { color: var(--app-muted); font-size: 10px; }
+.lcard { background: var(--app-tint); border: 1px solid var(--app-tint-line); border-radius: 16px; padding: 11px 13px 12px; display: grid; gap: 9px; min-width: 0; }
+.lhead { display: flex; align-items: center; gap: 7px; font: 600 14px/1.2 var(--body); min-width: 0; }
+.lhead svg { width: 16px; height: 16px; flex: none; color: var(--app-blue); }
+.lhead .mono { margin-left: auto; color: var(--app-muted); font-size: 10px; white-space: nowrap; }
+.lcard .shost { height: 40px; display: flex; min-width: 0; }
+.lcard .strip { gap: 8px; }
+
+/* The hint, up close */
+.hgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 760px) { .hgrid { grid-template-columns: minmax(0, 1fr); } }
+.hcol { display: grid; gap: 10px; align-content: start; padding: 14px; border: 1px solid var(--line); border-radius: 20px; background: var(--app-ground); color: var(--app-ink); min-width: 0; }
+.hcol h3 { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 700 18px/1.2 var(--display); letter-spacing: -0.02em; }
+.hcol .tag { color: var(--app-muted); border-color: var(--app-grab); }
+.hcol .tag.pick { color: var(--app-blue); border-color: var(--app-blue); }
+.hcol p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--app-lede); }
+.hbox { display: grid; gap: 6px; justify-items: center; }
+.hbox .mono { color: var(--app-muted); font-size: 10px; }
+.hbox .pill { position: relative; }
+
+/* ── The phone (from now-playing.html) ───────────────────────── */
+.phone { box-sizing: border-box; width: 316px; max-width: 100%; padding: 8px; border-radius: 46px; background: var(--bezel); box-shadow: 0 18px 40px rgba(18,19,22,0.18); }
+.screen { position: relative; width: 300px; height: 620px; max-width: 100%; border-radius: 38px; overflow: hidden; background: var(--app-ground); isolation: isolate; font-family: var(--body); color: var(--app-ink); }
+.sysbar { position: absolute; top: 0; left: 0; right: 0; height: 44px; z-index: 8; display: flex; justify-content: space-between; align-items: center; padding: 6px 28px 0; font: 600 13px/1 var(--body); color: var(--app-ink); pointer-events: none; }
+.sig { display: flex; align-items: flex-end; gap: 2px; }
+.sig i { width: 3px; border-radius: 1px; background: currentColor; }
+.sig i:nth-child(1) { height: 5px } .sig i:nth-child(2) { height: 7px } .sig i:nth-child(3) { height: 9px }
+.sig b { width: 20px; height: 9px; margin-left: 5px; border-radius: 3px; background: currentColor; }
+.notch { position: absolute; left: 50%; top: 9px; width: 86px; height: 24px; margin-left: -43px; border-radius: 14px; background: #000; z-index: 9; }
+.home { position: absolute; left: 50%; bottom: 7px; width: 110px; height: 4px; margin-left: -55px; border-radius: 3px; background: var(--app-ink); z-index: 9; pointer-events: none; }
+.mono { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+.artsvg { display: block; width: 100%; height: 100%; }
+.view { position: absolute; inset: 0; z-index: 1; opacity: 0; visibility: hidden; transition: opacity 220ms ease, visibility 0s linear 220ms; }
+.view.on { opacity: 1; visibility: visible; z-index: 2; transition: opacity 220ms ease, visibility 0s; }
+.scroll { position: absolute; inset: 0; box-sizing: border-box; overflow: hidden; padding: 50px 16px 154px; }
+/* Tapping outside the open panel closes it; the page dims a little while it's open. */
+.scrim { position: absolute; inset: 0; z-index: 6; background: #121316; opacity: 0; pointer-events: none; }
+
+/* Piece page, layout A (piece-art.html) */
+.piece { display: flex; flex-direction: column; background: rgb(var(--bg)); }
+.piece .band { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.piece .bart { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+.piece .bart::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(rgba(var(--bg), 0), rgb(var(--bg))); }
+.tscrim { position: absolute; left: 0; right: 0; top: 0; height: 136px; background: linear-gradient(rgba(var(--bg), var(--a)) 0 80px, rgba(var(--bg), 0)); }
+.piece .top { position: relative; z-index: 2; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 58px 20px 0; color: var(--app-lede); }
+.bars { display: flex; gap: 4px; }
+.bars i { width: 16px; height: 3px; border-radius: 2px; background: rgba(18,19,22,0.18); }
+.bars i.on { background: var(--app-ink); }
+.piece .gap { flex: 1; min-height: 8px; }
+.piece .bhead { position: relative; display: grid; gap: 7px; padding: 6px 20px 10px; }
+.piece .bhead::before { content: ""; position: absolute; z-index: -1; left: 0; right: 0; top: -56px; bottom: 0; background: linear-gradient(rgba(var(--bg), 0), rgba(var(--bg), var(--a)) 56px); }
+.kicker { color: var(--app-lede); }
+.ttl { font-family: var(--display); font-weight: 700; font-size: 25px; line-height: 1.08; letter-spacing: -0.035em; margin: 0; text-wrap: balance; color: var(--app-ink); }
+.piece .body { position: relative; z-index: 2; flex: none; display: grid; gap: 9px; padding: 2px 20px 142px; }
+.chip { justify-self: start; max-width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; background: #F6F7F9; border: 1px solid var(--app-rule); }
+.chip .av { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 10.5px/1 var(--body); color: var(--app-ink); }
+.cn { display: grid; min-width: 0; }
+.cn b { font: 600 12.5px/15px var(--body); }
+.cn small { font: 400 11px/14px var(--body); color: var(--app-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.why { margin: 0; display: flex; gap: 9px; background: var(--app-orange-tint); border: 1px solid var(--app-peach); border-radius: 14px; padding: 9px 11px; font-size: 12.5px; line-height: 1.42; color: #3A2418; }
+.why::before { content: ""; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--app-orange); margin-top: 3px; }
+.actions { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.read { font: 600 14.5px/1 var(--body); color: #FFFFFF; background: var(--app-ink); border: 0; border-radius: 999px; padding: 14px 18px; display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.dot { position: relative; flex: none; width: 8px; height: 16px; }
+.dot i { position: absolute; left: 1px; bottom: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--app-blue-mid); animation: rise 1.6s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes rise { 0% { transform: translateY(0); opacity: 0 } 15% { opacity: 1 } 65% { transform: translateY(-11px); opacity: 1 } 100% { transform: translateY(-12px); opacity: 0 } }
+.listen { flex: none; width: 43px; height: 43px; box-sizing: border-box; border-radius: 50%; border: 1px solid #D6D8DE; background: #FFFFFF; display: grid; place-items: center; color: var(--app-ink); padding: 0; transition: background-color 200ms, border-color 200ms, color 200ms; }
+.listen svg { width: 19px; height: 19px; }
+.listen.on { background: var(--app-blue); border-color: var(--app-blue); color: #FFFFFF; }
+
+/* Library · Podcasts (library-podcasts.html, the list layout) */
+.lib .scroll { padding-left: 14px; padding-right: 14px; display: flex; flex-direction: column; gap: 10px; }
+.lib .scroll > * { flex-shrink: 0; }
+.lk { padding: 0 4px; color: var(--app-muted); }
+.lt { margin: -4px 0 0; padding: 0 4px; font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 46px; letter-spacing: -0.03em; }
+.seg3 { display: flex; border: 1.5px solid var(--app-ink); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg3 span { flex: 1; min-width: 0; min-height: 34px; border-radius: 999px; display: grid; place-items: center; font: 600 14px/1 var(--body); color: var(--app-ink); }
+.seg3 span.on { background: var(--app-ink); color: #FFFFFF; }
+.gh { margin: 6px 4px -6px; color: var(--app-muted); font-weight: 500; }
+.eps { list-style: none; margin: 0; padding: 0; display: grid; }
+.ep { position: relative; border-radius: 16px; }
+.ep[hidden] { display: none; }
+.ep-in { --row: var(--app-ground); box-sizing: border-box; border-radius: inherit; background: var(--row); display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; align-items: center; padding: 9px 8px; transition: background-color 200ms; }
+.ep + .ep::before { content: ""; position: absolute; z-index: 1; top: 0; left: 60px; right: 8px; height: 1px; background: var(--app-rule); }
+.ep:is([data-s="playing"], [data-s="paused"]) .ep-in { --row: var(--app-tint); }
+.ep:is([data-s="playing"], [data-s="paused"])::before, .ep:is([data-s="playing"], [data-s="paused"]) + .ep::before { opacity: 0; }
+.eb { width: 40px; height: 40px; border-radius: 50%; }
+.eb svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.eb svg > * { opacity: 0; transition: opacity 140ms; }
+.eb .ebg { opacity: 1; fill: var(--app-blue); transition: fill 200ms; }
+.eb .gl { fill: #FFFFFF; }
+.eb .gc { fill: none; stroke: var(--app-muted); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.etr { fill: none; stroke: rgba(18,19,22,0.14); stroke-width: 2.4; }
+.etk { stroke: rgba(18,19,22,0.36); stroke-width: 1.4; }
+.earc { fill: none; stroke: var(--app-blue); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 100; }
+.ep:is([data-s="ready"], [data-s="partial"], [data-s="paused"]) .gp, .ep[data-s="playing"] .gpa, .ep[data-s="listened"] .gc, .ep[data-s="making"] :is(.etr, .etk, .earc) { opacity: 1; }
+.ep:is([data-s="making"], [data-s="listened"]) .ebg { fill: var(--tint); }
+.et { min-width: 0; display: grid; gap: 1px; }
+.ett { font: 600 14px/18px var(--body); color: var(--app-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.em { font: 400 12px/16px var(--body); color: var(--app-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.es { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 3px; font: 500 11.5px/15px var(--body); color: var(--app-muted); font-variant-numeric: tabular-nums; }
+.elab { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep[data-s="playing"] .elab { color: var(--app-blue); }
+.ebar { display: none; flex: none; position: relative; width: 44px; height: 3px; border-radius: 2px; background: rgba(18,19,22,0.12); overflow: hidden; }
+.ebar i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--pct, 0) * 100%); background: var(--app-blue); border-radius: 2px; }
+.ep:is([data-s="partial"], [data-s="playing"], [data-s="paused"]) .ebar { display: block; }
+.eq { display: none; flex: none; height: 10px; align-items: flex-end; gap: 2px; }
+.eq i { width: 2.5px; height: 100%; border-radius: 1px; background: var(--app-blue); transform-origin: 50% 100%; animation: eq 0.9s ease-in-out infinite alternate; }
+.eq i:nth-child(2) { animation-delay: -0.45s; animation-duration: 0.7s; }
+.eq i:nth-child(3) { animation-delay: -0.2s; animation-duration: 1.05s; }
+@keyframes eq { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }
+.ep[data-s="playing"] .eq { display: inline-flex; }
+.ep[data-s="listened"] .et { opacity: 0.55; }
+.ep[data-s="making"] .ett { background: linear-gradient(90deg, var(--app-ink) 0 38%, #A9ADB6 50%, var(--app-ink) 62% 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+
+/* ── The status strip (from async-status.html) ────────────────── */
+.strip { --ico: 28px; position: relative; height: 100%; flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: var(--s-ink); font: 500 13px/16px var(--body); }
+.strip.dark { --s-ink: #FFFFFF; --s-muted: var(--app-pill-muted); --s-track: rgba(255,255,255,0.18); --s-tick: rgba(255,255,255,0.5); --s-fill: var(--app-blue-mid); --s-shine: rgba(255,255,255,0.4); --s-x: rgba(255,255,255,0.1); --s-ghost: rgba(255,255,255,0.3); }
+.strip.light { --s-ink: var(--app-ink); --s-muted: var(--app-muted); --s-track: rgba(18,19,22,0.12); --s-tick: rgba(18,19,22,0.34); --s-fill: var(--app-blue); --s-shine: #A9ADB6; --s-x: rgba(18,19,22,0.06); --s-ghost: rgba(18,19,22,0.2); }
+.sico { position: relative; flex: none; width: var(--ico); height: var(--ico); border-radius: 50%; }
+.sico svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.sico svg > * { opacity: 0; }
+.pring { transform-box: view-box; transform-origin: 16px 16px; }
+.ptrack { fill: none; stroke: var(--s-track); }
+.ptick { stroke: var(--s-tick); stroke-linecap: butt; }
+.parc { fill: none; stroke: var(--app-blue); stroke-linecap: round; stroke-dasharray: 0 100; }
+.disc { fill: var(--app-blue); }
+.gl { fill: #FFFFFF; }
+.g-check { fill: none; stroke: #FFFFFF; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.strip[data-s="idle"] :is(.disc, .g-wave),
+.strip[data-s="making"] .pring,
+.strip:is([data-s="ready"], [data-s="paused"]) :is(.disc, .g-play),
+.strip[data-s="playing"] :is(.disc, .g-pause),
+.strip[data-s="done"] :is(.disc, .g-check) { opacity: 1; }
+.pulse { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--app-blue); opacity: 0; pointer-events: none; }
+.strip.dark .pulse { border-color: var(--app-blue-mid); }
+.smain { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.l1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.t1 { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm { flex: none; padding-left: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--s-muted); font-variant-numeric: tabular-nums; }
+.strip:not([data-s="playing"]):not([data-s="paused"]) .tm { display: none; }
+.l2 { position: relative; height: 12px; display: flex; align-items: center; min-width: 0; }
+.t2 { flex: 0 1 auto; font: 500 11px/12px var(--body); color: var(--s-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tl { display: none; flex: none; align-items: baseline; font: 500 11px/12px var(--body); color: var(--s-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tl::before { content: "·"; margin: 0 3px; }
+.strip[data-s="making"] .tl { display: flex; }
+.strip[data-s="making"] :is(.t2, .tl) { letter-spacing: -0.015em; }
+.strip[data-s="making"] .t1 { background: linear-gradient(90deg, var(--s-ink) 0 38%, var(--s-shine) 50%, var(--s-ink) 62% 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.sbar { display: none; position: relative; flex: 1; height: 14px; margin: -1px 0; }
+.strip:is([data-s="playing"], [data-s="paused"]) .sbar { display: block; }
+.strip:is([data-s="playing"], [data-s="paused"]) .t2 { display: none; }
+.sbar::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-track); }
+.sbar .fill { position: absolute; left: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--s-fill); width: calc(var(--pct, 0) * 100%); }
+.sbar .knob { position: absolute; top: 50%; left: calc(var(--pct, 0) * 100%); width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--s-fill); }
+.strip.dark .sbar .knob { background: #FFFFFF; }
+.sx { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--s-x, rgba(255,255,255,0.1)); color: var(--s-muted, var(--app-pill-muted)); display: grid; place-items: center; border: 0; padding: 0; cursor: pointer; }
+.sx svg { width: 12px; height: 12px; }
+
+/* ── The pill: the expandable part on top, then the screen's controls ── */
+.dockwrap { position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.pill { position: relative; box-sizing: border-box; width: 264px; max-width: 96%; border-radius: 27px; background: var(--app-pill); box-shadow: 0 12px 30px rgba(18,19,22,0.22); overflow: hidden; pointer-events: auto; }
+/* The part that grows. Collapsed it's the row (50px: the approved 44 plus room for the handle); open it's the panel. */
+.xp { position: relative; height: 50px; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,0.1); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.xp.dragging { cursor: grabbing; }
+.xp.empty { height: 0 !important; border-bottom: 0; }
+.crow { position: absolute; left: 0; right: 0; top: 0; height: 50px; box-sizing: border-box; padding: 8px 10px 0 10px; display: flex; }
+.rstrip { flex: 1; min-width: 0; height: 42px; display: flex; }
+
+/* The grab handle, and the quiet hint it carries */
+.hdl { position: absolute; z-index: 3; top: 0; left: 50%; width: 72px; height: 16px; margin-left: -36px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; border-radius: 8px; }
+.hbar { position: relative; width: 26px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.26); overflow: hidden; transition: width 260ms cubic-bezier(.2,.8,.2,1), background-color 260ms; }
+.hbar i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--hp, 0) * 100%); border-radius: 2px; background: rgba(255,255,255,0.8); opacity: 0; transition: background-color 260ms; }
+.pill[data-v="fill"] .hdl[data-k="making"] .hbar { width: 32px; }
+.pill[data-v="fill"] .hdl[data-k="making"] .hbar i { opacity: 1; }
+.pill[data-v="fill"] .hdl[data-k="ready"] .hbar { width: 32px; background: var(--app-blue-mid); }
+.hdot { position: absolute; top: 2px; left: calc(50% + 20px); box-sizing: border-box; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; display: none; place-items: center; font: 500 9px/1 var(--mono); color: #FFFFFF; background: rgba(255,255,255,0.2); font-variant-numeric: tabular-nums; }
+.pill[data-v="dot"] .hdl:not([data-k="none"]) .hdot { display: grid; }
+.pill[data-v="dot"] .hdl[data-k="ready"] .hdot { background: var(--app-blue); }
+.xp.open .hbar { width: 32px; }
+
+/* The open panel */
+.xin { position: absolute; top: 0; left: 50%; width: 284px; margin-left: -142px; box-sizing: border-box; padding-top: 16px; display: flex; flex-direction: column; color: #FFFFFF; opacity: 0; }
+.np { flex: none; display: grid; gap: 5px; padding: 0 16px 10px; }
+.nph { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: center; }
+.nth { width: 40px; height: 40px; border-radius: 9px; overflow: hidden; background: #F4F6FB; }
+.nth svg { width: 100%; height: 100%; display: block; }
+.ntx { display: grid; gap: 1px; min-width: 0; }
+.ntx b { font: 600 14px/17px var(--body); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ntx small { font: 500 11px/14px var(--body); color: var(--app-pill-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nbar { position: relative; height: 16px; margin-top: 2px; }
+.nbar .ntr, .nbar .nfill { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; }
+.nbar .ntr { right: 0; background: rgba(255,255,255,0.18); }
+.nbar .nfill { width: calc(var(--pct, 0) * 100%); background: var(--app-blue-mid); }
+.nbar .ntk { position: absolute; top: 50%; width: 2px; height: 4px; margin: -2px 0 0 -1px; background: var(--app-pill); }
+.nbar .nknob { position: absolute; top: 50%; left: calc(var(--pct, 0) * 100%); width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+.ntm { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; margin-top: -3px; font: 500 10.5px/13px var(--mono); color: var(--app-pill-muted); font-variant-numeric: tabular-nums; }
+.nchn { min-width: 0; text-align: center; font: 500 11px/13px var(--body); color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nctl { display: grid; grid-template-columns: 1fr auto auto auto 1fr; align-items: center; gap: 12px; margin-top: 1px; }
+.nctl button { border: 0; padding: 0; background: none; color: #FFFFFF; cursor: pointer; display: grid; place-items: center; }
+.skip { width: 36px; height: 36px; border-radius: 50%; }
+.skip svg { width: 26px; height: 26px; }
+.big { width: 42px; height: 42px; border-radius: 50%; background: var(--app-blue) !important; }
+.big svg { width: 20px; height: 20px; }
+/* Dashed: optional (playback speed) */
+.spd { justify-self: start; min-width: 40px; height: 26px; padding: 0 8px !important; border-radius: 999px; border: 1px dashed rgba(255,255,255,0.4) !important; font: 500 11px/1 var(--mono) !important; font-variant-numeric: tabular-nums; }
+.np.ready .ntm span:last-child, .np.done .ntm span:last-child { color: var(--app-pill-muted); }
+.np-label { color: var(--app-pill-muted); font-size: 10px; }
+
+.xlist { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 0 12px 6px; border-top: 1px solid rgba(255,255,255,0.1); touch-action: pan-y; }
+.xlist::-webkit-scrollbar { display: none; }
+.xlist.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), transparent); mask-image: linear-gradient(#000 calc(100% - 22px), transparent); }
+.xs { margin: 0; padding: 8px 4px 2px; display: flex; justify-content: space-between; color: var(--app-pill-muted); font-weight: 500; font-size: 10px; }
+.xr { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 4px; border-radius: 12px; }
+.xr + .xr::before { content: ""; position: absolute; top: 0; left: 42px; right: 4px; height: 1px; background: rgba(255,255,255,0.08); }
+.xico { width: 28px; height: 28px; display: grid; place-items: center; }
+.xico svg { width: 28px; height: 28px; display: block; overflow: visible; }
+.xring .tr { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 2.29; }
+.xring .tk { stroke: rgba(255,255,255,0.5); stroke-width: 1.37; }
+.xring .arc { fill: none; stroke: var(--app-blue-mid); stroke-width: 2.29; stroke-linecap: round; stroke-dasharray: 0 100; }
+.xt { display: grid; gap: 1px; min-width: 0; }
+.xt b { font: 600 13px/16px var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xt small { font: 500 11px/14px var(--body); color: var(--app-pill-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.xr.mk .xt b { background: linear-gradient(90deg, #FFFFFF 0 38%, rgba(255,255,255,0.4) 50%, #FFFFFF 62% 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.xr.rd { grid-template-columns: 28px minmax(0, 1fr); align-items: start; }
+.xr.rd .xico { margin-top: -2px; }
+.xbt { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-width: 0; }
+.xbt small { flex: 1; min-width: 0; text-align: right; overflow: visible; }
+.xbt button { flex: none; font: 600 12px/1 var(--body); padding: 7px 9px; border-radius: 999px; white-space: nowrap; cursor: pointer; color: #FFFFFF; }
+.pnow { background: var(--app-blue); border: 1px solid var(--app-blue); }
+.plater { background: transparent; border: 1px solid rgba(255,255,255,0.3); }
+.qn { width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); display: grid; place-items: center; font: 500 10.5px/1 var(--mono); color: #FFFFFF; }
+.xempty { margin: 0; padding: 12px 4px 6px; font: 500 12px/16px var(--body); color: var(--app-pill-muted); }
+.xall { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; padding: 9px 4px 4px; border-top: 1px solid rgba(255,255,255,0.1); font: 600 12.5px/1 var(--body); color: var(--app-blue-mid); text-decoration: none; }
+.xall svg { width: 14px; height: 14px; }
+/* The approved inline Stop confirm, in a panel row: it takes the row's place, so nothing moves. */
+.xconf { position: absolute; inset: 0; display: flex; align-items: center; gap: 6px; padding: 0 4px 0 6px; }
+.xr.confirming > :not(.xconf) { visibility: hidden; }
+.cq { flex: 1; min-width: 0; font: 600 12.5px/15px var(--body); color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xconf button { flex: none; font: 600 12px/1 var(--body); padding: 7px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.ckeep { background: transparent; color: #FFFFFF; border: 1px solid rgba(255,255,255,0.3); }
+.cstop { background: var(--app-orange); color: var(--app-ink); border: 1px solid var(--app-orange); }
+
+.pbtns { position: relative; height: 54px; }
+.pset { position: absolute; top: 0; bottom: 0; left: 50%; width: max-content; translate: -50% 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 5px; }
+.pb { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #FFFFFF; flex: none; }
+.pb svg { width: 20px; height: 20px; }
+.pb.blue { background: var(--app-blue); }
+.plabel { box-sizing: border-box; min-width: 92px; padding: 0 6px; display: grid; justify-items: center; }
+.plabel .k { font-family: var(--mono); font-size: 10px; line-height: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-pill-muted); white-space: nowrap; }
+.plabel .v { font: 600 15px/18px var(--body); color: #FFFFFF; white-space: nowrap; }
+
+/* A simulated tap */
+.tap { position: absolute; z-index: 20; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: rgba(43,75,255,0.22); border: 2px solid rgba(43,75,255,0.7); pointer-events: none; opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .view, .view.on { transition: opacity 120ms, visibility 0s; }
+  .dot i { animation: none; opacity: 1; transform: translateY(-5px); }
+  .eq i { animation: none; }
+  .strip[data-s="making"] .t1, .ep[data-s="making"] .ett, .xr.mk .xt b { animation: none; background: none; color: var(--s-ink, #FFFFFF); }
+  .ep[data-s="making"] .ett { color: var(--app-ink); }
+  .hbar, .hbar i { transition: none; }
+}
+</style>
+
+<div class="page" id="page">
+  <header>
+    <div class="eyebrow">Founder Signal · Listen · expandable player (design mock)</div>
+    <h1>One row for what you hear, one drag for the rest</h1>
+    <p>Design A kept the row on the episode you can hear, but squeezed a chip in beside the scrubber. Here the row goes back to full width and only ever shows what's playing. A handle on its top edge says more is waiting. Drag the row up, or tap the handle, and it grows into a dark panel out of the same pill, with the pill's controls still underneath: Now playing, then Up next, Ready and Making, ordered by how soon you'll hear them.</p>
+  </header>
+
+  <div class="rec">
+    <b class="k">Hint · the handle fills</b>
+    <p>The handle you drag is the hint. While an episode is being made it fills left to right with the progress of the one closest to done, and when one is ready it turns blue and pulses once. It adds nothing to the row and still reads as “something is moving under here”. The alternative, a small count dot beside the handle, is easier to spot and says how many, but it's one more badge in a row we just cleared, and a grey “1” doesn't say whether it's nearly done. Switch between them in the bar below.</p>
+  </div>
+
+  <div class="scen" id="scen">
+    <div class="srow" id="steps" role="group" aria-label="Scenario step"></div>
+    <div class="srow">
+      <button class="ctl primary" id="autoBtn" type="button">Auto-play steps 1 to 5</button>
+      <button class="ctl" id="replayBtn" type="button">Replay this step</button>
+      <span style="flex:1"></span>
+      <span style="display:flex;align-items:center;gap:6px"><span class="lbl">Hint</span><span class="seg" role="group" aria-label="Hint style"><button class="ctl" type="button" data-hint="fill">Handle fills</button><button class="ctl" type="button" data-hint="dot">Count dot</button></span></span>
+    </div>
+    <p class="scap" id="scap" aria-live="polite"></p>
+  </div>
+  <p class="legend"><b>A</b> is “Why usage-based pricing keeps winning at the seed stage” (piece 1). <b>B</b> is “The board meeting you actually want to run” (piece 2). Making B is sped up from about a minute to about ten seconds. Drag either row up or down, tap its handle, or use the toggle under each phone. The dashed speed button is optional.</p>
+
+  <section class="design" id="scenario" aria-labelledby="h-scen">
+    <div class="dhead"><h2 id="h-scen">The scenario</h2></div>
+    <div class="dgrid">
+      <div class="phonecol" data-ph="0"><div class="seg" role="group" aria-label="Panel, piece page"><button class="ctl" type="button" data-mode="collapsed">Collapsed</button><button class="ctl" type="button" data-mode="expanded">Expanded</button></div></div>
+      <div class="phonecol" data-ph="1"><div class="seg" role="group" aria-label="Panel, Library"><button class="ctl" type="button" data-mode="collapsed">Collapsed</button><button class="ctl" type="button" data-mode="expanded">Expanded</button></div></div>
+      <div class="side">
+        <div class="cards" aria-label="Both Listen cards">
+          <div class="cardbox" data-card="A"><span class="mono">Piece 1 · A's Listen card</span><div class="lcard"><div class="lhead"><span data-i="phones"></span>Listen to this piece<span class="mono">Two hosts</span></div><div class="shost"></div></div></div>
+          <div class="cardbox" data-card="B"><span class="mono">Piece 2 · B's Listen card</span><div class="lcard"><div class="lhead"><span data-i="phones"></span>Listen to this piece<span class="mono">Two hosts</span></div><div class="shost"></div></div></div>
+        </div>
+        <div class="note">
+          <p><b>Why it's calmer.</b> Collapsed, the row has one job again: the episode you can hear, at full width, with nothing beside the scrubber. Everything else waits one drag away, and the only trace of it is the handle filling.</p>
+          <p><b>With 3 or more.</b> The collapsed row doesn't change at all; the handle just follows whichever episode is closest to done. The panel gets longer and scrolls inside, capped at about half the screen, so more episodes never squeeze the player.</p>
+          <p><b>What's in the panel.</b> Now playing, larger: title, letter and piece, a big scrubber with chapter marks and times, ±15s and play or pause. Then Up next (episodes you chose to play after this, each with ✕), Ready (Play now or Play after this), Making (ring, step, time left, and ✕ with the approved Stop confirm), and a link to all episodes in Podcasts.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="design" id="hints" aria-labelledby="h-hints">
+    <div class="dhead"><h2 id="h-hints">The hint, up close</h2></div>
+    <p class="dsub">The same collapsed row in three moments, with each hint style. A is playing in every one; only the handle changes.</p>
+    <div class="hgrid">
+      <div class="hcol" data-variant="fill"><h3>Handle fills <span class="tag pick">Recommended</span></h3><p>Nothing waiting: a plain grey handle. Making: it grows a little and fills white with the progress. Ready: it turns blue and pulses once, then stays blue until you open the panel or the episode plays.</p></div>
+      <div class="hcol" data-variant="dot"><h3>Count dot <span class="tag">Alternative</span></h3><p>A small number beside the handle: grey while episodes are being made, blue once one is ready, popping once when it changes. Clearer at a glance, but busier, and it can't show how close anything is.</p></div>
+    </div>
+  </section>
+
+  <section class="design" id="more" aria-labelledby="h-more">
+    <div class="dhead"><h2 id="h-more">Four waiting, and nothing playing</h2></div>
+    <p class="dsub">This phone is clickable. Play now, Play after this, ✕ on Up next, ✕ on Making (with the Stop confirm), play or pause, ±15s and speed all work, and the two episodes being made finish in about half a minute.</p>
+    <div class="dgrid two">
+      <div class="phonecol" data-ph="2"><div class="seg" role="group" aria-label="Panel, more episodes"><button class="ctl" type="button" data-mode="collapsed">Collapsed</button><button class="ctl" type="button" data-mode="expanded">Expanded</button></div></div>
+      <div class="side">
+        <div class="presets" role="group" aria-label="Start from"><button class="ctl" type="button" data-preset="four">A playing, four waiting</button><button class="ctl" type="button" data-preset="idle">Nothing playing, one making</button></div>
+        <div class="note">
+          <p><b>Four waiting.</b> The collapsed row is the same as with one. Open, the panel scrolls: one Up next, one Ready and two Making, with Now playing pinned above them. When A ends, the Up next episode plays, because you asked for it; Ready ones never start on their own.</p>
+          <p><b>Nothing playing, one making.</b> The row shows the episode being made, as approved: ring, step, time left and ✕. The handle stays plain because the only thing waiting is already in the row. When it's ready, the row becomes its play button, and the panel opens the same way.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const play = (el, frames, opts) => (reduce || !el ? null : el.animate(frames, opts));
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const EASE = "cubic-bezier(.2,.8,.2,1)";
+
+const ART = { sky: `<svg xmlns="http://www.w3.org/2000/svg" class="artsvg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMin slice" viewBox="0 0 390 484"><defs><linearGradient id="a6-sky" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="484"><stop offset="0" stop-color="#F4F6FB" stop-opacity="1"/><stop offset="0.6" stop-color="#EEF2FF" stop-opacity="0.75"/><stop offset="1" stop-color="#FBFBFA" stop-opacity="1"/></linearGradient></defs><rect width="390" height="484" fill="#F4F6FB"/><rect x="0" y="0" width="390" height="484" fill="url(#a6-sky)"/><circle cx="241.9" cy="157.2" r="28.6" fill="#FFFFFF" opacity="0.35"/><circle cx="241.9" cy="157.2" r="11.9" fill="#FF5A1F" opacity="0.18"/><path d="M0 250.1H390" fill="none" stroke="#9599A2" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/><path d="M-2.6 177.8h136.6M21.2 132.5h100.3" fill="none" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/></svg>`, routes: `<svg xmlns="http://www.w3.org/2000/svg" class="artsvg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMin slice" viewBox="0 0 390 484"><defs></defs><rect width="390" height="484" fill="#F4F6FB"/><path d="M-20 96.8Q195 56.8 410 96.8M-20 193.6Q195 153.6 410 193.6M-20 290.4Q195 250.4 410 290.4M-20 387.2Q195 347.2 410 387.2" fill="none" stroke="#9599A2" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/><path d="M317.9 106.7Q268.9 141.2 211.2 124.8M317.9 106.7Q299.7 165.2 251 202.5M251 202.5Q218.4 170.2 211.2 124.8M251 202.5Q185.4 201.8 131.8 239.6M131.8 239.6Q193.9 197.7 211.2 124.8M211.2 124.8Q137.4 116.1 79.5 69.6M131.8 239.6Q79.8 162.5 79.5 69.6" fill="none" stroke="#9599A2" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="0.1 5" opacity="0.6"/><path d="M317.9 106.7Q261.3 96.5 211.2 124.8M211.2 124.8Q217.1 170.8 251 202.5" fill="none" stroke="#9599A2" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/><path d="M316.1 106.7a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M249.2 202.5a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M130 239.6a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M209.4 124.8a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M77.7 69.6a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0" fill="#9599A2" opacity="0.9"/><rect x="244" y="184.5" width="14" height="9" rx="1" fill="#FFFFFF" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M244.5 185L251 189.5L257.5 185" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M248.8 202.5a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0" fill="#FF5A1F" opacity="0.5"/></svg>`, letter: `<svg xmlns="http://www.w3.org/2000/svg" class="artsvg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMin slice" viewBox="0 0 390 484"><defs><pattern id="a12-grain" patternUnits="userSpaceOnUse" width="56" height="56"><path d="M7.1 9.7h0.7v0.7h-0.7ZM35.1 49.9h0.9v0.9h-0.9ZM50.1 30.6h1.2v1.2h-1.2ZM26.9 29.1h1.2v1.2h-1.2ZM46.4 53.6h0.6v0.6h-0.6ZM46 25.5h1.1v1.1h-1.1ZM2.6 13.7h0.6v0.6h-0.6ZM47.3 27.4h1.4v1.4h-1.4ZM46.4 15.8h1.1v1.1h-1.1ZM18.4 28.4h1.5v1.5h-1.5ZM49.7 14.7h1v1h-1ZM19.2 41.9h1.1v1.1h-1.1ZM20.5 37.6h1.2v1.2h-1.2ZM54 27.7h0.8v0.8h-0.8ZM21.8 19h1v1h-1ZM25.1 16.7h0.6v0.6h-0.6ZM13.3 1.4h1.3v1.3h-1.3ZM30.5 28.7h0.6v0.6h-0.6ZM21.3 15.7h1.2v1.2h-1.2ZM38 28.9h1.1v1.1h-1.1ZM13.8 2.3h0.6v0.6h-0.6ZM42.7 42.3h0.9v0.9h-0.9ZM20.9 34.8h1v1h-1ZM16.1 52.1h1.3v1.3h-1.3ZM50.2 10.3h1.4v1.4h-1.4ZM18.9 37.6h0.8v0.8h-0.8ZM17.9 51.6h1.1v1.1h-1.1ZM37.5 40.6h0.9v0.9h-0.9ZM10.5 0.4h1v1h-1ZM20 17.9h1.3v1.3h-1.3ZM9.7 3.4h0.9v0.9h-0.9ZM35.8 17.9h1.4v1.4h-1.4ZM10.3 27.6h1.3v1.3h-1.3ZM45.7 47.2h1.2v1.2h-1.2ZM52.7 42.1h1.2v1.2h-1.2ZM38.7 35.5h1.4v1.4h-1.4ZM50.6 21.9h0.9v0.9h-0.9ZM21.1 26.9h1.4v1.4h-1.4ZM18.1 22.1h0.6v0.6h-0.6ZM31.4 22.2h1.1v1.1h-1.1ZM24.7 12.1h1.2v1.2h-1.2ZM51.6 0.2h1.2v1.2h-1.2ZM27.5 3.8h0.7v0.7h-0.7ZM23.6 8.9h1.3v1.3h-1.3ZM8.5 27.1h0.8v0.8h-0.8ZM51.5 16.9h0.7v0.7h-0.7ZM8.2 52.5h1.1v1.1h-1.1ZM5.1 28.2h0.7v0.7h-0.7ZM16.6 2.7h1v1h-1ZM38.9 18.9h1.1v1.1h-1.1ZM36.7 23.6h0.7v0.7h-0.7ZM32.7 14.9h1.4v1.4h-1.4ZM45.1 0.2h1.3v1.3h-1.3ZM22.2 12h1.2v1.2h-1.2ZM34.6 20.9h1.1v1.1h-1.1ZM52.9 41.4h0.6v0.6h-0.6ZM54.6 19.6h1.1v1.1h-1.1ZM18.7 42.9h1.2v1.2h-1.2ZM39.5 41.7h0.9v0.9h-0.9ZM55.1 6h1.4v1.4h-1.4ZM42.6 49.7h0.8v0.8h-0.8ZM30.8 19.7h1.1v1.1h-1.1ZM5.1 3.3h1.4v1.4h-1.4ZM30.9 35h0.9v0.9h-0.9ZM18.1 41.8h1.3v1.3h-1.3ZM41.1 1.1h1.1v1.1h-1.1ZM33.7 39.3h1v1h-1ZM3.5 52.5h1.1v1.1h-1.1ZM39 32.1h0.9v0.9h-0.9ZM40.8 52.7h1v1h-1Z" fill="#121316"/></pattern></defs><rect width="390" height="484" fill="#F6F2EA"/><g opacity="0.22"><circle cx="217.1" cy="199" r="141.6" fill="none" stroke="#9599A2" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="217.1" cy="199" r="107.6" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M336.1 199L344.6 199M335.1 214.6L343.5 215.7M332 229.8L340.2 232M327 244.5L334.9 247.8M320.1 258.5L327.5 262.7M311.5 271.4L318.2 276.6M301.2 283.1L307.3 289.1M289.5 293.4L294.7 300.1M276.6 302L280.9 309.4M262.7 308.9L265.9 316.8M247.9 313.9L250.1 322.1M232.7 316.9L233.8 325.4M217.1 318L217.1 326.5M201.6 316.9L200.5 325.4M186.4 313.9L184.2 322.1M171.6 308.9L168.4 316.8M157.7 302L153.4 309.4M144.7 293.4L139.6 300.1M133.1 283.1L127 289.1M122.8 271.4L116.1 276.6M114.2 258.5L106.8 262.7M107.3 244.5L99.4 247.8M102.3 229.8L94.1 232M99.2 214.6L90.8 215.7M98.2 199L89.7 199M99.2 183.5L90.8 182.4M102.3 168.2L94.1 166M107.3 153.5L99.4 150.3M114.2 139.6L106.8 135.3M122.8 126.6L116.1 121.5M133.1 114.9L127 108.9M144.7 104.7L139.6 97.9M157.7 96L153.4 88.7M171.6 89.2L168.4 81.3M186.4 84.2L184.2 75.9M201.6 81.1L200.5 72.7M217.1 80.1L217.1 71.6M232.7 81.1L233.8 72.7M247.9 84.2L250.1 75.9M262.7 89.2L265.9 81.3M276.6 96L280.9 88.7M289.5 104.7L294.7 97.9M301.2 114.9L307.3 108.9M311.5 126.6L318.2 121.5M320.1 139.6L327.5 135.3M327 153.5L334.9 150.3M332 168.2L340.2 166M335.1 183.5L343.5 182.4" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/><text x="217.1" y="227.3" font-family="Bricolage Grotesque" font-weight="700" font-size="84.9" text-anchor="middle" letter-spacing="-2.8" fill="#9599A2">FS</text></g><path d="M20 113.4H185M205 113.4H370" fill="none" stroke="#9599A2" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/><path d="M20 117.4H185M205 117.4H370" fill="none" stroke="#9599A2" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/><path d="M195 110.9L199.5 115.4L195 119.9L190.5 115.4Z" fill="#FF5A1F" opacity="0.45"/><rect x="0" y="0" width="390" height="484" fill="url(#a12-grain)" opacity="0.06"/></svg>` };
+
+let artN = 0;
+function art(name) { const n = ++artN; return ART[name].replace(/id="([^"]+)"/g, `id="$1-${n}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${n})`); }
+const THUMB_ROUTES = `<svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" fill="#F4F6FB"/><path d="M8 36Q20 30 26 20T42 10M8 36Q18 18 26 20" fill="none" stroke="#5B5F68" stroke-width="1.4" stroke-dasharray="0.1 3.2" stroke-linecap="round"/><path d="M26 20Q36 22 40 34" fill="none" stroke="#2B4BFF" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="36" r="2.2" fill="#121316"/><circle cx="26" cy="20" r="2.2" fill="#121316"/><circle cx="40" cy="34" r="3" fill="#FF5A1F"/></svg>`;
+const thumbSun = (c) => `<svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" fill="#F4F6FB"/><circle cx="30" cy="18" r="9" fill="${c}"/><circle cx="30" cy="18" r="3.4" fill="#FF5A1F" opacity="0.45"/><path d="M4 32H44" stroke="#9599A2" stroke-width="1" stroke-linecap="round"/><path d="M8 25h14M11 20h8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const thumbLetter = `<svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" fill="#F6F2EA"/><circle cx="24" cy="25" r="14" fill="none" stroke="#9599A2" stroke-width="1" opacity="0.6"/><path d="M8 12H21M27 12H40" stroke="#9599A2" stroke-width="1" stroke-linecap="round"/><path d="M24 9.5l2.5 2.5-2.5 2.5-2.5-2.5z" fill="#FF5A1F" opacity="0.5"/></svg>`;
+
+// ── The episodes ─────────────────────────────────────────────────────
+const CH_PRICING = [[0, "Cold open"], [18, "Why per-seat feels safe"], [64, "The first yes is cheaper"], [128, "Growing without a sales call"], [186, "The catch is forecasting"], [226, "What to try this week"]];
+const generic = (dur) => [[0, "Cold open"], [0.08, "The short version"], [0.3, "Why it works"], [0.58, "Where it breaks"], [0.85, "What to try this week"]].map(([f, n]) => [Math.round(f * dur), n]);
+const EP = {
+  A: { id: "A", title: "Why usage-based pricing keeps winning at the seed stage", author: "Maya Okafor", pub: "The Unit Economist", av: "MO", avBg: "#FFE3D6", no: 14, piece: 1, of: 4, dur: 243, ch: CH_PRICING, art: "sky", bg: "244,246,251", a: 0.25, kicker: "Article · 8 min · Pricing", tint: 0, thumb: thumbSun("#FFFFFF"),
+    why: "You said you're rethinking your per-seat plan before the raise. This one has numbers from 40 companies." },
+  B: { id: "B", title: "The board meeting you actually want to run", author: "Sam Achebe", pub: "Operator's Desk", av: "SA", avBg: "#DCE3FF", no: 14, piece: 2, of: 4, dur: 260, ch: generic(260), art: "routes", bg: "244,246,251", a: 0.3, kicker: "Article · 7 min · Operations", tint: 1, thumb: THUMB_ROUTES,
+    why: "Your first board meeting is next month. This is the agenda most of them wish they'd used." },
+  C: { id: "C", title: "Cold emails busy buyers actually answer", author: "Priya Raman", no: 14, piece: 4, dur: 232, ch: generic(232), tint: 2, thumb: thumbSun("#DCE3FF") },
+  D: { id: "D", title: "Default alive, explained with one spreadsheet", author: "Ruth Kim", no: 12, piece: 3, dur: 221, ch: generic(221), tint: 0, thumb: thumbLetter },
+  E: { id: "E", title: "Hiring your first salesperson without a VP", author: "Lena Ortiz", no: 15, piece: 2, dur: 250, ch: generic(250), tint: 1, thumb: thumbSun("#FFE3D6") },
+};
+const chIndex = (ep, t) => ep.ch.reduce((k, [at], i) => (t >= at ? i : k), 0);
+const chapter = (ep, t) => ep.ch[chIndex(ep, t)][1];
+const mins = (ep) => `${Math.round(ep.dur / 60)} min`;
+const STEPS = ["Writing the script", "Recording voices", "Finishing"];
+
+// ── The scenario: everything on the page is a function of (step, ms into the step) ──
+const CAPS = {
+  1: "A is playing on piece 1. Collapsed, the row is only A: pause, chapter, time and scrubber, at full width. Nothing else is waiting, so the handle is plain.",
+  2: "You page to piece 2 and tap its headphones. B starts being made. A keeps playing, the row doesn't change, and the handle starts to fill.",
+  3: "B is being made (sped up here). Collapsed, only the handle moves. Expanded, B sits under Making with its ring, step, time left and ✕.",
+  4: "B is ready while A plays. Collapsed, the handle turns blue and pulses once. Expanded, B moves up from Making to Ready, with Play now and Play after this. Nothing starts on its own.",
+  5: "Ending one: A plays to the end. The row says so, then shows B ready to play, as in design A. The handle goes plain again.",
+  6: "Ending two: you open the panel and tap Play now on B. B takes the row and A keeps its place in Podcasts.",
+};
+const NAMES = { 1: "A playing", 2: "Start B", 3: "B making", 4: "B ready", 5: "A ends", 6: "Play B now" };
+const DUR = { 1: 3200, 2: 3600, 3: 9800, 4: 5600, 5: 9500 };
+const PLAY_AT = 1300;
+function making(f) {
+  // As approved: the script to 25%, the voices to 95% a line at a time, then finishing; with Reduce Motion it moves in steps.
+  let v = f < 0.27 ? (f / 0.27) * 0.25 : f < 0.92 ? 0.25 + Math.floor(((f - 0.27) / 0.65) * 30) / 30 * 0.7 : 0.95 + ((f - 0.92) / 0.08) * 0.05;
+  if (reduce) v = Math.floor(v / 0.05) * 0.05;
+  const left = (1 - f) * 60;
+  const eta = f < 0.3 ? "~1 min left" : left <= 5 ? "Almost done" : `~${Math.ceil(left / 5) * 5}s left`;
+  return { s: "making", p: clamp(v), stepName: STEPS[v >= 0.95 ? 2 : v >= 0.25 ? 1 : 0], eta };
+}
+function scene(step, el) {
+  const sc = { step, el, view: "p2", A: { s: "playing", t: 0 }, B: { s: "idle", p: 0 } };
+  if (step === 1) { sc.view = "p1"; sc.A.t = 72 + el / 1000; }
+  if (step === 2) { sc.view = el < 300 ? "p1" : "p2"; sc.A.t = 78 + el / 1000; if (el >= 1200) sc.B = making(0.02 + Math.min(0.04, (el - 1200) / 60000)); }
+  if (step === 3) { sc.A.t = 84 + el / 1000; sc.B = making(0.08 + 0.87 * Math.min(1, el / 9000)); }
+  if (step === 4) { sc.A.t = 140 + el / 1000; sc.B = el < 500 ? making(0.995) : { s: "ready" }; }
+  if (step === 5) {
+    sc.B = { s: "ready" };
+    if (el < 4000) sc.A.t = 239 + el / 1000;
+    else if (el < 5400) sc.A = { s: "done", t: 243 };
+    else sc.A = { s: "listened", t: 243 };
+  }
+  if (step === 6) {
+    if (el < PLAY_AT) { sc.A.t = 150 + el / 1000; sc.B = { s: "ready" }; }
+    else { sc.A = { s: "paused", t: 150 + PLAY_AT / 1000 }; sc.B = { s: "playing", t: (el - PLAY_AT) / 1000 }; }
+  }
+  if (step <= 4) sc.A.t = Math.min(sc.A.t, 225);
+  return sc;
+}
+// What the pill sees: one episode that's on (playing, paused, done), and the lists.
+function modelFromScene(sc) {
+  const { A, B } = sc, m = { now: null, next: [], ready: [], making: [], confirm: null, speed: 1 };
+  if (B.s === "playing") m.now = { id: "B", s: "playing", t: B.t };
+  else if (A.s === "playing" || A.s === "done") m.now = { id: "A", s: A.s, t: A.t };
+  if (B.s === "making") m.making.push({ id: "B", ...B });
+  if (B.s === "ready") m.ready.push("B");
+  return m;
+}
+
+// ── Markup helpers ───────────────────────────────────────────────────
+const I = {
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9h14M5 15h14"/></svg>',
+  phones: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 14h3v6H5.5A1.5 1.5 0 0 1 4 18.5zM20 14h-3v6h1.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+  chevR: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+  back15: '<svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M7.6 9.2A9 9 0 1 1 5 15.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.9 4.8v4.6h4.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text x="14.2" y="18.6" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-weight="600" font-size="8.4" fill="currentColor">15</text></svg>',
+  fwd15: '<svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M20.4 9.2A9 9 0 1 0 23 15.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20.1 4.8v4.6h-4.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text x="13.8" y="18.6" text-anchor="middle" font-family="Instrument Sans, sans-serif" font-weight="600" font-size="8.4" fill="currentColor">15</text></svg>',
+  bigPause: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.4" height="12" rx="1" fill="#FFFFFF"/><rect x="11.6" y="4" width="3.4" height="12" rx="1" fill="#FFFFFF"/></svg>',
+  bigPlay: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.4 3.8v12.4l9.8-6.2z" fill="#FFFFFF"/></svg>',
+  bigCheck: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4.6 10.4l3.6 3.6 7.2-7.6" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  disc: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#2B4BFF"/><path d="M13 10.6v10.8l8.6-5.4z" fill="#FFFFFF"/></svg>',
+};
+const TICKS = [0.25, 0.95].map((at) => { const a = at * 2 * Math.PI - Math.PI / 2, c = Math.cos(a), s = Math.sin(a); return [(16 + c * 10.86).toFixed(2), (16 + s * 10.86).toFixed(2), (16 + c * 13.14).toFixed(2), (16 + s * 13.14).toFixed(2)]; });
+const SVG_STRIP = `<svg viewBox="0 0 32 32" aria-hidden="true"><g class="pring"><circle class="ptrack" cx="16" cy="16" r="12" stroke-width="2.29"/><g>${TICKS.map(([a, b, c, d]) => `<line class="ptick" x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke-width="1.37"/>`).join("")}</g><circle class="parc" data-b="arc" cx="16" cy="16" r="12" stroke-width="2.29" pathLength="100" transform="rotate(-90 16 16)"/></g><circle class="disc" cx="16" cy="16" r="16"/><path class="gl g-play" d="M13 10.6v10.8l8.6-5.4z"/><g class="gl g-pause"><rect x="11.4" y="10.5" width="3.3" height="11" rx="1"/><rect x="17.3" y="10.5" width="3.3" height="11" rx="1"/></g><path class="g-check" d="M10.4 16.4l3.8 3.8 7.4-7.7"/><g class="gl g-wave"><rect x="9.8" y="13" width="2.5" height="6" rx="1.25"/><rect x="14.75" y="9.5" width="2.5" height="13" rx="1.25"/><rect x="19.7" y="12" width="2.5" height="8" rx="1.25"/></g></svg>`;
+const ringSVG = (id) => `<svg class="xring" viewBox="0 0 32 32" aria-hidden="true"><circle class="tr" cx="16" cy="16" r="12"/>${TICKS.map(([a, b, c, d]) => `<line class="tk" x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`).join("")}<circle class="arc" data-b="arc-${id}" cx="16" cy="16" r="12" pathLength="100" transform="rotate(-90 16 16)"/></svg>`;
+function stripHTML(tone, s, { t1 = "", t2 = "", key = "", x = false } = {}) {
+  const pop = s === "ready" || s === "done";
+  return `<div class="strip ${tone}" data-s="${s}" data-k="${key}" data-b="pct"><span class="sico" data-act="row"${pop ? ' data-enter="pop"' : ""}>${SVG_STRIP}${s === "ready" ? '<span class="pulse" data-enter="pulse"></span>' : ""}</span>` +
+    `<div class="smain" data-enter="up"><div class="l1"><span class="t1" data-b="t1">${t1}</span></div><div class="l2"><span class="t2" data-b="t2">${t2}</span><span class="tl" data-b="tl"></span><div class="sbar"><i class="fill"></i><i class="knob"></i></div><span class="tm" data-b="tm"></span></div></div>` +
+    (x ? `<button class="sx" type="button" data-act="stop" data-id="${key}" aria-label="Stop making the episode">${I.x}</button>` : "") + `</div>`;
+}
+const sPlay = (tone, ep, t, s = "playing") => ({ html: stripHTML(tone, s, { key: ep.id }), b: { t1: chapter(ep, t), tm: `${fmt(t)} / ${fmt(ep.dur)}`, pct: (t / ep.dur).toFixed(4) } });
+const sMake = (tone, mk) => ({ html: stripHTML(tone, "making", { t1: "Making the episode…", x: tone === "dark", key: mk.id }), b: { t2: mk.stepName, tl: mk.eta, arc: mk.p } });
+const sText = (tone, s, t1, t2, key) => ({ html: stripHTML(tone, s, { t1, t2, key }) });
+
+// ── Painting: a region re-renders only when its structure changes; live values are bound in place ──
+let firstPaint = true;
+function paint(host, spec, enter = true) {
+  const html = spec ? spec.html : "";
+  if (host._h !== html) {
+    const had = host._h;
+    host.innerHTML = html; host._h = html;
+    if (had && html && enter && !firstPaint) animateEnter(host);
+  }
+  if (spec && spec.b) bind(host, spec.b);
+}
+function bind(host, b) {
+  for (const el of host.querySelectorAll("[data-b]")) {
+    const k = el.dataset.b;
+    if (!(k in b)) continue;
+    const v = b[k];
+    if (k.startsWith("pct")) el.style.setProperty("--pct", v);
+    else if (k.startsWith("arc")) { el.style.strokeDasharray = `${(v * 100).toFixed(2)} 100`; el.style.opacity = v > 0.004 ? "1" : "0"; }
+    else if (el.textContent !== v) el.textContent = v;
+  }
+}
+function animateEnter(host) {
+  for (const el of host.querySelectorAll("[data-enter]")) {
+    const k = el.dataset.enter;
+    if (k === "up") play(el, [{ opacity: 0, transform: "translateY(5px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: EASE });
+    if (k === "pop") play(el, [{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "scale(1.08)", offset: 0.7 }, { opacity: 1, transform: "scale(1)" }], { duration: 360, easing: EASE });
+    if (k === "pulse") play(el, [{ transform: "scale(1)", opacity: 0.5 }, { transform: "scale(1.7)", opacity: 0 }], { duration: 620, delay: 220 });
+  }
+}
+
+// ── The row, the hint and the panel, from one model ──────────────────
+function rowItem(m) {
+  if (m.now) return { id: m.now.id, kind: m.now.s };
+  if (m.ready.length) return { id: m.ready[0], kind: "ready" };
+  if (m.making.length) return { id: m.making[0].id, kind: "making" };
+  return null;
+}
+function rowSpec(m) {
+  const r = rowItem(m);
+  if (!r) return null;
+  const ep = EP[r.id];
+  if (r.kind === "playing" || r.kind === "paused") return sPlay("dark", ep, m.now.t, r.kind);
+  if (r.kind === "done") return sText("dark", "done", "Listened · " + mins(ep), "Played to the end", r.id);
+  if (r.kind === "ready") return sText("dark", "ready", ep.title, "Episode ready · tap to play", r.id);
+  if (m.confirm === r.id) return { html: `<div class="strip dark" data-s="confirm"><div class="xconf" role="alertdialog" aria-label="Stop this episode?"><span class="cq">Stop this episode?</span><button type="button" class="ckeep" data-act="keep">Keep</button><button type="button" class="cstop" data-act="stopyes" data-id="${r.id}">Stop</button></div></div>` };
+  return sMake("dark", m.making[0]);
+}
+function hintOf(m) {
+  const r = rowItem(m), rid = r ? r.id : null;
+  const mk = m.making.filter((x) => x.id !== rid), rd = m.ready.filter((id) => id !== rid);
+  return { kind: rd.length ? "ready" : mk.length ? "making" : "none", p: mk.reduce((a, x) => Math.max(a, x.p), 0), n: mk.length + rd.length };
+}
+function npHTML(id, s) {
+  const ep = EP[id];
+  const ticks = ep.ch.slice(1).map(([at]) => `<i class="ntk" style="left:${((at / ep.dur) * 100).toFixed(2)}%"></i>`).join("");
+  const glyph = s === "playing" ? I.bigPause : s === "done" ? I.bigCheck : I.bigPlay;
+  const label = s === "playing" ? "Pause" : s === "done" ? "Played to the end" : "Play";
+  return `<div class="np ${s}" data-key="np"><div class="nph"><span class="nth">${ep.thumb}</span><span class="ntx"><b>${ep.title}</b><small>No. ${ep.no} · Piece ${ep.piece} · ${ep.author}</small></span></div>
+    <div class="nbar" data-b="pct-np"><span class="ntr"></span><span class="nfill"></span>${ticks}<span class="nknob"></span></div>
+    <div class="ntm"><span data-b="tl"></span><span class="nchn" data-b="ch"></span><span data-b="tr"></span></div>
+    <div class="nctl"><button type="button" class="spd" data-act="speed" data-b="spd" aria-label="Playback speed"></button><button type="button" class="skip" data-act="back" aria-label="Back 15 seconds">${I.back15}</button><button type="button" class="big" data-act="pp" aria-label="${label}">${glyph}</button><button type="button" class="skip" data-act="fwd" aria-label="Forward 15 seconds">${I.fwd15}</button><span></span></div></div>`;
+}
+function panelSpec(m) {
+  const b = {};
+  let np = "";
+  let ready = m.ready;
+  if (m.now) np = npHTML(m.now.id, m.now.s);
+  else if (ready.length) { np = npHTML(ready[0], "ready"); ready = ready.slice(1); }
+  const np_id = m.now ? m.now.id : m.ready[0];
+  if (np_id) {
+    const ep = EP[np_id], t = m.now ? m.now.t : 0, s = m.now ? m.now.s : "ready";
+    Object.assign(b, { "pct-np": (t / ep.dur).toFixed(4), tl: fmt(t), tr: s === "done" ? fmt(ep.dur) : "-" + fmt(ep.dur - t), ch: s === "done" ? "Played to the end" : s === "ready" ? "Ready · tap to play" : chapter(ep, t), spd: `${m.speed}×` });
+  }
+  let list = "";
+  if (m.next.length) list += `<h4 class="xs mono" data-key="h-next"><span>Up next</span></h4>` + m.next.map((id, i) => `<div class="xr nx" data-key="${id}"><span class="xico"><span class="qn">${i + 1}</span></span><span class="xt"><b>${EP[id].title}</b><small>${i ? "Then" : "After this"} · ${mins(EP[id])}</small></span><button class="sx" type="button" data-act="unq" data-id="${id}" aria-label="Remove from Up next">${I.x}</button></div>`).join("");
+  if (ready.length) list += `<h4 class="xs mono" data-key="h-ready"><span>Ready</span></h4>` + ready.map((id) => `<div class="xr rd" data-key="${id}"><span class="xico">${I.disc}</span><span class="xt"><b>${EP[id].title}</b><span class="xbt"><button type="button" class="pnow" data-act="now" data-id="${id}">Play now</button><button type="button" class="plater" data-act="after" data-id="${id}">Play after this</button><small>${mins(EP[id])}</small></span></span></div>`).join("");
+  if (m.making.length) list += `<h4 class="xs mono" data-key="h-making"><span>Making</span></h4>` + m.making.map((x) => {
+    b["arc-" + x.id] = x.p; b["st-" + x.id] = x.stepName; b["eta-" + x.id] = x.eta;
+    const conf = m.confirm === x.id;
+    return `<div class="xr mk${conf ? " confirming" : ""}" data-key="${x.id}"><span class="xico">${ringSVG(x.id)}</span><span class="xt"><b>${EP[x.id].title}</b><small><span data-b="st-${x.id}"></span> · <span data-b="eta-${x.id}"></span></small></span><button class="sx" type="button" data-act="stop" data-id="${x.id}" aria-label="Stop making this episode">${I.x}</button>` +
+      (conf ? `<div class="xconf" role="alertdialog" aria-label="Stop this episode?"><span class="cq">Stop this episode?</span><button type="button" class="ckeep" data-act="keep">Keep</button><button type="button" class="cstop" data-act="stopyes" data-id="${x.id}">Stop</button></div>` : "") + `</div>`;
+  }).join("");
+  if (!list) list = `<p class="xempty" data-key="empty">${m.now && m.now.s === "playing" ? "Episodes you make while this plays will wait here." : "Nothing else waiting."}</p>`;
+  list += `<a class="xall" data-key="all" href="#more" data-act="all"><span>All episodes in Podcasts</span>${I.chevR}</a>`;
+  return { html: np + `<div class="xlist">${list}</div>`, b };
+}
+
+// FLIP: rows that stay keep their place on screen and glide to the new one; new rows rise in.
+function paintPanel(ph, spec) {
+  const host = ph.xin;
+  if (host._h !== spec.html) {
+    const animate = !reduce && host._h && ph.p > 0.4 && !ph.fresh;
+    const old = new Map();
+    if (animate) for (const el of host.querySelectorAll("[data-key]")) old.set(el.dataset.key, el.getBoundingClientRect().top);
+    const ol = host.querySelector(".xlist"), st = ol ? ol.scrollTop : 0;
+    host.innerHTML = spec.html; host._h = spec.html;
+    const nl = host.querySelector(".xlist"); if (nl) nl.scrollTop = st;
+    if (animate) for (const el of host.querySelectorAll("[data-key]")) {
+      const k = el.dataset.key;
+      if (old.has(k)) { const dy = old.get(k) - el.getBoundingClientRect().top; if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 340, easing: EASE }); }
+      else if (k !== "np") el.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 260, delay: 80, easing: EASE, fill: "backwards" });
+    }
+  }
+  bind(host, spec.b);
+}
+
+// ── Phones ───────────────────────────────────────────────────────────
+function pieceView(p) {
+  const bars = Array.from({ length: p.of }, (_, i) => `<i class="${i < p.piece ? "on" : ""}"></i>`).join("");
+  return `<div class="view piece" data-v="${p.id === "A" ? "p1" : "p2"}" style="--bg:${p.bg};--a:${p.a}"><div class="band"><div class="bart">${art(p.art)}<span class="tscrim"></span></div>
+    <div class="top"><span class="mono">No. ${p.no} · Piece ${p.piece} of ${p.of}</span><span class="bars">${bars}</span></div>
+    <div class="gap"></div>
+    <div class="bhead"><span class="mono kicker">${p.kicker}</span><h2 class="ttl">${p.title}</h2></div></div>
+    <div class="body"><span class="chip"><span class="av" style="background:${p.avBg}">${p.av}</span><span class="cn"><b>${p.author}</b><small>${p.pub}</small></span></span>
+    <p class="why">${p.why}</p>
+    <div class="actions"><span class="read"><span class="dot"><i></i></span>Read article</span><span class="listen" data-ep="${p.id}">${I.phones}</span></div></div></div>`;
+}
+function epRow(ep) {
+  return `<li class="ep" data-id="${ep.id}" style="--tint: var(--tint-${ep.tint})"${ep.id === "B" ? " hidden" : ""}><div class="ep-in"><span class="eb"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="ebg" cx="20" cy="20" r="20"/><circle class="etr" cx="20" cy="20" r="13"/><g class="etk"><line x1="20" y1="8.2" x2="20" y2="5.8"/></g><circle class="earc" cx="20" cy="20" r="13" pathLength="100" transform="rotate(-90 20 20)"/><path class="gl gp" d="M16.2 13.2v13.6l10.6-6.8z"/><g class="gl gpa"><rect x="14.2" y="13" width="4" height="14" rx="1.2"/><rect x="21.8" y="13" width="4" height="14" rx="1.2"/></g><path class="gc" d="M13.5 20.5l4.5 4.5 8.5-9"/></svg></span>
+    <span class="et"><span class="ett">${ep.title}</span><span class="em">${ep.author} · No. ${ep.no} · Piece ${ep.piece}</span><span class="es"><span class="eq"><i></i><i></i><i></i></span><span class="elab"></span><span class="ebar"><i></i></span></span></span></div></li>`;
+}
+function libView() {
+  return `<div class="view lib on" data-v="lib"><div class="scroll"><span class="lk mono">Library</span><h2 class="lt">Podcasts</h2>
+    <div class="seg3"><span>Saved</span><span>Letters</span><span class="on">Podcasts</span></div>
+    <h3 class="gh mono">In progress</h3><ul class="eps">${epRow(EP.A)}</ul>
+    <h3 class="gh mono">New</h3><ul class="eps">${epRow(EP.B)}${epRow(EP.C)}</ul>
+    <h3 class="gh mono">Listened</h3><ul class="eps">${epRow(EP.D)}</ul></div></div>`;
+}
+const PSET_PIECE = `<div class="pset"><span class="pb">${I.up}</span><div class="plabel"><span class="k">No. 14</span><span class="v" data-pg>2 / 6</span></div><span class="pb">${I.down}</span><span class="pb blue">${I.menu}</span></div>`;
+const PSET_LIB = `<div class="pset"><div class="plabel"><span class="k">Library</span><span class="v">Podcasts</span></div><span class="pb blue">${I.menu}</span></div>`;
+function pillHTML(pset) {
+  return `<div class="pill" data-v="fill"><div class="xp"><button class="hdl" type="button" data-k="none" aria-label="Show what's playing and waiting" aria-expanded="false"><span class="hbar"><i></i></span><span class="hdot"></span></button><div class="crow"><div class="rstrip"></div></div><div class="xin"></div></div><div class="pbtns">${pset}</div></div>`;
+}
+function phoneHTML(kind) {
+  const views = kind === "piece" ? pieceView(EP.A) + pieceView(EP.B) : kind === "lib" ? libView() : pieceView(EP.A).replace('class="view piece"', 'class="view piece on"');
+  return `<div class="phone"><div class="screen">${views}<div class="scrim"></div>
+    <div class="dockwrap">${pillHTML(kind === "lib" ? PSET_LIB : PSET_PIECE)}</div>
+    <div class="sysbar" aria-hidden="true"><span>9:41</span><span class="sig"><i></i><i></i><i></i><b></b></span></div><div class="notch"></div><div class="home"></div></div></div>`;
+}
+
+const CH = 50, MAXH = 286, W0 = 264, W1 = 284;
+const phones = [];
+function makePhone(col, kind) {
+  col.insertAdjacentHTML("afterbegin", phoneHTML(kind) + (kind === "piece" ? '<p class="cap" data-cap>Piece 1 · A\'s page</p>' : kind === "lib" ? '<p class="cap">Library · Podcasts tab</p>' : ""));
+  const screen = col.querySelector(".screen"), q = (s) => screen.querySelector(s);
+  const ph = { kind, col, screen, pill: q(".pill"), xp: q(".xp"), hdl: q(".hdl"), hbar: q(".hbar"), hdot: q(".hdot"), crow: q(".crow"), rstrip: q(".rstrip"), xin: q(".xin"), scrim: q(".scrim"), pg: q("[data-pg]"), cap: col.querySelector("[data-cap]"),
+    p: 0, Hs: 200, mode: "collapsed", anim: null, drag: null, samples: [], fresh: true, hint: null, lastDesired: null, fired: new Set(), inertOpen: null };
+  for (const b of col.querySelectorAll("[data-mode]")) b.addEventListener("click", () => setMode(ph, b.dataset.mode));
+  wireDrag(ph);
+  phones.push(ph);
+  return ph;
+}
+function setMode(ph, mode, animate = true) {
+  ph.mode = mode;
+  for (const b of ph.col.querySelectorAll("[data-mode]")) b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+  snap(ph, mode === "expanded" ? 1 : 0, 0, !animate);
+}
+function snap(ph, target, v = 0, instant = false) {
+  if (instant || reduce) { ph.p = target; ph.anim = null; return; }
+  ph.anim = { target, v: clamp(v, -14, 14) };
+}
+function stepSpring(ph, dt) {
+  const a = ph.anim;
+  if (!a) return;
+  let t = dt;
+  while (t > 0) { const h = Math.min(t, 1 / 240); a.v += (-300 * (ph.p - a.target) - 31 * a.v) * h; ph.p += a.v * h; t -= h; }
+  if (Math.abs(ph.p - a.target) < 0.002 && Math.abs(a.v) < 0.03) { ph.p = a.target; ph.anim = null; }
+}
+/** Resistance past either end, in pixels of height. */
+function rubber(h, hs) {
+  if (h > hs) return hs + 18 * (1 - Math.exp(-(h - hs) / 60));
+  if (h < CH) return CH - 8 * (1 - Math.exp(-(CH - h) / 40));
+  return h;
+}
+function sample(ph) { ph.samples.push({ y: ph.drag.y, time: performance.now() }); if (ph.samples.length > 12) ph.samples.shift(); }
+/** Speed over the last ~90 ms in px/ms; positive is downward. */
+function speed(ph) {
+  const now = performance.now(), r = ph.samples.filter((s) => now - s.time < 90);
+  if (r.length < 2) return 0;
+  return (r[r.length - 1].y - r[0].y) / Math.max(1, r[r.length - 1].time - r[0].time);
+}
+function wireDrag(ph) {
+  const { xp, screen } = ph;
+  xp.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || xp.classList.contains("empty")) return;
+    const list = e.target.closest(".xlist");
+    ph.drag = { id: e.pointerId, y0: e.clientY, y: e.clientY, h0: CH + (ph.Hs - CH) * ph.p, mode: "pending", list, top: list ? list.scrollTop : 0, hdl: !!e.target.closest(".hdl") };
+    ph.samples = []; sample(ph);
+  });
+  xp.addEventListener("pointermove", (e) => {
+    const g = ph.drag;
+    if (!g || e.pointerId !== g.id) return;
+    const dy = e.clientY - g.y0;
+    g.y = e.clientY;
+    if (g.mode === "pending") {
+      if (Math.abs(dy) < 5) return;
+      // Inside the list, scrolling wins unless it's a pull down from the top.
+      if (g.list && ph.p > 0.5 && !(g.top <= 0 && dy > 0)) { g.mode = "native"; return; }
+      g.mode = "drag"; ph.anim = null; xp.setPointerCapture(e.pointerId); xp.classList.add("dragging");
+    }
+    if (g.mode !== "drag") return;
+    e.preventDefault();
+    const h = rubber(g.h0 - dy, ph.Hs);
+    ph.p = (h - CH) / (ph.Hs - CH);
+    sample(ph);
+  });
+  const end = (e) => {
+    const g = ph.drag;
+    if (!g || e.pointerId !== g.id) return;
+    ph.drag = null; xp.classList.remove("dragging");
+    if (g.mode === "drag") {
+      ph.justDragged = true; setTimeout(() => (ph.justDragged = false), 60);
+      const v = speed(ph);
+      const open = v < -0.3 || (v <= 0.3 && ph.p > 0.5);
+      ph.mode = open ? "expanded" : "collapsed";
+      for (const b of ph.col.querySelectorAll("[data-mode]")) b.setAttribute("aria-pressed", String(b.dataset.mode === ph.mode));
+      snap(ph, open ? 1 : 0, (-v * 1000) / Math.max(60, ph.Hs - CH));
+    } else if (g.mode === "pending" && g.hdl && e.type === "pointerup") {
+      setMode(ph, ph.p > 0.5 ? "collapsed" : "expanded");
+    }
+  };
+  xp.addEventListener("pointerup", end);
+  xp.addEventListener("pointercancel", end);
+  ph.hdl.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMode(ph, ph.p > 0.5 ? "collapsed" : "expanded"); } });
+  // Tapping outside the open panel closes it.
+  ph.scrim.addEventListener("pointerdown", () => { if (ph.p > 0.05) setMode(ph, "collapsed"); });
+}
+
+// One frame of layout: the height follows p; the row and the panel cross-fade near the bottom of the travel.
+function layout(ph, dt, empty) {
+  ph.xp.classList.toggle("empty", empty);
+  const np = ph.xin.querySelector(".np"), list = ph.xin.querySelector(".xlist");
+  const natural = 16 + (np ? np.offsetHeight : 0) + (list ? list.scrollHeight : 0);
+  const target = clamp(natural, CH + 80, MAXH);
+  ph.Hs = ph.fresh || reduce ? target : ph.Hs + (target - ph.Hs) * Math.min(1, dt * 9);
+  if (list) list.classList.toggle("more", natural > ph.Hs + 2 && list.scrollTop + list.clientHeight < list.scrollHeight - 2);
+  const pc = clamp(ph.p), h = CH + (ph.Hs - CH) * ph.p;
+  ph.xp.style.height = `${h.toFixed(2)}px`;
+  ph.xin.style.height = `${ph.Hs.toFixed(2)}px`;
+  ph.pill.style.width = `${(W0 + (W1 - W0) * pc).toFixed(2)}px`;
+  ph.pill.style.borderRadius = `${(27 - 5 * pc).toFixed(2)}px`;
+  ph.crow.style.opacity = (1 - clamp(ph.p / 0.4)).toFixed(3);
+  ph.xin.style.opacity = clamp((ph.p - 0.2) / 0.5).toFixed(3);
+  ph.xin.style.transform = `translateY(${((1 - pc) * 10).toFixed(2)}px)`;
+  ph.scrim.style.opacity = (0.16 * pc).toFixed(3);
+  ph.scrim.style.pointerEvents = pc > 0.05 ? "auto" : "none";
+  const open = pc > 0.5;
+  if (ph.inertOpen !== open) {
+    ph.inertOpen = open;
+    ph.crow.inert = open; ph.xin.inert = !open;
+    ph.xp.classList.toggle("open", open);
+    ph.hdl.setAttribute("aria-expanded", String(open));
+  }
+}
+function setHint(ph, h) {
+  const prev = ph.hint;
+  ph.hdl.dataset.k = h.kind;
+  ph.hbar.style.setProperty("--hp", h.p.toFixed(3));
+  const n = String(h.n);
+  if (ph.hdot.textContent !== n) ph.hdot.textContent = n;
+  // Ready: one pulse, then it stays put.
+  if (prev && !ph.fresh && prev.kind !== "ready" && h.kind === "ready" && ph.p < 0.5) {
+    if (ph.pill.dataset.v === "fill") play(ph.hbar, [{ transform: "scale(1)", boxShadow: "0 0 0 0 rgba(143,161,255,0.7)" }, { transform: "scaleX(1.3) scaleY(1.5)", boxShadow: "0 0 0 5px rgba(143,161,255,0)", offset: 0.45 }, { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(143,161,255,0)" }], { duration: 700, easing: EASE });
+    else play(ph.hdot, [{ transform: "scale(1)" }, { transform: "scale(1.45)", offset: 0.4 }, { transform: "scale(1)" }], { duration: 480, easing: EASE });
+  } else if (prev && !ph.fresh && h.n > prev.n && ph.pill.dataset.v === "dot") play(ph.hdot, [{ transform: "scale(0.4)", opacity: 0 }, { transform: "scale(1.2)", opacity: 1, offset: 0.6 }, { transform: "scale(1)" }], { duration: 380, easing: EASE });
+  ph.hint = h;
+}
+function renderPhone(ph, m, dt) {
+  const row = rowSpec(m);
+  paint(ph.rstrip, row);
+  paintPanel(ph, panelSpec(m));
+  setHint(ph, hintOf(m));
+  layout(ph, dt, !row);
+}
+function tap(screen, el) {
+  if (!el) return;
+  const s = screen.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const t = document.createElement("span");
+  t.className = "tap";
+  t.style.left = `${r.left - s.left + r.width / 2}px`; t.style.top = `${r.top - s.top + r.height / 2}px`;
+  screen.appendChild(t);
+  const a = reduce
+    ? t.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: 600 })
+    : t.animate([{ opacity: 0.9, transform: "scale(0.5)" }, { opacity: 0, transform: "scale(1.5)" }], { duration: 560, easing: "cubic-bezier(.33,1,.68,1)" });
+  a.onfinish = () => t.remove();
+}
+
+// ── Scenario phones, Listen cards and the Podcasts list ──────────────
+const cols = (n) => document.querySelector(`[data-ph="${n}"]`);
+const P = [makePhone(cols(0), "piece"), makePhone(cols(1), "lib")];
+for (const el of document.querySelectorAll('[data-i="phones"]')) el.outerHTML = I.phones;
+const cards = { A: document.querySelector('[data-card="A"] .shost'), B: document.querySelector('[data-card="B"] .shost') };
+function cardSpec(which, a, b) {
+  if (which === "A") {
+    if (a.s === "playing" || a.s === "paused") return sPlay("light", EP.A, a.t, a.s);
+    return sText("light", "done", "Listened · 4 min", "Played to the end", "A");
+  }
+  if (b.s === "idle") return sText("light", "idle", "Make a two-host episode", "Ready in about a minute", "B");
+  if (b.s === "making") return sMake("light", { id: "B", ...b });
+  if (b.s === "ready") return a.s === "playing" ? sText("light", "ready", "Episode ready · 4 min", "Play now, or after this one", "B") : sText("light", "ready", "Episode ready · 4 min", "Two hosts · tap to play", "B");
+  return sPlay("light", EP.B, b.t);
+}
+function podRow(li, ep, st) {
+  let s, lab, pct = 0;
+  if (ep === EP.A) {
+    if (st.s === "playing") { s = "playing"; lab = `${fmt(ep.dur - st.t)} left`; pct = st.t / ep.dur; }
+    else if (st.s === "paused") { s = "partial"; lab = `${fmt(ep.dur - st.t)} left`; pct = st.t / ep.dur; }
+    else { s = "listened"; lab = "Listened"; }
+  } else {
+    li.hidden = st.s === "idle";
+    if (st.s === "making") { s = "making"; lab = `${st.stepName} · ${st.eta}`; }
+    else if (st.s === "playing") { s = "playing"; lab = `${fmt(ep.dur - st.t)} left`; pct = st.t / ep.dur; }
+    else { s = "ready"; lab = "Ready · 4 min"; }
+  }
+  if (li.dataset.s !== s) li.dataset.s = s;
+  const l = li.querySelector(".elab");
+  if (lab && l.textContent !== lab) l.textContent = lab;
+  li.style.setProperty("--pct", pct.toFixed(4));
+  li.querySelector(".earc").style.strokeDasharray = `${((st.p || 0) * 100).toFixed(2)} 100`;
+}
+for (const [id, s, lab] of [["C", "ready", "4 min"], ["D", "listened", "Listened"]]) { const li = P[1].screen.querySelector(`.ep[data-id="${id}"]`); li.dataset.s = s; li.querySelector(".elab").textContent = lab; }
+
+// Collapsed phones open themselves in step 6 to show the tap; expanded ones just tap.
+const wantOpen = (ph, sc) => ph.mode === "expanded" || (sc.step === 6 && sc.el >= 250 && sc.el < 2500);
+function renderScenario(sc, dt) {
+  const m = modelFromScene(sc);
+  for (const ph of P) {
+    const want = wantOpen(ph, sc);
+    if (want !== ph.lastDesired) {
+      const tgt = want ? 1 : 0;
+      if (!(ph.anim && ph.anim.target === tgt) && (ph.p !== tgt || ph.fresh)) snap(ph, tgt, 0, ph.fresh);
+      ph.lastDesired = want;
+    }
+    if (ph.kind === "piece") {
+      for (const v of ph.screen.querySelectorAll(".view")) v.classList.toggle("on", v.dataset.v === sc.view);
+      const pg = sc.view === "p1" ? "2 / 6" : "3 / 6";
+      if (ph.pg.textContent !== pg) ph.pg.textContent = pg;
+      for (const l of ph.screen.querySelectorAll(".listen")) l.classList.toggle("on", (l.dataset.ep === "A" ? sc.A.s : sc.B.s) !== "idle" && (l.dataset.ep === "B" || sc.A.s !== "listened"));
+      const cap = sc.view === "p1" ? "Piece 1 · A's page" : "Piece 2 · B's page";
+      if (ph.cap.textContent !== cap) ph.cap.textContent = cap;
+    } else {
+      podRow(ph.screen.querySelector('.ep[data-id="A"]'), EP.A, sc.A);
+      podRow(ph.screen.querySelector('.ep[data-id="B"]'), EP.B, sc.B);
+    }
+    renderPhone(ph, m, dt);
+    const taps = [];
+    if (sc.step === 2 && ph.kind === "piece") taps.push([1000, ".view.on .listen"]);
+    if (sc.step === 6 && ph.mode === "collapsed") taps.push([150, ".hdl"]);
+    if (sc.step === 6) taps.push([1100, '.xr[data-key="B"] .pnow']);
+    for (const [at, sel] of taps) {
+      const k = `${sc.step}:${at}`;
+      if (sc.el >= at && !ph.fired.has(k)) { ph.fired.add(k); if (sc.el - at < 400) tap(ph.screen, ph.screen.querySelector(sel)); }
+    }
+    ph.fresh = false;
+  }
+  for (const w of ["A", "B"]) paint(cards[w], cardSpec(w, sc.A, sc.B));
+}
+
+// ── The hint, up close: static rows ──────────────────────────────────
+const HINT_STATES = [["Nothing waiting", { now: { id: "A", s: "playing", t: 72 }, next: [], ready: [], making: [], speed: 1 }],
+  ["Making · 60%", { now: { id: "A", s: "playing", t: 96 }, next: [], ready: [], making: [{ id: "B", ...making(0.62) }], speed: 1 }],
+  ["Ready", { now: { id: "A", s: "playing", t: 140 }, next: [], ready: ["B"], making: [], speed: 1 }]];
+const minis = [];
+for (const col of document.querySelectorAll(".hcol")) {
+  for (const [label, m] of HINT_STATES) {
+    const box = document.createElement("div");
+    box.className = "hbox";
+    box.innerHTML = `<span class="mono">${label}</span>` + pillHTML(PSET_LIB);
+    col.appendChild(box);
+    const pill = box.querySelector(".pill");
+    pill.dataset.v = col.dataset.variant;
+    pill.querySelector(".hdl").tabIndex = -1;
+    const mini = { pill, hdl: pill.querySelector(".hdl"), hbar: pill.querySelector(".hbar"), hdot: pill.querySelector(".hdot"), rstrip: pill.querySelector(".rstrip"), p: 0, fresh: true, hint: null, m };
+    minis.push(mini);
+  }
+}
+function renderMinis() { for (const mi of minis) { paint(mi.rstrip, rowSpec(mi.m), false); setHint(mi, hintOf(mi.m)); mi.fresh = false; } }
+
+// ── The clickable phone: more episodes, real state ───────────────────
+const SB = { m: null, f: {} };
+const sbPhone = makePhone(cols(2), "solo");
+function preset(name) {
+  if (name === "four") { SB.m = { now: { id: "A", s: "playing", t: 96 }, next: ["B"], ready: ["C"], making: [], confirm: null, speed: 1 }; SB.f = { D: 0.62, E: 0.18 }; }
+  else { SB.m = { now: null, next: [], ready: [], making: [], confirm: null, speed: 1 }; SB.f = { E: 0.3 }; }
+  clearTimeout(SB.ct);
+  for (const b of document.querySelectorAll("[data-preset]")) b.setAttribute("aria-pressed", String(b.dataset.preset === name));
+  sbPhone.fresh = true;
+}
+function sbTick(dt) {
+  const m = SB.m;
+  if (m.now && m.now.s === "playing") {
+    m.now.t += dt * m.speed;
+    if (m.now.t >= EP[m.now.id].dur) {
+      if (m.next.length) m.now = { id: m.next.shift(), s: "playing", t: 0 };
+      else { m.now = { id: m.now.id, s: "done", t: EP[m.now.id].dur }; setTimeout(() => { if (SB.m.now && SB.m.now.s === "done") SB.m.now = null; }, 1400); }
+    }
+  }
+  for (const id of Object.keys(SB.f)) {
+    SB.f[id] = Math.min(1, SB.f[id] + dt / 30);
+    if (SB.f[id] >= 1) { delete SB.f[id]; m.ready.unshift(id); if (m.confirm === id) m.confirm = null; }
+  }
+  m.making = Object.keys(SB.f).sort((a, b) => SB.f[b] - SB.f[a]).map((id) => ({ id, ...making(SB.f[id]) }));
+}
+function playNow(id) {
+  const m = SB.m;
+  m.ready = m.ready.filter((x) => x !== id); m.next = m.next.filter((x) => x !== id);
+  m.now = { id, s: "playing", t: 0 };
+}
+sbPhone.pill.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-act]");
+  if (!btn || sbPhone.justDragged) return;
+  const m = SB.m, act = btn.dataset.act, id = btn.dataset.id;
+  if (act === "all") return;
+  e.preventDefault();
+  if (act === "pp" || act === "row") {
+    if (m.now && m.now.s !== "done") m.now.s = m.now.s === "playing" ? "paused" : "playing";
+    else if (m.ready.length) playNow(m.ready[0]);
+  }
+  if (act === "back" && m.now) m.now.t = Math.max(0, m.now.t - 15);
+  if (act === "fwd" && m.now && m.now.s !== "done") m.now.t = Math.min(EP[m.now.id].dur - 0.5, m.now.t + 15);
+  if (act === "speed") m.speed = { 1: 1.25, 1.25: 1.5, 1.5: 1 }[m.speed];
+  if (act === "now") playNow(id);
+  if (act === "after") { m.ready = m.ready.filter((x) => x !== id); m.next.push(id); }
+  if (act === "unq") { m.next = m.next.filter((x) => x !== id); m.ready.unshift(id); }
+  if (act === "stop") { m.confirm = id; clearTimeout(SB.ct); SB.ct = setTimeout(() => (SB.m.confirm = null), 5000); }
+  if (act === "keep") { m.confirm = null; clearTimeout(SB.ct); }
+  if (act === "stopyes") { delete SB.f[id]; m.confirm = null; clearTimeout(SB.ct); }
+});
+for (const b of document.querySelectorAll("[data-preset]")) b.addEventListener("click", () => preset(b.dataset.preset));
+preset("four");
+
+// ── The clock and the controls ───────────────────────────────────────
+const G = { step: 1, t0: performance.now(), auto: false, last: performance.now() };
+const stepsEl = document.getElementById("steps"), scap = document.getElementById("scap"), autoBtn = document.getElementById("autoBtn");
+for (let n = 1; n <= 6; n++) {
+  const btn = document.createElement("button");
+  btn.className = "ctl"; btn.type = "button"; btn.dataset.step = n;
+  btn.innerHTML = `<span class="n">${n}</span>${NAMES[n]}`;
+  btn.addEventListener("click", () => { stopAuto(); setStep(n); });
+  stepsEl.appendChild(btn);
+}
+function setStep(n, el = 0, soft = false) {
+  G.step = n; G.t0 = performance.now() - el;
+  // Auto-play moves on softly, so the motion between steps plays; a jump starts the step clean.
+  for (const ph of P) { ph.fired.clear(); if (!soft) { ph.fresh = true; ph.lastDesired = null; ph.hint = null; } }
+  for (const b of stepsEl.children) b.setAttribute("aria-pressed", String(+b.dataset.step === n));
+  scap.innerHTML = `<span class="k">Step ${n}</span>${CAPS[n]}`;
+}
+function stopAuto() { G.auto = false; autoBtn.textContent = "Auto-play steps 1 to 5"; }
+autoBtn.addEventListener("click", () => {
+  if (G.auto) { stopAuto(); return; }
+  G.auto = true; autoBtn.textContent = "Stop auto-play"; setStep(1);
+});
+document.getElementById("replayBtn").addEventListener("click", () => setStep(G.step));
+function setHintStyle(v) {
+  for (const ph of phones) { ph.pill.dataset.v = v; ph.hint = null; }
+  for (const b of document.querySelectorAll("[data-hint]")) b.setAttribute("aria-pressed", String(b.dataset.hint === v));
+}
+for (const b of document.querySelectorAll("[data-hint]")) b.addEventListener("click", () => setHintStyle(b.dataset.hint));
+setHintStyle("fill");
+for (const ph of phones) setMode(ph, "collapsed", false);
+
+// A moment can be held still for review (and for screenshots).
+const holds = new Map();
+function frame(now) {
+  const dt = Math.min(0.05, (now - G.last) / 1000); G.last = now;
+  let el = now - G.t0;
+  if (G.auto && el >= DUR[G.step]) {
+    if (G.step < 5) { setStep(G.step + 1, 0, true); el = 0; } else stopAuto();
+  }
+  for (const ph of phones) { if (holds.has(ph)) { ph.p = holds.get(ph); ph.anim = null; } else if (!ph.drag) stepSpring(ph, dt); }
+  renderScenario(scene(G.step, el), dt);
+  sbTick(dt);
+  renderPhone(sbPhone, SB.m, dt);
+  sbPhone.fresh = false;
+  firstPaint = false;
+  requestAnimationFrame(frame);
+}
+setStep(1);
+renderMinis();
+requestAnimationFrame(frame);
+window.mock = {
+  setStep, G, scene, phones, setMode: (i, m) => setMode(phones[i], m, false), setHintStyle, preset,
+  hold: (i, p) => (p == null ? holds.delete(phones[i]) : holds.set(phones[i], p)),
+  sb: SB,
+};
+</script>

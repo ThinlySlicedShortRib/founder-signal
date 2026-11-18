@@ -55,6 +55,10 @@ const subscribe = (l: () => void) => podcastLibrary.subscribe(l);
 export function usePodcastLibrary() {
   return useSyncExternalStore(subscribe, podcastLibrary.entries);
 }
+/** One episode on the list (null: not on it). */
+export function usePodcastEntry(itemId: string) {
+  return useSyncExternalStore(subscribe, () => podcastLibrary.get(itemId));
+}
 
 // ── The pill's row on the Podcasts tab ────────────────────────────────────────
 /**

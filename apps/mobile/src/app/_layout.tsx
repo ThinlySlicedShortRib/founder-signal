@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { NowPlayingStatus } from "@/components/letter/EpisodeStatus";
+import { NowPlayingStatus } from "@/components/letter/ExpandablePlayer";
 import { font, ONBOARDING_FONTS, palette } from "@/components/onboarding/kit";
 import { PillOutlet, PillProvider } from "@/components/pager/Pill";
 import { Body, Button, Screen, Title } from "@/components/ui";

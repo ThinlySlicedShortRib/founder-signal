@@ -24,11 +24,9 @@ import Animated, {
 import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { font, palette } from "@/components/onboarding/kit";
-import { PillStatusSlot } from "@/components/pager/Pill";
 import { fmtTime, type Phase, STEP_ENDS, STEPS, stepOf } from "@/lib/episode-task";
-import { type EpisodeTask, nowPlaying, rowFolded, scrubTo, setConfirmRect, useEpisodeTask, useNowPlaying, usePlayerItem, usePlayTime } from "@/lib/listen";
+import { type EpisodeTask, nowPlaying, scrubTo, setConfirmRect, useEpisodeTask, useEpisodeTitle, usePlayTime } from "@/lib/listen";
 import { goToNowPlaying } from "@/lib/now-playing-nav";
-import { usePillRowPlaybackOnly } from "@/lib/podcasts";
 import { POLL_MS } from "@/lib/podcast";
 
 /**
@@ -44,8 +42,8 @@ import { POLL_MS } from "@/lib/podcast";
  * with Keep and Stop. When the ring closes it grows into the play button.
  */
 
-/** The row's height inside the pill (the pill's status area is this plus its 1pt hairline). */
-export const STATUS_ROW_H = 43;
+/** The row's height inside the pill (under the grab handle's 7pt, over the 1pt hairline: STATUS_H in all). */
+export const STATUS_ROW_H = 42;
 
 type Tone = "dark" | "light";
 const TONES = {
@@ -415,7 +413,7 @@ function EpisodeIcon({
 // ── Text ─────────────────────────────────────────────────────────────────────
 
 /** "Making the episode…": a soft light passes over the title (left to right, every 2.2s). Plain text with Reduce Motion. */
-function Shimmer({ text, style, ink, shine }: { text: string; style: TextStyle; ink: string; shine: string }) {
+export function Shimmer({ text, style, ink, shine }: { text: string; style: TextStyle; ink: string; shine: string }) {
   const reduce = useReducedMotion();
   const [w, setW] = useState(0);
   const x = useSharedValue(0);
@@ -545,6 +543,7 @@ export function EpisodeStrip({
   tone,
   card = false,
   onOpen,
+  title: named,
 }: {
   task: EpisodeTask;
   tone: Tone;
@@ -552,6 +551,8 @@ export function EpisodeStrip({
   card?: boolean;
   /** The text was tapped: go to the Listen card. */
   onOpen?: () => void;
+  /** The pill's row, offering a ready episode while nothing plays: its title over "Episode ready · tap to play". */
+  title?: string | null;
 }) {
   const reduce = useReducedMotion();
   const t = TONES[tone];
@@ -588,7 +589,7 @@ export function EpisodeStrip({
   let sub = "";
   if (phase === "idle") [title, sub] = ["Make a two-host episode", "Ready in about a minute"];
   else if (phase === "making") title = "Making the episode…";
-  else if (phase === "ready") [title, sub] = [`Episode ready · ${task.length}`, "Two hosts · tap to play"];
+  else if (phase === "ready") [title, sub] = named ? [named, "Episode ready · tap to play"] : [`Episode ready · ${task.length}`, "Two hosts · tap to play"];
   else if (phase === "failed") title = "Couldn't make the episode";
   else if (phase === "done") [title, sub] = [`Listened · ${task.length}`, "Played to the end"];
   else if (phase === "stopped") title = "Stopped";
@@ -776,16 +777,17 @@ function Scrubber({ itemId, at, duration, dragging, tone }: { itemId: string; at
  */
 export function EpisodeStatusRow({ itemId, onOpen }: { itemId: string; onOpen: () => void }) {
   const task = useEpisodeTask(itemId);
+  const title = useEpisodeTitle(itemId);
   const [last, setLast] = useState(task);
   if (task.row && last !== task) setLast(task);
   return (
     <View style={{ height: STATUS_ROW_H, paddingLeft: 10, paddingRight: 9, flexDirection: "row", alignItems: "center" }}>
-      <EpisodeStrip task={task.row ? task : last} tone="dark" onOpen={onOpen} />
+      <EpisodeStrip task={task.row ? task : last} tone="dark" onOpen={onOpen} title={title} />
     </View>
   );
 }
 
-// ── Now playing: the row on every pill ───────────────────────────────────────
+// ── Now playing: the pill's collapsed row ────────────────────────────────────
 
 /** Another episode takes the row: the old text and progress fade out (130ms), the new rise in after them (200ms). */
 const SWAP_OUT = new Keyframe({ 0: { opacity: 1 }, 100: { opacity: 0, easing: Easing.in(Easing.ease) } }).duration(130);
@@ -794,36 +796,10 @@ const SWAP_IN = new Keyframe({ 0: { opacity: 0, transform: [{ translateY: 3 }] }
   .duration(200);
 
 /**
- * The app's one status row (now-playing.html), in the root layout: whichever episode is now playing (or being
- * made) claims the pill's row, on every screen. Screens only change the controls under it, so moving around
- * the app never folds, regrows or re-animates the row. It folds only when its episode's row closes
- * (Listened or Stopped); another episode starting crossfades it in place.
+ * The pill's collapsed row (player-expand.html): the episode it shows, crossfading in place when another takes it.
+ * Tapping its text goes back to the piece.
  */
-export function NowPlayingStatus() {
-  const { itemId } = useNowPlaying();
-  // On the Podcasts tab the row is for playback only: it follows the episode in the player.
-  const playbackOnly = usePillRowPlaybackOnly();
-  const playerItem = usePlayerItem();
-  const id = playbackOnly ? playerItem : itemId;
-  // Unmounts (letting the row fold) only once nothing is playing; a new episode keeps the same slot.
-  return id ? <NowPlayingSlot itemId={id} playbackOnly={playbackOnly} /> : null;
-}
-
-/** What the pill's row may show on the Podcasts tab (being made, ready or failed show in the episode's own list row). */
-const PLAYBACK: Phase[] = ["playing", "paused", "done"];
-
-function NowPlayingSlot({ itemId, playbackOnly }: { itemId: string; playbackOnly: boolean }) {
-  const task = useEpisodeTask(itemId);
-  const closed = task.loaded && !task.row;
-  // Its row closed: let go (the row falls back to the episode still in the player, or folds).
-  useEffect(() => {
-    if (closed) rowFolded(itemId);
-  }, [closed, itemId]);
-  const shows = task.row && (!playbackOnly || PLAYBACK.includes(task.phase));
-  return <PillStatusSlot>{shows ? <NowPlayingRow itemId={itemId} /> : null}</PillStatusSlot>;
-}
-
-function NowPlayingRow({ itemId }: { itemId: string }) {
+export function NowPlayingRow({ itemId }: { itemId: string }) {
   const reduce = useReducedMotion();
   const mounted = useMounted();
   const pathname = usePathname();
